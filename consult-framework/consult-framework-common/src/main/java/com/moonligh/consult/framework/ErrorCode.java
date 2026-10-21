@@ -19,7 +19,8 @@ public enum ErrorCode {
     INVALID_GENDER(1106, "性别须为 1 或 2。"),
     INVALID_AGE(1107, "年龄须为 1 到 120 的整数。"),
     INVALID_DURATION(1108, "病程须包含时长。"),
-    EMPTY_CARD_PATCH(1109, "请至少修改一项。");
+    EMPTY_CARD_PATCH(1109, "请至少修改一项。"),
+    HUMAN_STOP(1110, "请转人工协助。");
 
     private final int code;
     private final String message;

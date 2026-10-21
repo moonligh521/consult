@@ -166,4 +166,74 @@ class ConsultationAcceptanceTest {
         assertEquals(ErrorCode.CONSULTATION_NOT_FOUND, error.getErrorCode());
         assertEquals("找不到这轮咨询。", error.getMessage());
     }
+
+    @Test
+    void ac9FractureStillGetsCardForOnlineDoctor() {
+        ConsultationRes view = service.acceptMessage(null, "女，32岁，手腕骨折两天");
+        assertEquals(ConsultationStatus.CARD_READY, view.status());
+        assertNull(view.prompt());
+        assertEquals(Gender.FEMALE, view.card().gender());
+        assertEquals(32, view.card().age());
+        assertEquals("两天", view.card().duration());
+        assertEquals(Department.GENERAL, view.card().department());
+
+        ConsultationRes confirmed = service.confirm(view.consultationId());
+        assertEquals(ConsultationStatus.CONFIRMED, confirmed.status());
+        assertEquals(Department.GENERAL, confirmed.card().department());
+    }
+
+    @Test
+    void ac10UrgentBeatsAskForHuman() {
+        ConsultationRes view = service.acceptMessage(null, "胸痛并且转人工");
+        assertEquals(ConsultationStatus.URGENT, view.status());
+        assertEquals("请立即拨打 120，或前往最近的实体医院急诊。", view.prompt());
+        assertNull(view.card());
+    }
+
+    @Test
+    void ac11AskForHumanStopsAutoRouting() {
+        ConsultationRes first = service.acceptMessage(null, "转人工");
+        assertEquals(ConsultationStatus.NEED_HUMAN, first.status());
+        assertEquals("请转人工协助。当前无法自动完成导诊。", first.prompt());
+        assertNull(first.card());
+
+        ConsultationRes again = service.acceptMessage(first.consultationId(), "还是要人工");
+        assertEquals(ConsultationStatus.NEED_HUMAN, again.status());
+        assertNull(again.card());
+
+        BusinessException patch = assertThrows(
+                BusinessException.class,
+                () -> service.updateCard(new CardPatchReq(first.consultationId(), null, null, null, "腹痛", null)));
+        assertEquals(ErrorCode.HUMAN_STOP, patch.getErrorCode());
+
+        BusinessException confirm = assertThrows(
+                BusinessException.class,
+                () -> service.confirm(first.consultationId()));
+        assertEquals(ErrorCode.HUMAN_STOP, confirm.getErrorCode());
+    }
+
+    @Test
+    void ac12FindHumanAlsoStops() {
+        ConsultationRes view = service.acceptMessage(null, "找人工");
+        assertEquals(ConsultationStatus.NEED_HUMAN, view.status());
+        assertNull(view.card());
+    }
+
+    @Test
+    void ac13PregnantCoughGoesOrdinaryTriage() {
+        ConsultationRes view = service.acceptMessage(null, "孕妇，干咳半年");
+        assertEquals(ConsultationStatus.NEED_SLOT, view.status());
+        assertEquals(MissingSlot.GENDER, view.missingSlot());
+        assertEquals("请补充性别。", view.prompt());
+        assertNull(view.card());
+    }
+
+    @Test
+    void ac14RewriteCardToHumanVoidsCard() {
+        String id = service.acceptMessage(null, "女，32岁，干咳半年，运动后加重").consultationId();
+        ConsultationRes patched = service.updateCard(new CardPatchReq(id, null, null, null, "转人工", null));
+        assertEquals(ConsultationStatus.NEED_HUMAN, patched.status());
+        assertEquals("请转人工协助。当前无法自动完成导诊。", patched.prompt());
+        assertNull(patched.card());
+    }
 }

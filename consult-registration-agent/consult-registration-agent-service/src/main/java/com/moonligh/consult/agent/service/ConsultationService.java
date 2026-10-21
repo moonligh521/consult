@@ -16,6 +16,7 @@ import com.moonligh.consult.agent.domain.ConsultationSession;
 import com.moonligh.consult.agent.domain.DepartmentRouter;
 import com.moonligh.consult.agent.domain.InMemoryConsultationStore;
 import com.moonligh.consult.agent.domain.SafetyGate;
+import com.moonligh.consult.agent.domain.SafetyHit;
 import com.moonligh.consult.agent.domain.SlotParser;
 import com.moonligh.consult.agent.domain.SymptomExtractor;
 import com.moonligh.consult.framework.BusinessException;
@@ -24,12 +25,13 @@ import com.moonligh.consult.framework.ErrorCode;
 /**
  * 挂号咨询编排：收消息、改卡片、确认。
  * 急症分流、补槽、抽症状、荐科室都在 domain 里，这里只按顺序调用。
- * 顺序：先急症分流，再补性别/年龄/病程，齐了才生成卡片。
+ * 顺序：先急症和转人工，其余补槽后生成卡片，交给线上医生。
  */
 @Service
 public class ConsultationService {
 
     static final String URGENT_PROMPT = "请立即拨打 120，或前往最近的实体医院急诊。";
+    static final String HUMAN_PROMPT = "请转人工协助。当前无法自动完成导诊。";
     static final String REDESCRIBE_PROMPT = "请重新描述病情。";
 
     private final InMemoryConsultationStore store;
@@ -51,7 +53,7 @@ public class ConsultationService {
         this.departmentRouter = departmentRouter;
     }
 
-    /** 收一句病情描述。已确认、待确认卡片、急症三种状态不再走普通补槽。 */
+    /** 收一句病情描述。已确认、待确认卡片、安全分流三种状态不再走普通补槽。 */
     public ConsultationRes acceptMessage(String consultationId, String text) {
         ConsultationSession session = findOrCreate(consultationId);
         String sentence = text == null ? "" : text.trim();
@@ -62,8 +64,8 @@ public class ConsultationService {
         if (session.getStatus() == ConsultationStatus.CARD_READY) {
             throw new BusinessException(ErrorCode.CARD_PENDING_CONFIRMATION);
         }
-        if (session.getStatus() == ConsultationStatus.URGENT) {
-            return urgentView(session);
+        if (isSafetyStop(session.getStatus())) {
+            return safetyView(session);
         }
         if (sentence.isEmpty()) {
             return blankView(session);
@@ -72,25 +74,21 @@ public class ConsultationService {
         fillEmptySlots(session, sentence);
         addDescription(session, sentence);
 
-        if (safetyGate.triggered(session.getDescription())) {
-            session.setStatus(ConsultationStatus.URGENT);
-            session.setCard(null);
-            store.save(session);
-            return urgentView(session);
+        ConsultationRes gated = applySafety(session, session.getDescription());
+        if (gated != null) {
+            return gated;
         }
         return nextView(session);
     }
 
-    /** 改卡片。只改传入的字段；改了病情描述要再跑急症分流和科室推荐。 */
+    /** 改卡片。只改传入的字段；改了病情描述要再跑安全分流和科室推荐。 */
     public ConsultationRes updateCard(CardPatchReq patch) {
         if (patch == null) {
             throw new BusinessException(ErrorCode.EMPTY_CARD_PATCH);
         }
 
         ConsultationSession session = require(patch.consultationId());
-        if (session.getStatus() == ConsultationStatus.URGENT) {
-            throw new BusinessException(ErrorCode.URGENT_STOP);
-        }
+        rejectIfSafetyStop(session.getStatus());
         if (session.getStatus() == ConsultationStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.ALREADY_CONFIRMED);
         }
@@ -139,11 +137,11 @@ public class ConsultationService {
         session.setDuration(duration);
         session.setDescription(description);
 
-        if (descriptionChanged && safetyGate.triggered(description)) {
-            session.setStatus(ConsultationStatus.URGENT);
-            session.setCard(null);
-            store.save(session);
-            return urgentView(session);
+        if (descriptionChanged) {
+            ConsultationRes gated = applySafety(session, description);
+            if (gated != null) {
+                return gated;
+            }
         }
         if (descriptionChanged) {
             symptoms = symptomExtractor.extract(description);
@@ -160,12 +158,10 @@ public class ConsultationService {
         return new ConsultationRes(session.getId(), ConsultationStatus.CARD_READY, null, null, card);
     }
 
-    /** 确认卡片。急症或还没生成卡片时不能确认。 */
+    /** 确认卡片。安全分流或还没生成卡片时不能确认。 */
     public ConsultationRes confirm(String consultationId) {
         ConsultationSession session = require(consultationId);
-        if (session.getStatus() == ConsultationStatus.URGENT) {
-            throw new BusinessException(ErrorCode.URGENT_STOP);
-        }
+        rejectIfSafetyStop(session.getStatus());
         if (session.getStatus() == ConsultationStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.ALREADY_CONFIRMED);
         }
@@ -260,9 +256,48 @@ public class ConsultationService {
                 session.getId(), ConsultationStatus.NEED_DESCRIPTION, REDESCRIBE_PROMPT, null, null);
     }
 
-    /** 急症：只提示打 120，不给卡片。 */
-    private ConsultationRes urgentView(ConsultationSession session) {
-        return new ConsultationRes(session.getId(), ConsultationStatus.URGENT, URGENT_PROMPT, null, null);
+    /** 命中安全分流则改状态、丢掉卡片；没命中返回 null。 */
+    private ConsultationRes applySafety(ConsultationSession session, String description) {
+        SafetyHit hit = safetyGate.classify(description);
+        if (hit == SafetyHit.NONE) {
+            return null;
+        }
+        session.setStatus(statusOf(hit));
+        session.setCard(null);
+        store.save(session);
+        return safetyView(session);
+    }
+
+    /** 急症、线下评估、人工协助：只给提示，不给卡片。 */
+    private ConsultationRes safetyView(ConsultationSession session) {
+        return new ConsultationRes(session.getId(), session.getStatus(), promptOf(session.getStatus()), null, null);
+    }
+
+    private boolean isSafetyStop(ConsultationStatus status) {
+        return status == ConsultationStatus.URGENT || status == ConsultationStatus.NEED_HUMAN;
+    }
+
+    private void rejectIfSafetyStop(ConsultationStatus status) {
+        if (status == ConsultationStatus.URGENT) {
+            throw new BusinessException(ErrorCode.URGENT_STOP);
+        }
+        if (status == ConsultationStatus.NEED_HUMAN) {
+            throw new BusinessException(ErrorCode.HUMAN_STOP);
+        }
+    }
+
+    private ConsultationStatus statusOf(SafetyHit hit) {
+        if (hit == SafetyHit.HUMAN) {
+            return ConsultationStatus.NEED_HUMAN;
+        }
+        return ConsultationStatus.URGENT;
+    }
+
+    private String promptOf(ConsultationStatus status) {
+        if (status == ConsultationStatus.NEED_HUMAN) {
+            return HUMAN_PROMPT;
+        }
+        return URGENT_PROMPT;
     }
 
     /** 缺什么就追问什么，顺序固定：性别 → 年龄 → 病程。 */

@@ -3,25 +3,36 @@ package com.moonligh.consult.agent.domain;
 import org.springframework.stereotype.Component;
 
 /**
- * 急症分流。命中四个短语之一就停止普通导诊，提示打 120。
- * 必须先于补槽和科室推荐。
+ * 安全分流。只拦急症和用户明确要求转人工。
+ * 其余描述生成咨询卡片，交给线上医生；要不要线下看由医生说。
  */
 @Component
 public class SafetyGate {
 
-    /**
-     * V0.1 只认这四个词，写在交付基线里。
-     */
-    private static final String[] PHRASES = {"胸痛", "呼吸困难", "意识障碍", "口唇发紫"};
+    /** V0.1 四个急症短语，本版不扩展同义。 */
+    private static final String[] URGENT_PHRASES = {"胸痛", "呼吸困难", "意识障碍", "口唇发紫"};
+
+    /** 用户自己要求转人工，不自动进图文/视频。 */
+    private static final String[] HUMAN_PHRASES = {"转人工", "找人工"};
 
     /**
-     * 描述里出现任一短语就返回 true。
+     * 按优先级返回命中结果。描述为空则不算命中。
      */
-    public boolean triggered(String description) {
+    public SafetyHit classify(String description) {
         if (description == null || description.isBlank()) {
-            return false;
+            return SafetyHit.NONE;
         }
-        for (String phrase : PHRASES) {
+        if (containsAny(description, URGENT_PHRASES)) {
+            return SafetyHit.URGENT;
+        }
+        if (containsAny(description, HUMAN_PHRASES)) {
+            return SafetyHit.HUMAN;
+        }
+        return SafetyHit.NONE;
+    }
+
+    private boolean containsAny(String description, String[] phrases) {
+        for (String phrase : phrases) {
             if (description.contains(phrase)) {
                 return true;
             }

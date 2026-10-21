@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
  * 咨询状态。接口与数据库都传 code，不传枚举名。
- * 1 待描述；2 待补槽；3 急症分流；4 卡片待确认；5 已确认。
+ * 1 待描述；2 待补槽；3 急症分流；4 卡片待确认；5 已确认；6 需要人工协助。
  */
 public enum ConsultationStatus {
 
@@ -13,7 +13,8 @@ public enum ConsultationStatus {
     NEED_SLOT(2, "待补槽"),
     URGENT(3, "急症分流"),
     CARD_READY(4, "卡片待确认"),
-    CONFIRMED(5, "已确认");
+    CONFIRMED(5, "已确认"),
+    NEED_HUMAN(6, "需要人工协助");
 
     /** 对外传递的数字。 */
     private final int code;
