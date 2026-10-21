@@ -32,9 +32,10 @@ public class ConsultationController {
     @PostMapping("/messages")
     public Result<ConsultationRes> acceptMessage(@RequestBody MessageReq request) {
         if (request == null) {
-            return Result.ok(service.acceptMessage(null, ""));
+            return Result.ok(service.acceptMessage(null, null, null, ""));
         }
-        return Result.ok(service.acceptMessage(request.consultationId(), request.text()));
+        return Result.ok(service.acceptMessage(
+                request.consultationId(), request.messageId(), request.serviceType(), request.text()));
     }
 
     /**
@@ -46,7 +47,7 @@ public class ConsultationController {
     }
 
     /**
-     * 确认卡片。确认后本轮不再收普通病情描述。
+     * 确认卡片。确认后仍接受病情变化消息，先做安全重评。
      */
     @PostMapping("/confirmation")
     public Result<ConsultationRes> confirm(@RequestBody ConfirmReq request) {
