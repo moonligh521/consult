@@ -1,4 +1,4 @@
-package com.moonligh.consult.agent;
+package com.moonligh.consult.agent.service;
 
 import java.util.List;
 import java.util.UUID;
@@ -12,9 +12,20 @@ import com.moonligh.consult.agent.api.enums.MissingSlot;
 import com.moonligh.consult.agent.api.req.CardPatchReq;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
+import com.moonligh.consult.agent.domain.ConsultationSession;
+import com.moonligh.consult.agent.domain.DepartmentRouter;
+import com.moonligh.consult.agent.domain.InMemoryConsultationStore;
+import com.moonligh.consult.agent.domain.SafetyGate;
+import com.moonligh.consult.agent.domain.SlotParser;
+import com.moonligh.consult.agent.domain.SymptomExtractor;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 
+/**
+ * 挂号咨询编排：收消息、改卡片、确认。
+ * 急症分流、补槽、抽症状、荐科室都在 domain 里，这里只按顺序调用。
+ * 顺序：先急症分流，再补性别/年龄/病程，齐了才生成卡片。
+ */
 @Service
 public class ConsultationService {
 
@@ -40,6 +51,7 @@ public class ConsultationService {
         this.departmentRouter = departmentRouter;
     }
 
+    /** 收一句病情描述。已确认、待确认卡片、急症三种状态不再走普通补槽。 */
     public ConsultationRes acceptMessage(String consultationId, String text) {
         ConsultationSession session = findOrCreate(consultationId);
         String sentence = text == null ? "" : text.trim();
@@ -69,6 +81,7 @@ public class ConsultationService {
         return nextView(session);
     }
 
+    /** 改卡片。只改传入的字段；改了病情描述要再跑急症分流和科室推荐。 */
     public ConsultationRes updateCard(CardPatchReq patch) {
         if (patch == null) {
             throw new BusinessException(ErrorCode.EMPTY_CARD_PATCH);
@@ -147,6 +160,7 @@ public class ConsultationService {
         return new ConsultationRes(session.getId(), ConsultationStatus.CARD_READY, null, null, card);
     }
 
+    /** 确认卡片。急症或还没生成卡片时不能确认。 */
     public ConsultationRes confirm(String consultationId) {
         ConsultationSession session = require(consultationId);
         if (session.getStatus() == ConsultationStatus.URGENT) {
@@ -163,6 +177,7 @@ public class ConsultationService {
         return new ConsultationRes(session.getId(), ConsultationStatus.CONFIRMED, null, null, session.getCard());
     }
 
+    /** 没带编号就新建一轮；带了编号必须能找到。 */
     private ConsultationSession findOrCreate(String consultationId) {
         if (consultationId == null || consultationId.isBlank()) {
             ConsultationSession created = new ConsultationSession(UUID.randomUUID().toString());
@@ -172,6 +187,7 @@ public class ConsultationService {
         return require(consultationId);
     }
 
+    /** 按编号取会话，找不到就抛 1101。 */
     private ConsultationSession require(String consultationId) {
         ConsultationSession session = store.find(consultationId);
         if (session == null) {
@@ -180,6 +196,7 @@ public class ConsultationService {
         return session;
     }
 
+    /** 空着的槽位才从这句话里抽，已经有的不覆盖。 */
     private void fillEmptySlots(ConsultationSession session, String sentence) {
         if (session.getGender() == null) {
             Gender gender = slotParser.gender(sentence);
@@ -201,6 +218,7 @@ public class ConsultationService {
         }
     }
 
+    /** 多句话用换行拼在一起，后面急症分流看完整描述。 */
     private void addDescription(ConsultationSession session, String sentence) {
         if (session.getDescription().isEmpty()) {
             session.setDescription(sentence);
@@ -209,6 +227,7 @@ public class ConsultationService {
         session.setDescription(session.getDescription() + "\n" + sentence);
     }
 
+    /** 还缺槽位就追问；齐了才抽症状、荐科室、生成卡片。 */
     private ConsultationRes nextView(ConsultationSession session) {
         MissingSlot missing = nextMissing(session);
         if (missing != null) {
@@ -231,6 +250,7 @@ public class ConsultationService {
         return new ConsultationRes(session.getId(), ConsultationStatus.CARD_READY, null, null, card);
     }
 
+    /** 空文本：请对方重新描述，并指出还缺哪个槽位。 */
     private ConsultationRes blankView(ConsultationSession session) {
         if (session.getStatus() == ConsultationStatus.NEED_SLOT) {
             MissingSlot missing = nextMissing(session);
@@ -240,10 +260,12 @@ public class ConsultationService {
                 session.getId(), ConsultationStatus.NEED_DESCRIPTION, REDESCRIBE_PROMPT, null, null);
     }
 
+    /** 急症：只提示打 120，不给卡片。 */
     private ConsultationRes urgentView(ConsultationSession session) {
         return new ConsultationRes(session.getId(), ConsultationStatus.URGENT, URGENT_PROMPT, null, null);
     }
 
+    /** 缺什么就追问什么，顺序固定：性别 → 年龄 → 病程。 */
     private MissingSlot nextMissing(ConsultationSession session) {
         if (session.getGender() == null) {
             return MissingSlot.GENDER;
@@ -257,6 +279,7 @@ public class ConsultationService {
         return null;
     }
 
+    /** 追问文案。 */
     private String promptFor(MissingSlot slot) {
         if (slot == MissingSlot.GENDER) {
             return "请补充性别。";
@@ -267,6 +290,7 @@ public class ConsultationService {
         return "请补充病程。";
     }
 
+    /** 五个可改字段都没传，就算空修改。 */
     private boolean hasCardChange(CardPatchReq patch) {
         return patch.gender() != null
                 || patch.age() != null

@@ -5,6 +5,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+/**
+ * 挂号 agent 启动入口。
+ * 放在 agent 根包，Spring 才能扫到下面的 controller、service、domain。
+ */
 @SpringBootApplication(scanBasePackages = "com.moonligh.consult")
 public class AgentApplication {
 

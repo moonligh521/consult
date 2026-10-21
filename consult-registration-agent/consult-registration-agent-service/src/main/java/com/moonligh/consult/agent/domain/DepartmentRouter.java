@@ -1,9 +1,13 @@
-package com.moonligh.consult.agent;
+package com.moonligh.consult.agent.domain;
 
 import org.springframework.stereotype.Component;
 
 import com.moonligh.consult.agent.api.enums.Department;
 
+/**
+ * 按关键词推荐科室。谁在句子里先出现就跟谁。
+ * 对不上时落到全科。不能覆盖急症分流的结论。
+ */
 @Component
 public class DepartmentRouter {
 
@@ -25,6 +29,9 @@ public class DepartmentRouter {
         return Department.DIGESTIVE;
     }
 
+    /**
+     * 一组词里最早出现的下标；都没有返回 -1。
+     */
     private int firstIndex(String text, String... keywords) {
         int best = -1;
         for (String keyword : keywords) {
@@ -36,6 +43,9 @@ public class DepartmentRouter {
         return best;
     }
 
+    /**
+     * 三个下标里最小的非负数；都是 -1 则返回 -1。
+     */
     private int smallestIndex(int a, int b, int c) {
         int best = -1;
         if (a >= 0) {

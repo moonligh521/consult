@@ -1,4 +1,4 @@
-package com.moonligh.consult.agent;
+package com.moonligh.consult.agent.controller;
 
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -15,6 +15,12 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.jayway.jsonpath.JsonPath;
+import com.moonligh.consult.agent.domain.DepartmentRouter;
+import com.moonligh.consult.agent.domain.InMemoryConsultationStore;
+import com.moonligh.consult.agent.domain.SafetyGate;
+import com.moonligh.consult.agent.domain.SlotParser;
+import com.moonligh.consult.agent.domain.SymptomExtractor;
+import com.moonligh.consult.agent.service.ConsultationService;
 import com.moonligh.consult.framework.ErrorCode;
 import com.moonligh.consult.framework.GlobalExceptionHandler;
 import com.moonligh.consult.framework.ResultCode;
