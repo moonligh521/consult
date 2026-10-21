@@ -12,7 +12,7 @@
 
 ## 状态
 
-仓库已有骨架和社区文件。当前版本线是 V0.1，开发分支是 `feature-V0.1-20261021`。交付范围和验收用例见 [V0.1 交付基线](docs/product/V0.1-baseline.md)，分支和标签见 [分支与版本](docs/engineering/git-workflow.md)。业务代码和构建文件尚未写入。
+仓库已有骨架和社区文件。当前版本线是 V0.1，开发分支是 `feature-V0.1-20261021`。交付范围见 [V0.1 交付基线](docs/product/V0.1-baseline.md)，一轮咨询的输入输出见 [V0.1 一轮咨询](docs/product/V0.1-conversation.md)，第一批代码的构建和包见 [V0.1 应用结构](docs/engineering/V0.1-application.md)。分支和标签见 [分支与版本](docs/engineering/git-workflow.md)。业务代码和构建文件尚未写入。
 
 ## 功能范围
 
