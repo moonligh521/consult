@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [V0.1.0] - 2026-10-21
+
 ### Added
 
 - 建立 `registration-assistant` 的仓库骨架、社区文件和 Apache-2.0 许可证。
@@ -40,3 +42,7 @@
 - 外部工具改为按能力引入：用到时才加入依赖，并在基础设施层封装。
 - 定下一轮咨询的输入输出、V0.1 应用结构，以及远端分支保护尚未启用时的目标规则。
 - 按导诊槽位、咨询卡片、号源层级和事务消息收紧功能范围。
+- GitHub 仓库由 `registration-assistant` 更名为 `consult`。
+
+[Unreleased]: https://github.com/moonligh521/consult/compare/V0.1.0...HEAD
+[V0.1.0]: https://github.com/moonligh521/consult/releases/tag/V0.1.0
