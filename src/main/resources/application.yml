@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: registration-assistant
+server:
+  port: 18081
