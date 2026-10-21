@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- 发布线由 `main` 改为 `master`。
+
 ## [V0.1.0] - 2026-10-21
 
 ### Added
