@@ -8,7 +8,7 @@
 
 ## 分支
 
-<!-- 头分支须符合 docs/engineering/git-workflow.md，例如 feature-V0.1-20261021 -->
+<!-- 头分支须符合 docs/engineering/分支与版本.md，例如 feature-V0.1-20261021 -->
 
 ## 检查项
 

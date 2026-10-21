@@ -6,7 +6,7 @@
 
 ## 目标
 
-本仓库是一个日均十万单的挂号应用，要完成简历里「智能挂号助手」的能力：多轮补槽、规则与向量分诊、可确认的咨询卡片和三档号源、Redis 锁与缓存预热、RocketMQ 事务消息和幂等扣减。完成标准见 [项目目标](docs/product/goals.md)。互联网诊疗订单何时必须终止，见 [服务边界调研报告](docs/product/internet-diagnosis-boundary.md)。
+本仓库是一个日均十万单的挂号应用，要完成简历里「智能挂号助手」的能力：多轮补槽、规则与向量分诊、可确认的咨询卡片和三档号源、Redis 锁与缓存预热、RocketMQ 事务消息和幂等扣减。完成标准见 [项目目标](docs/product/项目目标.md)。互联网诊疗订单何时必须终止，见 [服务边界调研报告](docs/product/互联网诊疗服务边界调研报告.md)。
 
 ## 概述
 
@@ -16,7 +16,7 @@
 
 ## 状态
 
-仓库已有骨架和社区文件。当前版本线是 V0.1，开发分支是 `feature-V0.1-20261021`。交付范围见 [V0.1 交付基线](docs/product/V0.1-baseline.md)，一轮咨询的输入输出见 [V0.1 一轮咨询](docs/product/V0.1-conversation.md)，第一批代码的构建和包见 [V0.1 应用结构](docs/engineering/V0.1-application.md)。分支和标签见 [分支与版本](docs/engineering/git-workflow.md)。业务代码和构建文件尚未写入。
+仓库已有骨架和社区文件。当前版本线是 V0.1，开发分支是 `feature-V0.1-20261021`。交付范围见 [V0.1 交付基线](docs/product/V0.1交付基线.md)，一轮咨询的输入输出见 [V0.1 一轮咨询](docs/product/V0.1一轮咨询.md)，第一批代码的构建和包见 [V0.1 应用结构](docs/engineering/V0.1应用结构.md)。分支和标签见 [分支与版本](docs/engineering/分支与版本.md)。业务代码和构建文件尚未写入。
 
 ## 功能范围
 
@@ -29,7 +29,7 @@
 
 ## 技术选择
 
-系列仓库选定同一套运行时。本仓库按 [基础设施](docs/engineering/infrastructure.md) 引入工具：代码用到哪一项，构建文件才引用哪一项，并在基础设施层封装。
+系列仓库选定同一套运行时。本仓库按 [基础设施](docs/engineering/基础设施.md) 引入工具：代码用到哪一项，构建文件才引用哪一项，并在基础设施层封装。
 
 V0.1 使用 JDK 21 与 Spring Boot 4.1.1。模型接入使用 LangChain4j 调用 DeepSeek。MySQL 8.0.46、Redis 8.2.10、RocketMQ 5.5.1（Java 客户端 rocketmq-spring 2.3.6）和向量库留到各自能力进入代码时再引用。LangChain4j 的版本和 DeepSeek 的模型名也在那时写入基础设施文档。
 
