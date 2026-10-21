@@ -6,13 +6,22 @@ out/
 *.jar
 *.war
 *.ear
+*.zip
 
 # Logs and local env
 *.log
 logs/
 .env
 .env.*
-!.env.example
+application-local.yml
+application-local.yaml
+
+# Implementation and product plans stay local. 合规说明进入公开仓库。
+docs/产品/
+docs/工程/
+docs/product/
+docs/engineering/
+docs/compliance/
 
 # IDE
 .idea/

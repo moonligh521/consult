@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: consult-registration-agent-service
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai
+    username: root
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+server:
+  port: 18081

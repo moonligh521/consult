@@ -4,11 +4,45 @@
 
 ## [Unreleased]
 
+## [V0.1.0] - 2026-10-21
+
 ### Added
 
 - 建立 `registration-assistant` 的仓库骨架、社区文件和 Apache-2.0 许可证。
+- 冻结 V0.1 交付基线，并把分支规范定为 `feature-V主.次-年月日`。
+- 补上 Maven 构建文件、启动入口和端口配置。
+- 补上 `Dockerfile`。
+- 在 `application.yml` 配置 MySQL；提交时主机为 `127.0.0.1`，不写真实连接。
+- 公开仓库保留代码、项目说明和合规说明；产品与工程细节方案不再跟踪。
+- 实现 V0.1 急症分流、槽位追问、科室卡片、咨询接口和验收测试。
+- 咨询枚举改为整型 code：接口 JSON 与数据库均传数字，不传枚举名或中文标签。
+- 咨询编号改到请求体传递，路径上不带参数。
+- 接口改为统一返回 `Result`：HTTP 200，业务码、消息、数据和 traceId。
+- 请求和响应实体收到 `api.req` / `api.res`，领域规则留在 `consultation`。仍是一个仓库、一个工程。
+- 同一仓库拆成 `consult-framework`（含 `consult-framework-common`）和挂号 agent `consult-registration-agent`（含 api、service）。医生端以后同样加一对 api + service。
+- 挂号服务直接声明 `spring-boot-starter-web`。
 
 ### Changed
 
-- 确定运行时为 JDK 21、Spring Boot 4.1.1、Spring AI 2.0.1、MySQL 8.0.46、Redis 8.2.10、RocketMQ 5.5.1。
+- 确定运行时为 JDK 21、Spring Boot 4.1.1、MySQL 8.0.46、Redis 8.2.10、RocketMQ 5.5.1。模型接入目标为 LangChain4j 调用 DeepSeek。
+- 将项目目标按六层安全架构重写：急症分流、导诊整理、号源核验和审计分列；日均十万单归入预约执行层。
+- 写明问诊订单在医生端接收成功后由医生端接诊；本 agent 不再跟问诊。
+- 下单页改为四档咨询：普通咨询、极速咨询、三甲医生、权威专家；支付成功后立即同步订单。
+- 增补技术设计和测评方案：安装运行、六层落点、同步契约、V0.1 验收与临床安全指标。
+- 写明本仓库两个 Agent：导诊编排器调用多工具；测评 Agent 离线有界循环。患者路径不用自由 ReAct loop。
+- 规划本轮会话记忆、争议时回到确认卡片，以及就诊档案只做核验与补卡、不做诊断性分析。
+- 规划一个账号绑定多名就诊人，订单和档案按当前就诊人隔离。
+- 冻结抽取模型为 DeepSeek `deepseek-chat`，并列出 V0.1 写代码前已齐的前置准备。
+- 把 README 概述、目录和基础设施说明对齐到急症分流先于科室推荐。
+- 将容量目标定为日均十万单。
+- 按国家卫生健康委公开文本写入互联网诊疗服务边界调研报告，作为开展 AI 挂号前的合规说明。
+- 增补 AI 导诊与挂号的场景边界、安全分流、数据调用和上线验收四份合规文件。
+- 将 `docs` 下的说明文档改为中文文件名，并把合规说明集中到 `docs/合规/`。说明文档的目录名为 `docs/产品/`、`docs/工程/`、`docs/合规/`。
+- V0.1 在生成科室卡片前先做急症分流。胸痛、呼吸困难、意识障碍、口唇发紫不再进入普通补槽。
+- 外部工具改为按能力引入：用到时才加入依赖，并在基础设施层封装。
+- 定下一轮咨询的输入输出、V0.1 应用结构，以及远端分支保护尚未启用时的目标规则。
 - 按导诊槽位、咨询卡片、号源层级和事务消息收紧功能范围。
+- GitHub 仓库由 `registration-assistant` 更名为 `consult`。
+
+[Unreleased]: https://github.com/moonligh521/consult/compare/V0.1.0...HEAD
+[V0.1.0]: https://github.com/moonligh521/consult/releases/tag/V0.1.0

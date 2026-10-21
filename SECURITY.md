@@ -4,13 +4,13 @@
 
 | 版本 | 说明 |
 | --- | --- |
-| 尚未发布 | `registration-assistant` 还在骨架阶段，没有可长期支持的正式版本 |
+| 尚未发布 | `consult` 还在骨架阶段，没有可长期支持的正式版本 |
 
 有了第一个正式版本之后，这一节会改成具体的支持范围。
 
 ## 报告漏洞
 
-请通过 GitHub 仓库的私人漏洞报告（Security Advisories）提交。仓库公开之前，也可以把说明发到维护者，标题注明 `registration-assistant security`。
+请通过 GitHub 仓库的私人漏洞报告（Security Advisories）提交。仓库公开之前，也可以把说明发到维护者，标题注明 `consult security`。
 
 报告里请写清影响范围、复现方式和你所知道的缓解办法。确认之前，请不要开公开 Issue，也不要在 Pull Request、讨论区或提交说明里粘贴利用细节。
 
