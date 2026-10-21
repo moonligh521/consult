@@ -25,16 +25,9 @@
 
 ## 技术选择
 
-五个仓库使用同一套运行时，模型接入使用 Spring AI。
+系列仓库选定同一套运行时。本仓库按 [基础设施](docs/engineering/infrastructure.md) 引入工具：代码用到哪一项，构建文件才引用哪一项，并在基础设施层封装。
 
-- JDK 21
-- Spring Boot 4.1.1
-- Spring AI 2.0.1
-- MySQL 8.0.46
-- Redis 8.2.10
-- RocketMQ 5.5.1，Java 客户端使用 rocketmq-spring 2.3.6
-
-在本仓库中，Spring AI 负责多轮追问、症状抽取和咨询卡片。MySQL 保存订单与号源扣减结果。Redis 负责分布式锁和放号前的缓存预热。RocketMQ 用事务消息把订单生成、号源扣减和权益校验收成一条最终一致的链路。
+V0.1 使用 JDK 21 与 Spring Boot 4.1.1。Spring AI 2.0.1、MySQL 8.0.46、Redis 8.2.10、RocketMQ 5.5.1（Java 客户端 rocketmq-spring 2.3.6）和向量库留到各自能力进入代码时再引用。
 
 源码目录按 Maven 标准布局预留。构建文件会和第一批可运行代码一起提交。
 
@@ -46,7 +39,7 @@ src/main/resources/
 src/test/java/com/moonligh/registration/
 ```
 
-Java 包名是 `com.moonligh.registration`。
+Java 包名是 `com.moonligh.registration`。Redis、消息队列、向量库等封装包在第一次被调用时再建立。
 
 ## 数据
 
