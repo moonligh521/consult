@@ -9,7 +9,7 @@ Redis、消息队列、向量库、数据库和模型客户端按同一条规则
 | 能力 | 工具 | 版本 | 本仓库的首次引入时机 |
 | --- | --- | --- | --- |
 | 应用运行时 | JDK、Spring Boot | JDK 21、Spring Boot 4.1.1 | 第一批可运行代码 |
-| 模型调用 | Spring AI | 2.0.1 | 出现调用模型的类时 |
+| 模型调用 | LangChain4j 调用 DeepSeek | 引入该能力时选定 LangChain4j 版本和 DeepSeek 模型名，并写回本表 | 出现从病情文本抽取槽位或症状的类时 |
 | 订单与号源结果 | MySQL | 8.0.46 | 出现订单或号源持久化时 |
 | 分布式锁与缓存 | Redis | 8.2.10 | 出现分布式锁或缓存预热时 |
 | 事务消息 | RocketMQ | 5.5.1，Java 客户端 rocketmq-spring 2.3.6 | 出现订单、号源扣减和权益校验的最终一致链路时 |
@@ -42,7 +42,9 @@ V0.1 的槽位、症状标签、科室规则和咨询卡片都在进程内完成
 | RocketMQ | `com.moonligh.registration.order.RegistrationPublisher` | `com.moonligh.registration.infrastructure.mq` |
 | 向量库 | `com.moonligh.registration.routing.SymptomIndex` | `com.moonligh.registration.infrastructure.vector` |
 | MySQL | 各聚合自己的仓储接口 | `com.moonligh.registration.infrastructure.persistence` |
-| Spring AI | `com.moonligh.registration.conversation.ConsultationNarrator` | `com.moonligh.registration.infrastructure.ai` |
+| LangChain4j | `com.moonligh.registration.conversation.IllnessExtractor` | `com.moonligh.registration.infrastructure.langchain` |
+
+`IllnessExtractor` 只返回抽出的槽位和症状。科室、追问原文和卡片是否可确认仍由业务规则决定。
 
 对象存储、短信或其他后来加入的工具沿用本页：先有调用方，再加依赖，再在 `infrastructure` 下用单独子包封装。
 

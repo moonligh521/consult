@@ -10,7 +10,7 @@
 
 ## 开发约定
 
-- 运行时是 JDK 21 与 Spring Boot 4.1.1。MySQL、Redis、RocketMQ、Spring AI 和向量库的版本与引入时机见 [基础设施](docs/engineering/infrastructure.md)。
+- 运行时是 JDK 21 与 Spring Boot 4.1.1。模型接入使用 LangChain4j 调用 DeepSeek。MySQL、Redis、RocketMQ、LangChain4j 和向量库的版本与引入时机见 [基础设施](docs/engineering/infrastructure.md)。
 - 代码用到哪个工具，才把该工具的依赖写进构建文件，并在 `infrastructure` 子包封装。业务代码只依赖本仓库定义的端口。
 - 包名使用 `com.moonligh.registration`，新代码放在这个包及其子包下。
 - 仓库里的项目归属写 moonligh，主页是 <https://moonligh.cn/>。
