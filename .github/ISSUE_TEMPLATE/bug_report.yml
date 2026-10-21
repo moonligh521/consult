@@ -1,0 +1,43 @@
+name: 缺陷
+description: 报告一个可以复现的问题
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 现象
+      description: 实际发生了什么
+    validations:
+      required: true
+  - type: textarea
+    id: expect
+    attributes:
+      label: 期望
+      description: 你认为应该发生什么
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本或提交
+      description: 分支名、标签或提交编号
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: 补充
+      description: 日志、截图说明或其他上下文。请去掉密钥和个人隐私。
+    validations:
+      required: false

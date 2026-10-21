@@ -1,0 +1,24 @@
+name: 建议
+description: 提出一个功能或改动建议
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 现在缺了什么，谁会遇到
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议的做法
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 还考虑过什么
+    validations:
+      required: false
