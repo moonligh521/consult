@@ -35,7 +35,7 @@
 
 V0.1 使用 JDK 21 与 Spring Boot 4.1.1。模型接入使用 LangChain4j 调用 DeepSeek。MySQL 8.0.46、Redis 8.2.10、RocketMQ 5.5.1（Java 客户端 rocketmq-spring 2.3.6）和向量库留到各自能力进入代码时再引用。LangChain4j 的版本和 DeepSeek 的模型名也在那时写入基础设施文档。
 
-本地用 JDK 21 执行 `mvn -B verify` 或 `mvn -B spring-boot:run`。服务端口 `18081`。
+本地用 JDK 21 执行 `mvn -B verify` 或 `mvn -B spring-boot:run`。服务端口 `18081`。数据源在 `application.yml`，提交时主机为 `127.0.0.1`。镜像用仓库根目录的 `Dockerfile` 构建。
 
 ## 目录
 
