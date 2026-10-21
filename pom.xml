@@ -12,11 +12,17 @@
     </parent>
 
     <groupId>com.moonligh</groupId>
-    <artifactId>registration-assistant</artifactId>
+    <artifactId>consult</artifactId>
     <version>0.1.0-SNAPSHOT</version>
-    <name>registration-assistant</name>
-    <description>导诊挂号助手</description>
+    <packaging>pom</packaging>
+    <name>consult</name>
+    <description>问诊平台：挂号 agent、医生端、管理端放在同一仓库</description>
     <url>https://moonligh.cn/</url>
+
+    <modules>
+        <module>consult-framework</module>
+        <module>consult-registration-agent</module>
+    </modules>
 
     <licenses>
         <license>
@@ -29,36 +35,14 @@
         <java.version>21</java.version>
     </properties>
 
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-jdbc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
-
     <build>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
             </plugin>
         </plugins>
     </build>

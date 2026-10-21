@@ -1,6 +1,6 @@
 # 参与贡献
 
-感谢你关注 `registration-assistant`。这个仓库目前是骨架，问题和实现建议都很有用。
+感谢你关注 `consult`。这个仓库目前是骨架，问题和实现建议都很有用。
 
 ## 开始之前
 
@@ -12,7 +12,7 @@
 
 - 运行时是 JDK 21 与 Spring Boot 4.1.1。模型接入使用 LangChain4j 调用 DeepSeek。代码用到哪个工具，才把该工具的依赖写进构建文件。
 - 代码用到哪个工具，才把该工具的依赖写进构建文件，并在 `infrastructure` 子包封装。业务代码只依赖本仓库定义的端口。
-- 包名使用 `com.moonligh.registration`，新代码放在这个包及其子包下。
+- 包名使用 `com.moonligh.consult`，新代码放在这个包及其子包下。
 - 仓库里的项目归属写 moonligh，主页是 <https://moonligh.cn/>。
 - 示例使用合成数据或可公开引用的文本。
 - 密钥、令牌、真实病历、真实合同和客户材料不进入仓库，包括 Issue 和提交说明。

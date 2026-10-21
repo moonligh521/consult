@@ -16,7 +16,7 @@
 
 ## 状态
 
-仓库已有 Maven 骨架和启动入口。当前版本线是 V0.1，开发分支是 `feature-V0.1-20261021`。导诊规则和咨询接口尚未写入。实现看代码；为什么这样考虑看合规说明。产品与工程细节方案不进入本仓库。
+仓库已有 Maven 骨架、急症分流、槽位追问、科室卡片和咨询接口。当前版本线是 V0.1，开发分支是 `feature-V0.1-20261021`。实现看代码；为什么这样考虑看合规说明。产品与工程细节方案不进入本仓库。
 
 ## 功能范围
 
@@ -35,20 +35,22 @@
 
 V0.1 使用 JDK 21 与 Spring Boot 4.1.1。模型接入使用 LangChain4j 调用 DeepSeek。MySQL、Redis、RocketMQ 和向量库留到各自能力进入代码时再引用。
 
-本地用 JDK 21 执行 `mvn -B verify` 或 `mvn -B spring-boot:run`。服务端口 `18081`。数据源在 `application.yml`，提交时主机为 `127.0.0.1`。镜像用仓库根目录的 `Dockerfile` 构建。
+本地用 JDK 21 在仓库根目录执行 `mvn -B verify`，或 `mvn -B -pl consult-registration-agent/consult-registration-agent-service -am spring-boot:run`。真正启动的是挂号 agent 服务 `consult-registration-agent-service`，端口 `18081`。数据源在该模块的 `application.yml`，提交时主机为 `127.0.0.1`。镜像用仓库根目录的 `Dockerfile` 构建。
 
 ## 目录
 
 ```text
 docs/合规/
-src/main/java/com/moonligh/registration/
-src/main/resources/
-src/test/java/com/moonligh/registration/
+consult-framework/
+  consult-framework-common/
+consult-registration-agent/
+  consult-registration-agent-api/
+  consult-registration-agent-service/
 Dockerfile
 pom.xml
 ```
 
-Java 包名是 `com.moonligh.registration`。启动入口已写入。Redis、消息队列、向量库等封装包在第一次被调用时再建立。
+同一 Git 仓库 `consult`。根下两个平级父工程：`consult-framework` 放公共能力，`consult-registration-agent` 是挂号 agent。每个可启动后端都带自己的 api：现在是 `consult-registration-agent-api` + `consult-registration-agent-service`；医生端以后同样加一对 `consult-doctor-api` + `consult-doctor-service`。Java 包名是 `com.moonligh.consult`。Redis、消息队列、向量库等封装包在第一次被调用时再建立。
 
 ## 数据
 
@@ -60,11 +62,11 @@ Java 包名是 `com.moonligh.registration`。启动入口已写入。Redis、消
 
 - [x] 冻结交付基线、验收用例和分支版本规范
 - [x] 补齐构建文件、启动入口和示例配置
-- [ ] 对胸痛、呼吸困难、意识障碍、口唇发紫先做急症分流
-- [ ] 用状态机补全性别、年龄、病程
-- [ ] 抽出症状标签，并用关键词规则推荐科室
-- [ ] 生成可确认、可修改的咨询卡片
-- [ ] 按验收用例补测试，并在合并前跑通编译和测试
+- [x] 对胸痛、呼吸困难、意识障碍、口唇发紫先做急症分流
+- [x] 用状态机补全性别、年龄、病程
+- [x] 抽出症状标签，并用关键词规则推荐科室
+- [x] 生成可确认、可修改的咨询卡片
+- [x] 按验收用例补测试，并在合并前跑通编译和测试
 
 ### 后续版本
 

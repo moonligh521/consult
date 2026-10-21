@@ -12,6 +12,12 @@
 - 补上 `Dockerfile`。
 - 在 `application.yml` 配置 MySQL；提交时主机为 `127.0.0.1`，不写真实连接。
 - 公开仓库保留代码、项目说明和合规说明；产品与工程细节方案不再跟踪。
+- 实现 V0.1 急症分流、槽位追问、科室卡片、咨询接口和验收测试。
+- 咨询枚举改为整型 code：接口 JSON 与数据库均传数字，不传枚举名或中文标签。
+- 咨询编号改到请求体传递，路径上不带参数。
+- 接口改为统一返回 `Result`：HTTP 200，业务码、消息、数据和 traceId。
+- 请求和响应实体收到 `api.req` / `api.res`，领域规则留在 `consultation`。仍是一个仓库、一个工程。
+- 同一仓库拆成 `consult-framework`（含 `consult-framework-common`）和挂号 agent `consult-registration-agent`（含 api、service）。医生端以后同样加一对 api + service。
 
 ### Changed
 

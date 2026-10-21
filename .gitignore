@@ -6,6 +6,7 @@ out/
 *.jar
 *.war
 *.ear
+*.zip
 
 # Logs and local env
 *.log

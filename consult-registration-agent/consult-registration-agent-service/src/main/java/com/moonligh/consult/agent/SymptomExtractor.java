@@ -1,0 +1,45 @@
+package com.moonligh.consult.agent;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.stereotype.Component;
+
+@Component
+public class SymptomExtractor {
+
+    private static final String[] PHRASES = {
+            "呼吸困难", "干咳", "咳嗽", "气促", "胸痛", "头痛", "头晕", "腹痛", "腹泻", "恶心", "呼吸"
+    };
+
+    public List<String> extract(String description) {
+        List<String> found = new ArrayList<>();
+        int index = 0;
+        while (index < description.length()) {
+            String match = longestPhraseAt(description, index);
+            if (match == null) {
+                index++;
+                continue;
+            }
+            if (!found.contains(match)) {
+                found.add(match);
+            }
+            index = index + match.length();
+        }
+        return List.copyOf(found);
+    }
+
+    private String longestPhraseAt(String description, int index) {
+        String best = null;
+        for (String phrase : PHRASES) {
+            boolean startsHere = description.startsWith(phrase, index);
+            if (!startsHere) {
+                continue;
+            }
+            if (best == null || phrase.length() > best.length()) {
+                best = phrase;
+            }
+        }
+        return best;
+    }
+}
