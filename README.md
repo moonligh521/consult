@@ -44,6 +44,8 @@ docs/合规/
 src/main/java/com/moonligh/registration/
 src/main/resources/
 src/test/java/com/moonligh/registration/
+Dockerfile
+pom.xml
 ```
 
 Java 包名是 `com.moonligh.registration`。启动入口已写入。Redis、消息队列、向量库等封装包在第一次被调用时再建立。
