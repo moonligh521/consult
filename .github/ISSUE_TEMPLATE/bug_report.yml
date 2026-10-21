@@ -1,6 +1,6 @@
 name: 缺陷
 description: 报告一个可以复现的问题
-title: "fix: "
+title: "修复: "
 labels: ["bug"]
 body:
   - type: textarea
@@ -31,7 +31,7 @@ body:
     id: version
     attributes:
       label: 版本或提交
-      description: 分支名、标签或提交编号
+      description: 版本开发分支、标签或提交编号，例如 feature-V0.1-20261021、V0.1.0
     validations:
       required: false
   - type: textarea

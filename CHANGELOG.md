@@ -7,6 +7,7 @@
 ### Added
 
 - 建立 `registration-assistant` 的仓库骨架、社区文件和 Apache-2.0 许可证。
+- 冻结 V0.1 交付基线，并把分支规范定为 `feature-V主.次-年月日`。
 
 ### Changed
 

@@ -1,0 +1,14 @@
+name: branch-name
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取出分支名规则
+        uses: actions/checkout@v4
+      - name: 校验头分支名
+        run: bash .github/scripts/check-branch-name.sh "${{ github.head_ref }}"
