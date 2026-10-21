@@ -10,11 +10,6 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.moonligh.consult.agent.domain.DepartmentRouter;
-import com.moonligh.consult.agent.domain.InMemoryConsultationStore;
-import com.moonligh.consult.agent.domain.SafetyGate;
-import com.moonligh.consult.agent.domain.SlotParser;
-import com.moonligh.consult.agent.domain.SymptomExtractor;
 import com.moonligh.consult.agent.api.enums.ConsultationStatus;
 import com.moonligh.consult.agent.api.enums.Department;
 import com.moonligh.consult.agent.api.enums.Gender;
@@ -30,12 +25,7 @@ class ConsultationAcceptanceTest {
 
     @BeforeEach
     void setUp() {
-        service = new ConsultationService(
-                new InMemoryConsultationStore(),
-                new SafetyGate(),
-                new SlotParser(),
-                new SymptomExtractor(),
-                new DepartmentRouter());
+        service = ConsultationsFixture.shadow().service;
     }
 
     @Test

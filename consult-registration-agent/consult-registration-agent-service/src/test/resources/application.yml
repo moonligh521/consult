@@ -3,5 +3,14 @@ spring:
     exclude:
       - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+  flyway:
+    enabled: false
 server:
   port: 0
+safety:
+  catalog:
+    location: classpath:safety/urgent-catalog.json
+    draft-mode: SHADOW
+  model:
+    enabled: false

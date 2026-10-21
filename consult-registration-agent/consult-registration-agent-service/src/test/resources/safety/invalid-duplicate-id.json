@@ -1,0 +1,54 @@
+{
+  "catalogVersion": "test",
+  "effectiveFrom": "2026-10-21",
+  "templates": [
+    {"id": "URGENT-DEFAULT", "text": "请立即拨打 120，或前往最近的实体医院急诊。", "reviewStatus": "BASELINE"},
+    {"id": "HUMAN-DEFAULT", "text": "请转人工协助。当前无法自动完成导诊。", "reviewStatus": "BASELINE"},
+    {"id": "FALLBACK-DEFAULT", "text": "系统暂时无法完成安全分流，请转人工协助，或前往医疗机构就诊。", "reviewStatus": "DRAFT"},
+    {"id": "UNSUITABLE-DEFAULT", "text": "当前渠道不适用。", "reviewStatus": "DRAFT"}
+  ],
+  "rules": [
+    {
+      "ruleId": "DUP",
+      "ruleVersion": "1.0.0",
+      "status": "BASELINE",
+      "clinicalCategory": "x",
+      "signal": "chest_pain",
+      "aliases": ["胸痛"],
+      "requiredContext": [],
+      "exclusionConditions": [],
+      "negatedPolicy": "ESCALATE",
+      "uncertaintyPolicy": "ESCALATE",
+      "resolvedPolicy": "ESCALATE",
+      "missingContextPolicy": "ESCALATE",
+      "disposition": "URGENT",
+      "patientMessageTemplateId": "URGENT-DEFAULT",
+      "positiveCases": ["胸痛"],
+      "negativeCases": ["干咳半年"],
+      "clinicalReviewer": null,
+      "reviewDate": null,
+      "evidenceReference": "t"
+    },
+    {
+      "ruleId": "DUP",
+      "ruleVersion": "1.0.0",
+      "status": "BASELINE",
+      "clinicalCategory": "x",
+      "signal": "dyspnea",
+      "aliases": ["呼吸困难"],
+      "requiredContext": [],
+      "exclusionConditions": [],
+      "negatedPolicy": "ESCALATE",
+      "uncertaintyPolicy": "ESCALATE",
+      "resolvedPolicy": "ESCALATE",
+      "missingContextPolicy": "ESCALATE",
+      "disposition": "URGENT",
+      "patientMessageTemplateId": "URGENT-DEFAULT",
+      "positiveCases": ["呼吸困难"],
+      "negativeCases": ["干咳半年"],
+      "clinicalReviewer": null,
+      "reviewDate": null,
+      "evidenceReference": "t"
+    }
+  ]
+}
