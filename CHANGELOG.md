@@ -18,6 +18,7 @@
 - 接口改为统一返回 `Result`：HTTP 200，业务码、消息、数据和 traceId。
 - 请求和响应实体收到 `api.req` / `api.res`，领域规则留在 `consultation`。仍是一个仓库、一个工程。
 - 同一仓库拆成 `consult-framework`（含 `consult-framework-common`）和挂号 agent `consult-registration-agent`（含 api、service）。医生端以后同样加一对 api + service。
+- 挂号服务直接声明 `spring-boot-starter-web`。
 
 ### Changed
 

@@ -4,8 +4,7 @@ import com.moonligh.consult.agent.api.enums.Department;
 import com.moonligh.consult.agent.api.enums.Gender;
 
 /**
- * 修改咨询卡片。对应 PATCH /api/consultations/card。
- * 只改传入的字段，没传的保持原值。至少改一项。
+ * 修改咨询卡片。只改传入的字段，没传的保持原值。至少改一项。
  */
 public record CardPatchReq(
         /** 要改的那一轮咨询。 */
