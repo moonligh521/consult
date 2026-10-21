@@ -12,9 +12,11 @@ out/
 logs/
 .env
 .env.*
+application-local.yml
+application-local.yaml
 
-# Internal notes, not for the public remote
-docs/工程/开源参考与组装.md
+# Detailed plans stay on the machine, not the public remote
+docs/
 
 # IDE
 .idea/

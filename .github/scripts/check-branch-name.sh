@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 校验合并请求的头分支是否符合 docs/工程/分支与版本.md。
+# 校验合并请求的头分支是否符合 feature-V主.次-年月日 这类名称。
 set -euo pipefail
 
 if [ "${1:-}" = "" ]; then

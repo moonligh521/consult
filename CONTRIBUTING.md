@@ -4,13 +4,13 @@
 
 ## 开始之前
 
-先看 [README.md](README.md) 里的功能范围和 [项目目标](docs/产品/项目目标.md)。服务边界见 [docs/合规](docs/合规/互联网诊疗服务边界调研报告.md)。已经有人在做的事，请先到对应 Issue 下面留言，避免两个人写同一块。
+先看 [README.md](README.md) 里的功能范围和为什么这么做。已经有人在做的事，请先到对应 Issue 下面留言，避免两个人写同一块。
 
 较大的改动先开 Issue 说明目标和做法，再提交代码。小的文档修正可以直接提 Pull Request。
 
 ## 开发约定
 
-- 运行时是 JDK 21 与 Spring Boot 4.1.1。模型接入使用 LangChain4j 调用 DeepSeek。MySQL、Redis、RocketMQ、LangChain4j 和向量库的版本与引入时机见 [基础设施](docs/工程/基础设施.md)。
+- 运行时是 JDK 21 与 Spring Boot 4.1.1。模型接入使用 LangChain4j 调用 DeepSeek。代码用到哪个工具，才把该工具的依赖写进构建文件。
 - 代码用到哪个工具，才把该工具的依赖写进构建文件，并在 `infrastructure` 子包封装。业务代码只依赖本仓库定义的端口。
 - 包名使用 `com.moonligh.registration`，新代码放在这个包及其子包下。
 - 仓库里的项目归属写 moonligh，主页是 <https://moonligh.cn/>。
@@ -35,7 +35,7 @@
 
 ## 分支与 Pull Request
 
-分支和标签的完整规则见 [分支与版本](docs/工程/分支与版本.md)。版本开发分支写成 `feature-V主.次-年月日`，例如 `feature-V0.1-20261021`、`feature-V1.3-20260720`。
+版本开发分支写成 `feature-V主.次-年月日`，例如 `feature-V0.1-20261021`、`feature-V1.3-20260720`。
 
 同一版本的并行改动，从版本开发分支拉出 `feature-V主.次-年月日-短英文名`，再合回该版本分支。发布冻结使用 `release-V主.次-年月日`，已发布版本的修复使用 `hotfix-V主.次.修订-年月日`。
 
