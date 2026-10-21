@@ -5,7 +5,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
  * 咨询状态。接口与数据库都传 code，不传枚举名。
- * 1 待描述；2 待补槽；3 急症分流；4 卡片待确认；5 已确认；6 需要人工协助。
+ * 1 待描述；2 待补槽；3 急症分流；4 卡片待确认；5 已确认；6 需要人工协助；
+ * 7 安全分流暂不可用；8 当前渠道不适用。
  */
 public enum ConsultationStatus {
 
@@ -14,7 +15,9 @@ public enum ConsultationStatus {
     URGENT(3, "急症分流"),
     CARD_READY(4, "卡片待确认"),
     CONFIRMED(5, "已确认"),
-    NEED_HUMAN(6, "需要人工协助");
+    NEED_HUMAN(6, "需要人工协助"),
+    SAFE_FALLBACK(7, "安全分流暂不可用"),
+    UNSUITABLE_FOR_ONLINE(8, "当前渠道不适用");
 
     /** 对外传递的数字。 */
     private final int code;

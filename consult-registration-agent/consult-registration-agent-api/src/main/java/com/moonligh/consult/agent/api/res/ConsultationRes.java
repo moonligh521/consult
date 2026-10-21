@@ -1,6 +1,7 @@
 package com.moonligh.consult.agent.api.res;
 
 import com.moonligh.consult.agent.api.enums.ConsultationStatus;
+import com.moonligh.consult.agent.api.enums.Handoff;
 import com.moonligh.consult.agent.api.enums.MissingSlot;
 
 /**
@@ -16,5 +17,9 @@ public record ConsultationRes(
         /** 还缺哪个槽位；不需要追问时为 null。 */
         MissingSlot missingSlot,
         /** 信息齐了才有卡片；急症或还在追问时为 null。 */
-        ConsultationCardRes card) {
+        ConsultationCardRes card,
+        /** 需尽快评估时的提示；否则为 null。 */
+        String safetyNotice,
+        /** 有卡片时的交接性质；安全停止态为 null。 */
+        Handoff handoff) {
 }
