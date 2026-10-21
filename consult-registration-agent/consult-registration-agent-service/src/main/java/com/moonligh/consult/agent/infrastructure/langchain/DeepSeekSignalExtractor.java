@@ -1,0 +1,158 @@
+package com.moonligh.consult.agent.infrastructure.langchain;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
+import com.moonligh.consult.agent.domain.safety.Demographics;
+import com.moonligh.consult.agent.domain.safety.ExtractedSignal;
+import com.moonligh.consult.agent.domain.safety.SafetyProperties;
+import com.moonligh.consult.agent.domain.safety.SignalExtraction;
+import com.moonligh.consult.agent.domain.safety.SignalExtractor;
+
+/**
+ * 调用 DeepSeek OpenAI 兼容接口抽取信号。不把原话写入日志。
+ */
+public class DeepSeekSignalExtractor implements SignalExtractor {
+
+    private static final Logger log = LoggerFactory.getLogger(DeepSeekSignalExtractor.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private final SafetyProperties.Model settings;
+    private final HttpClient http;
+    private final Semaphore limiter;
+
+    public DeepSeekSignalExtractor(SafetyProperties properties) {
+        this.settings = properties.getModel();
+        this.http = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(settings.getTimeoutMs()))
+                .build();
+        this.limiter = new Semaphore(settings.getMaxConcurrency());
+    }
+
+    @Override
+    public SignalExtraction extract(List<ConsultationMessage> transcript, Demographics demographics) {
+        boolean acquired;
+        try {
+            acquired = limiter.tryAcquire(settings.getTimeoutMs(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            return SignalExtraction.unavailable();
+        }
+        if (!acquired) {
+            return SignalExtraction.unavailable();
+        }
+        try {
+            SignalExtraction first = callOnce(transcript, demographics);
+            if (first.status() == com.moonligh.consult.agent.domain.safety.ModelStatus.INVALID_OUTPUT
+                    && settings.getInvalidOutputRetries() > 0) {
+                return callOnce(transcript, demographics);
+            }
+            return first;
+        } finally {
+            limiter.release();
+        }
+    }
+
+    private SignalExtraction callOnce(List<ConsultationMessage> transcript, Demographics demographics) {
+        if (settings.getApiKey() == null || settings.getApiKey().isBlank()) {
+            log.error("model unavailable reason=missing-key");
+            return SignalExtraction.unavailable();
+        }
+        try {
+            String body = requestBody(transcript, demographics);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(trimSlash(settings.getBaseUrl()) + "/chat/completions"))
+                    .timeout(Duration.ofMillis(settings.getTimeoutMs()))
+                    .header("Authorization", "Bearer " + settings.getApiKey())
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .build();
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 400) {
+                log.error("model unavailable status={}", response.statusCode());
+                return SignalExtraction.unavailable();
+            }
+            return parse(response.body());
+        } catch (java.net.http.HttpTimeoutException error) {
+            log.error("model timeout");
+            return SignalExtraction.timeout();
+        } catch (Exception error) {
+            log.error("model unavailable type={}", error.getClass().getName());
+            return SignalExtraction.unavailable();
+        }
+    }
+
+    private SignalExtraction parse(String body) throws Exception {
+        JsonNode root = MAPPER.readTree(body);
+        String content = root.path("choices").path(0).path("message").path("content").asText("");
+        if (content.isBlank()) {
+            return SignalExtraction.invalid();
+        }
+        int start = content.indexOf('{');
+        int end = content.lastIndexOf('}');
+        if (start < 0 || end < start) {
+            return SignalExtraction.invalid();
+        }
+        JsonNode payload = MAPPER.readTree(content.substring(start, end + 1));
+        if (!payload.has("signals") || !payload.get("signals").isArray()) {
+            return SignalExtraction.invalid();
+        }
+        List<ExtractedSignal> signals = new ArrayList<>();
+        for (JsonNode node : payload.get("signals")) {
+            if (!node.hasNonNull("type") || !node.has("messageSeq") || !node.hasNonNull("evidence")) {
+                return SignalExtraction.invalid();
+            }
+            signals.add(new ExtractedSignal(
+                    node.get("type").asText(),
+                    node.get("messageSeq").asInt(),
+                    node.get("evidence").asText(),
+                    node.path("temporal_status").asText("current"),
+                    node.path("polarity").asText("positive"),
+                    node.path("subject").asText("patient"),
+                    node.path("uncertainty").asText("low")));
+        }
+        boolean unresolved = payload.path("unresolved_ambiguity").asBoolean(false);
+        return new SignalExtraction(
+                com.moonligh.consult.agent.domain.safety.ModelStatus.SUCCESS,
+                settings.getModelName(),
+                List.copyOf(signals),
+                unresolved);
+    }
+
+    private String requestBody(List<ConsultationMessage> transcript, Demographics demographics) throws Exception {
+        StringBuilder numbered = new StringBuilder();
+        for (ConsultationMessage message : transcript) {
+            numbered.append(message.seq()).append(':').append(message.text()).append('\n');
+        }
+        String system = "只抽取急症信号 JSON。不得编造未出现的急症。不得因不严重或好转删除当前阳性红旗。"
+                + "evidence 必须是对应 seq 原话的子串。type 必须是目录 signal。不要输出原文之外的文字。";
+        var root = MAPPER.createObjectNode();
+        root.put("model", settings.getModelName());
+        var messages = MAPPER.createArrayNode();
+        messages.add(MAPPER.createObjectNode().put("role", "system").put("content", system));
+        messages.add(MAPPER.createObjectNode().put("role", "user").put("content",
+                "age=" + demographics.age() + " gender=" + demographics.gender() + "\n" + numbered));
+        root.set("messages", messages);
+        return MAPPER.writeValueAsString(root);
+    }
+
+    private static String trimSlash(String url) {
+        if (url.endsWith("/")) {
+            return url.substring(0, url.length() - 1);
+        }
+        return url;
+    }
+}

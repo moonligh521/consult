@@ -8,3 +8,15 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 server:
   port: 18081
+safety:
+  catalog:
+    location: classpath:safety/urgent-catalog.json
+    draft-mode: SHADOW
+  model:
+    enabled: false
+    timeout-ms: 3000
+    invalid-output-retries: 1
+    max-concurrency: 20
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: https://api.deepseek.com
+    model-name: deepseek-chat
