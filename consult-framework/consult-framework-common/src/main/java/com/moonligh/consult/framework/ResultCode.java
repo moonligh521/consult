@@ -1,9 +1,7 @@
 package com.moonligh.consult.framework;
 
 /**
- * 框架层状态码，数字看起来像 HTTP，但放在 {@link Result#getCode()} 里。
- * 参数错误、路径不存在、系统异常用这里。
- * 咨询、卡片这类业务失败请用 {@link ErrorCode}。
+ * 框架层状态码，写入 {@link Result#getCode()}。业务失败使用 {@link ErrorCode}。
  */
 public enum ResultCode {
 
@@ -31,15 +29,5 @@ public enum ResultCode {
 
     public String getMessage() {
         return message;
-    }
-
-    /** 按数字反查。对不上时当作系统失败，避免接口抛空指针。 */
-    public static ResultCode fromCode(int code) {
-        for (ResultCode item : ResultCode.values()) {
-            if (item.code == code) {
-                return item;
-            }
-        }
-        return FAIL;
     }
 }

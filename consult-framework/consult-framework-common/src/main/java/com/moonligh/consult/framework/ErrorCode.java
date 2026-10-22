@@ -1,9 +1,7 @@
 package com.moonligh.consult.framework;
 
 /**
- * 业务错误码，失败时放在 {@link Result#getCode()}。
- * 分段方便以后加码：1xxx 通用，11xx 挂号咨询。
- * 接口 JSON 和数据库都传数字，不传枚举名。
+ * 业务错误码。1xxx 通用，11xx 挂号咨询。
  */
 public enum ErrorCode {
 
@@ -40,15 +38,5 @@ public enum ErrorCode {
 
     public String getMessage() {
         return message;
-    }
-
-    /** 按数字反查。对不上时返回未知错误，不要返回 null。 */
-    public static ErrorCode fromCode(int code) {
-        for (ErrorCode item : ErrorCode.values()) {
-            if (item.code == code) {
-                return item;
-            }
-        }
-        return UNKNOWN_ERROR;
     }
 }

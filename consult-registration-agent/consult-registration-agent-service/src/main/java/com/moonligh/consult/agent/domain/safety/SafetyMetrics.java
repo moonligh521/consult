@@ -5,7 +5,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * 安全分流计数。给监测看板用，不含病情原文。
+ * 安全分流计数，不含病情原文。
  */
 public class SafetyMetrics {
 

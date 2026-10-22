@@ -55,17 +55,9 @@ public class ConsultationSession {
         return businessStatus;
     }
 
-    public ConsultationStatus getStatus() {
-        return businessStatus;
-    }
-
     public void setBusinessStatus(ConsultationStatus businessStatus) {
         this.businessStatus = businessStatus;
         this.updatedAt = Instant.now();
-    }
-
-    public void setStatus(ConsultationStatus status) {
-        setBusinessStatus(status);
     }
 
     public ServiceType getServiceType() {
@@ -260,9 +252,5 @@ public class ConsultationSession {
         List<SafetyDecisionAudit> drained = List.copyOf(pendingAudits);
         pendingAudits.clear();
         return drained;
-    }
-
-    public List<SafetyDecisionAudit> pendingAudits() {
-        return List.copyOf(pendingAudits);
     }
 }

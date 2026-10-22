@@ -14,7 +14,7 @@ import com.moonligh.consult.agent.service.ConsultationService;
 import com.moonligh.consult.framework.Result;
 
 /**
- * 咨询 HTTP 入口。这里不写规则，只把请求转给 ConsultationService。
+ * 咨询接口。
  */
 @RestController
 @RequestMapping("/api/consultations")

@@ -5,7 +5,7 @@ import com.moonligh.consult.agent.api.enums.Handoff;
 import com.moonligh.consult.agent.api.enums.MissingSlot;
 
 /**
- * 一轮咨询的当前结果。三个接口都返回这个对象。
+ * 咨询当前结果。
  */
 public record ConsultationRes(
         /** 本轮咨询编号，后续请求都带上它。 */

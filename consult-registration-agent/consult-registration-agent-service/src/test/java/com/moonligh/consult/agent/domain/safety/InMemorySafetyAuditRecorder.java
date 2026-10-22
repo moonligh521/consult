@@ -5,17 +5,13 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import org.springframework.stereotype.Component;
-
 /**
- * 进程内审计。测试用来断言字段，不含原话。
+ * 进程内审计记录，供单元测试断言使用。
  */
-@Component
-public class InMemorySafetyAuditRecorder implements SafetyAuditRecorder {
+public class InMemorySafetyAuditRecorder {
 
     private final ConcurrentMap<String, List<SafetyDecisionAudit>> audits = new ConcurrentHashMap<>();
 
-    @Override
     public void record(SafetyDecisionAudit audit) {
         audits.computeIfAbsent(audit.consultationId(), key -> new ArrayList<>()).add(audit);
     }

@@ -5,28 +5,20 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReentrantLock;
 
-import javax.sql.DataSource;
-
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.stereotype.Component;
-
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.domain.safety.InMemorySafetyAuditRecorder;
-import com.moonligh.consult.agent.domain.safety.SafetyAuditRecorder;
 import com.moonligh.consult.agent.domain.safety.SafetyDecisionAudit;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 
 /**
- * 把会话放在内存里。测试用；同一编号加锁，效果和数据库行锁一样。
+ * 会话仓储的进程内实现，供单元测试使用。
  */
-@Component
-@ConditionalOnMissingBean(DataSource.class)
 public class InMemoryConsultationRepository implements ConsultationRepository {
 
     private final ConcurrentMap<String, ConsultationSession> sessions;
     private final ConcurrentMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
-    private final SafetyAuditRecorder auditRecorder;
+    private final InMemorySafetyAuditRecorder auditRecorder;
     private boolean failNextPersist;
 
     public InMemoryConsultationRepository() {
@@ -35,7 +27,7 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
 
     public InMemoryConsultationRepository(
             ConcurrentMap<String, ConsultationSession> sessions,
-            SafetyAuditRecorder auditRecorder) {
+            InMemorySafetyAuditRecorder auditRecorder) {
         this.sessions = sessions;
         this.auditRecorder = auditRecorder;
     }
@@ -44,9 +36,6 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
         this.failNextPersist = true;
     }
 
-    /**
-     * 测试里查看已经保存的会话。请求结束后再调用，不再持锁。
-     */
     public ConsultationSession getRequired(String consultationId) {
         ConsultationSession session = sessions.get(consultationId);
         if (session == null) {
@@ -55,6 +44,10 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
         return session;
     }
 
+    /**
+     * 加锁加载或创建会话，执行业务后保存。
+     * 业务异常在保存后再抛出，保证原话已写入。
+     */
     @Override
     public ConsultationRes runLocked(String consultationId, SessionAction action) {
         boolean creating = consultationId == null || consultationId.isBlank();

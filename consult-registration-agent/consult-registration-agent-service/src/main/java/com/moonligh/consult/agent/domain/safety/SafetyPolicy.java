@@ -11,8 +11,7 @@ import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 
 /**
- * 根据会话里的安全锁存位，算出给前端看的状态。
- * 对外 ConsultationRes 只从这里生成，避免各处自己拼响应。
+ * 根据安全锁存位组装对外响应。ConsultationRes 只从这里生成。
  */
 public final class SafetyPolicy {
 

@@ -4,10 +4,7 @@ import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.framework.BusinessException;
 
 /**
- * 锁内办事的结果。
- * <p>
- * 业务可能已经把原话写入会话，同时又要返回 1104、1105 这类错误。
- * 所以先把响应和错误都收在这个对象里，保存完成后再决定返回还是抛错。
+ * 锁内执行结果。业务异常与响应一并带回，供提交后再抛出。
  */
 public class SessionWorkResult {
 

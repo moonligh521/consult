@@ -13,10 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * 每个请求进业务代码前先准备 traceId。
- * 调用方带了 {@code X-Trace-Id} 就沿用，没有就新建。
- * 写入 MDC 后，同一请求的日志都能对上这个号；
- * 同时写到响应头，方便前端把这个号反馈给排查的人。
+ * 为每个请求设置 traceId：沿用请求头 {@code X-Trace-Id}，否则新建，并写入 MDC 与响应头。
  */
 @Component
 public class TraceIdFilter extends OncePerRequestFilter {

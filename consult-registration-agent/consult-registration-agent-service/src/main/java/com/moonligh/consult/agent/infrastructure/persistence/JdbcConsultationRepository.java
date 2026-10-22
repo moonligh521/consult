@@ -7,11 +7,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import javax.sql.DataSource;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -37,10 +34,9 @@ import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 
 /**
- * MySQL 仓储。会话行锁串行化同一咨询的请求。
+ * 咨询会话的 MySQL 持久化。同一咨询使用行锁串行处理。
  */
 @Component
-@ConditionalOnBean(DataSource.class)
 public class JdbcConsultationRepository implements ConsultationRepository {
 
     private static final Logger log = LoggerFactory.getLogger(JdbcConsultationRepository.class);
@@ -55,6 +51,10 @@ public class JdbcConsultationRepository implements ConsultationRepository {
         this.mapper = mapper;
     }
 
+    /**
+     * 加锁加载或创建会话，执行业务后保存。
+     * 业务异常在事务提交后再抛出，保证原话已落库。
+     */
     @Override
     public ConsultationRes runLocked(String consultationId, SessionAction action) {
         SessionWorkResult result = transactions.execute(status -> doInTransaction(status, consultationId, action));
@@ -82,6 +82,7 @@ public class JdbcConsultationRepository implements ConsultationRepository {
             save(session);
             return result;
         } catch (DataAccessException error) {
+            // 持久化失败回滚；已锁存急症时仍返回安全评估结果。
             status.setRollbackOnly();
             log.error("persist failed id={} type={}", session.getId(), error.getClass().getName());
             if (session.isUrgentLatched() && !result.hasError() && result.response() != null) {

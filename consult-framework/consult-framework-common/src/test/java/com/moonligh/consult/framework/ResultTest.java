@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-/** 确认成功和业务失败时，统一返回的 code、message、data 约定。 */
 class ResultTest {
 
     @Test

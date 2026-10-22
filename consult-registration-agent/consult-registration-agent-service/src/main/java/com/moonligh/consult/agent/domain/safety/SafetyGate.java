@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 安全闸门门面。规则先匹配，未达紧急阈值再模型补漏。模型不能设置最终状态。
+ * 安全闸门。规则先匹配，未达紧急阈值再模型补漏。模型不得设置最终状态。
  */
 @Component
 public class SafetyGate {

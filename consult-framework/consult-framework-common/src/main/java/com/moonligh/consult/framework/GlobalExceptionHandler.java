@@ -13,29 +13,25 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 /**
- * 全局异常处理：所有 Controller 抛出的异常都在这里变成 {@link Result}。
- * HTTP 状态保持 200，前端只看 body 里的 code。
+ * 将控制器异常转为统一 {@link Result}，HTTP 状态保持 200。
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    /** 业务规则不满足，例如找不到咨询、急症停止。 */
     @ExceptionHandler(BusinessException.class)
     public Result<Void> handleBusiness(BusinessException ex) {
         log.warn("业务异常: code={} msg={}", ex.getCode(), ex.getMessage());
         return Result.fail(ex.getCode(), ex.getMessage());
     }
 
-    /** 代码里直接 throw new IllegalArgumentException(...) 的情况。 */
     @ExceptionHandler(IllegalArgumentException.class)
     public Result<Void> handleIllegalArgument(IllegalArgumentException ex) {
         log.warn("参数异常: {}", ex.getMessage());
         return Result.fail(ResultCode.PARAM_ERROR.getCode(), ex.getMessage());
     }
 
-    /** 请求体没通过 @Valid 校验。 */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Result<Void> handleValid(MethodArgumentNotValidException ex) {
         String message = joinFieldErrors(ex.getBindingResult().getFieldErrors());
@@ -43,7 +39,6 @@ public class GlobalExceptionHandler {
         return Result.fail(ResultCode.PARAM_ERROR.getCode(), message);
     }
 
-    /** 表单或查询参数绑定失败。 */
     @ExceptionHandler(BindException.class)
     public Result<Void> handleBind(BindException ex) {
         String message = joinFieldErrors(ex.getFieldErrors());
@@ -57,7 +52,6 @@ public class GlobalExceptionHandler {
         return Result.fail(ResultCode.PARAM_ERROR.getCode(), "缺少必填参数: " + ex.getParameterName());
     }
 
-    /** JSON 写坏了，Jackson 解析不出来。 */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public Result<Void> handleBadBody(HttpMessageNotReadableException ex) {
         log.warn("请求体解析失败: {}", ex.getMessage());
@@ -76,14 +70,12 @@ public class GlobalExceptionHandler {
         return Result.fail(ResultCode.NOT_FOUND.getCode(), "接口不存在");
     }
 
-    /** 最后兜底。这里打 error，不要把堆栈细节返回给前端。 */
     @ExceptionHandler(Exception.class)
     public Result<Void> handleUnknown(Exception ex) {
         log.error("系统异常", ex);
         return Result.fail(ResultCode.FAIL.getCode(), "操作失败，请稍后重试");
     }
 
-    /** 把多个字段的校验文案拼成一句，用分号隔开。 */
     private String joinFieldErrors(java.util.List<FieldError> errors) {
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < errors.size(); i++) {

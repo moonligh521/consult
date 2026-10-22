@@ -6,8 +6,7 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 /**
- * 从病情描述里抽出症状标签。V0.1 用关键词，不用模型。
- * 同一位置优先匹配更长的词，避免「呼吸困难」被拆成「呼吸」。
+ * 从病情描述中抽取症状标签。同一位置优先匹配更长短语。
  */
 @Component
 public class SymptomExtractor {
@@ -33,9 +32,6 @@ public class SymptomExtractor {
         return List.copyOf(found);
     }
 
-    /**
-     * 从 index 起，找出能对上的最长短语。
-     */
     private String longestPhraseAt(String description, int index) {
         String best = null;
         for (String phrase : PHRASES) {
