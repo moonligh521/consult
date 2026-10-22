@@ -1,5 +1,5 @@
 -- V0.3.20261021 咨询急症与安全分流建表。
--- 启动时 Flyway 自动执行；也可在目标库手工执行。所有枚举列存数字码。
+-- 人工在目标库执行。服务启动不自动建表。所有枚举列存数字码。
 
 CREATE TABLE consultation_session (
     id                          VARCHAR(64)  NOT NULL COMMENT '本轮咨询编号',
