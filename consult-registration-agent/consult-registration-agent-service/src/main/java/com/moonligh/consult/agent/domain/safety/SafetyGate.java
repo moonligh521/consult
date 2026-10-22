@@ -7,13 +7,11 @@ import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 /**
  * 安全闸门：先用规则匹配，不够确定再让模型补漏。
  * 模型不能自己定最终状态。
  */
-@Component
 public class SafetyGate {
 
     private static final Logger log = LoggerFactory.getLogger(SafetyGate.class);

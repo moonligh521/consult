@@ -1,14 +1,11 @@
 package com.moonligh.consult.agent.domain;
 
-import org.springframework.stereotype.Component;
-
 import com.moonligh.consult.agent.api.enums.Department;
 
 /**
  * 按关键词推荐科室。谁在句子里先出现就跟谁。
  * 对不上时落到全科。不能覆盖急症分流的结论。
  */
-@Component
 public class DepartmentRouter {
 
     /** 根据描述里先出现的关键词推荐科室。 */

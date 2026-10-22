@@ -1,4 +1,4 @@
-package com.moonligh.consult.agent.infrastructure.persistence;
+package com.moonligh.consult.agent.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -3,14 +3,11 @@ package com.moonligh.consult.agent.domain;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.springframework.stereotype.Component;
-
 import com.moonligh.consult.agent.api.enums.Gender;
 
 /**
  * 从患者原句里抽出性别、年龄、病程。抽不到返回 null，由编排决定追问。
  */
-@Component
 public class SlotParser {
 
     /** 例如「32岁」。超出 1～120 当作没抽到。 */

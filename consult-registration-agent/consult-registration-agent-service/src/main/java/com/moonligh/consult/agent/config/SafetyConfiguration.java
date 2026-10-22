@@ -1,14 +1,22 @@
-package com.moonligh.consult.agent.domain.safety;
+package com.moonligh.consult.agent.config;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
+import com.moonligh.consult.agent.domain.safety.CatalogLoader;
+import com.moonligh.consult.agent.domain.safety.DisabledSignalExtractor;
+import com.moonligh.consult.agent.domain.safety.DraftMode;
+import com.moonligh.consult.agent.domain.safety.RuleSafetyEngine;
+import com.moonligh.consult.agent.domain.safety.SafetyCatalog;
+import com.moonligh.consult.agent.domain.safety.SafetyGate;
+import com.moonligh.consult.agent.domain.safety.SafetyMetrics;
+import com.moonligh.consult.agent.domain.safety.SignalExtractor;
 import com.moonligh.consult.agent.infrastructure.langchain.DeepSeekSignalExtractor;
 
 /**
- * 安全分流 Spring 装配。
+ * 安全分流 Spring 装配。业务规则仍在 domain.safety。
  */
 @Configuration
 @EnableConfigurationProperties(SafetyProperties.class)
@@ -41,5 +49,11 @@ public class SafetyConfiguration {
     @Bean
     public SafetyMetrics safetyMetrics() {
         return new SafetyMetrics();
+    }
+
+    /** 安全闸门。规则失败则安全降级。 */
+    @Bean
+    public SafetyGate safetyGate(SafetyCatalog catalog, RuleSafetyEngine engine, SignalExtractor extractor) {
+        return new SafetyGate(catalog, engine, extractor);
     }
 }

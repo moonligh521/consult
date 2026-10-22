@@ -15,10 +15,10 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moonligh.consult.agent.config.SafetyProperties;
 import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
 import com.moonligh.consult.agent.domain.safety.Demographics;
 import com.moonligh.consult.agent.domain.safety.ExtractedSignal;
-import com.moonligh.consult.agent.domain.safety.SafetyProperties;
 import com.moonligh.consult.agent.domain.safety.SignalExtraction;
 import com.moonligh.consult.agent.domain.safety.SignalExtractor;
 

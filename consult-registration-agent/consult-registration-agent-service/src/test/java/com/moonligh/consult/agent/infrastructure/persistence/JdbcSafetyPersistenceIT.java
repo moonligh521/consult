@@ -1,4 +1,4 @@
-package com.moonligh.consult.agent.service;
+package com.moonligh.consult.agent.infrastructure.persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -15,6 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import com.moonligh.consult.agent.AgentApplication;
 import com.moonligh.consult.agent.api.enums.ConsultationStatus;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
+import com.moonligh.consult.agent.service.ConsultationService;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 

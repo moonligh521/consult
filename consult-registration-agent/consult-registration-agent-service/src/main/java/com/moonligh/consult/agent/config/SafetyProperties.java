@@ -1,9 +1,9 @@
-package com.moonligh.consult.agent.domain.safety;
+package com.moonligh.consult.agent.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 安全分流配置。
+ * 安全分流配置。对应 application.yml 里的 safety。
  */
 @ConfigurationProperties(prefix = "safety")
 public class SafetyProperties {

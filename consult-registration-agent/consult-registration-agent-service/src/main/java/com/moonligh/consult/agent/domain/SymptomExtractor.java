@@ -3,12 +3,9 @@ package com.moonligh.consult.agent.domain;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.springframework.stereotype.Component;
-
 /**
  * 从病情描述中抽取症状标签。同一位置优先匹配更长短语。
  */
-@Component
 public class SymptomExtractor {
 
     /** 可识别的症状短语。长的写在前面，同一位置优先匹配更长的。 */

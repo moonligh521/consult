@@ -1,4 +1,4 @@
-package com.moonligh.consult.agent.infrastructure;
+package com.moonligh.consult.agent.config;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
