@@ -40,11 +40,17 @@ import com.moonligh.consult.framework.ErrorCode;
 @Service
 public class ConsultationService {
 
+    /** 会话存取。同一咨询编号会排队，避免两条消息互相覆盖。 */
     private final ConsultationRepository repository;
+    /** 安全闸门：规则匹配，必要时再让模型补漏。 */
     private final SafetyGate safetyGate;
+    /** 从一句话里抽性别、年龄、病程。 */
     private final SlotParser slotParser;
+    /** 从病情描述里抽症状标签。 */
     private final SymptomExtractor symptomExtractor;
+    /** 按关键词推荐科室。 */
     private final DepartmentRouter departmentRouter;
+    /** 安全状态计数，给监测用，不含病情原文。 */
     private final SafetyMetrics metrics;
 
     public ConsultationService(
@@ -62,6 +68,9 @@ public class ConsultationService {
         this.metrics = metrics;
     }
 
+    /**
+     * 测试和旧调用用的简写：不传 messageId、不传服务类型。
+     */
     public ConsultationRes acceptMessage(String consultationId, String text) {
         return acceptMessage(consultationId, null, null, text);
     }
@@ -71,13 +80,19 @@ public class ConsultationService {
      * 返回值始终是 ConsultationRes，给前端展示。
      */
     public ConsultationRes acceptMessage(String consultationId, String messageId, Integer serviceTypeCode, String text) {
+        // 客户端幂等键最长 64，超了直接参数错误，还没进会话。
         if (messageId != null && messageId.length() > 64) {
             throw new BusinessException(ErrorCode.PARAM_INVALID);
         }
+        // 1、2、3 转成枚举；非法数字变成 1114。不传就是 null。
         ServiceType requestedType = parseServiceType(serviceTypeCode);
+        // 同一咨询排队执行；锁内办事，办完再保存。
         return repository.runLocked(consultationId, session -> acceptLocked(session, messageId, requestedType, text));
     }
 
+    /**
+     * 修改已生成的卡片。急症、转人工、安全降级时不能改。
+     */
     public ConsultationRes updateCard(CardPatchReq patch) {
         if (patch == null) {
             throw new BusinessException(ErrorCode.EMPTY_CARD_PATCH);
@@ -85,53 +100,83 @@ public class ConsultationService {
         return repository.runLocked(patch.consultationId(), session -> updateLocked(session, patch));
     }
 
+    /**
+     * 患者确认卡片。确认后卡片仍在，但普通导诊结束；新病情还走安全重评。
+     */
     public ConsultationRes confirm(String consultationId) {
         return repository.runLocked(consultationId, this::confirmLocked);
     }
 
-    private ConsultationRes acceptLocked(ConsultationSession session, String messageId, ServiceType requestedType, String text) {
+    /**
+     * 已经拿到会话锁之后收消息。顺序：幂等 → 空句 → 存原话 → 安全评估 → 业务状态。
+     */
+    private ConsultationRes acceptLocked(
+            ConsultationSession session,
+            String messageId,
+            ServiceType requestedType,
+            String text) {
+        // 同一个 messageId 再来一次：不重复入库，直接返回当前画面。
         if (messageId != null && session.hasMessage(messageId)) {
             return SafetyPolicy.view(session, catalog());
         }
+        // 去掉首尾空格。全是空格就当成没说话。
         String sentence = text == null ? "" : text.trim();
         if (sentence.isEmpty()) {
+            // 已经急症/转人工/降级时，空句也只回安全画面，不追问槽位。
             if (SafetyPolicy.isSafetyStop(session)) {
                 return SafetyPolicy.view(session, catalog());
             }
             return blankView(session);
         }
+        // 原话只追加，不覆盖以前说过的话。
         session.appendMessage(messageId, MessageSource.MESSAGE, sentence);
+        // 用全部原话做安全评估；已急症则钉死，不再降级。
         assess(session, AuditTrigger.MESSAGE);
+        // 服务类型可在确认前改；确认后再改不同值会记一笔拒绝。
         boolean serviceTypeRejected = applyServiceType(session, requestedType);
+        // 本轮升到急症、转人工、降级、渠道不适用：按规则处理卡片后返回安全画面。
         if (SafetyPolicy.isSafetyStop(session)) {
             SafetyPolicy.applyStopCardPolicy(session);
             return buildResponse(session);
         }
+        // 卡片已确认，还想改服务类型：原话已保存，这里抛 1113。
         if (serviceTypeRejected) {
             throw new BusinessException(ErrorCode.SERVICE_TYPE_LOCKED);
         }
+        // 已确认、且本轮没有安全升级：普通消息返回 1105。原话已经在上面入库。
         if (session.getBusinessStatus() == ConsultationStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.ALREADY_CONFIRMED);
         }
+        // 卡片待确认、且本轮没有安全升级：请走改卡接口，不要用发消息改卡片。
         if (session.getBusinessStatus() == ConsultationStatus.CARD_READY) {
             throw new BusinessException(ErrorCode.CARD_PENDING_CONFIRMATION);
         }
+        // 还在收集阶段：空着的槽位才从这句里抽，已经有的不覆盖。
         fillEmptySlots(session, sentence);
+        // 卡片展示用的描述另存一份，和原话分开。
         addDescription(session, sentence);
+        // 缺槽位就追问；齐了就出卡片。
         return nextView(session);
     }
 
+    /**
+     * 已经拿到会话锁之后改卡片。只改传入的字段。
+     */
     private ConsultationRes updateLocked(ConsultationSession session, CardPatchReq patch) {
+        // 急症、转人工、降级、渠道不适用：不能改卡，抛对应停止码。
         SafetyPolicy.rejectIfSafetyStop(session);
         if (session.getBusinessStatus() == ConsultationStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.ALREADY_CONFIRMED);
         }
+        // 还没生成卡片，不能改。
         if (session.getBusinessStatus() != ConsultationStatus.CARD_READY) {
             throw new BusinessException(ErrorCode.CARD_NOT_READY);
         }
+        // 五个可改字段都没传，算空修改。
         if (!hasCardChange(patch)) {
             throw new BusinessException(ErrorCode.EMPTY_CARD_PATCH);
         }
+        // 先拷贝当前卡片，下面只覆盖调用方传了的字段。
         ConsultationCardRes current = session.getCard();
         Gender gender = current.gender();
         Integer age = current.age();
@@ -144,6 +189,7 @@ public class ConsultationService {
             gender = patch.gender();
         }
         if (patch.age() != null) {
+            // 年龄必须是 1～120。
             if (patch.age() < 1 || patch.age() > 120) {
                 throw new BusinessException(ErrorCode.INVALID_AGE);
             }
@@ -151,6 +197,7 @@ public class ConsultationService {
         }
         if (patch.duration() != null) {
             String value = patch.duration().trim();
+            // 病程必须带时长，例如「三天」「半年」。
             if (!slotParser.validDuration(value)) {
                 throw new BusinessException(ErrorCode.INVALID_DURATION);
             }
@@ -168,13 +215,16 @@ public class ConsultationService {
         session.setDuration(duration);
         session.setDescription(description);
         if (descriptionChanged) {
+            // 改卡描述也追加进原话，安全评估扫的是全部原话，不是只扫改后的卡片。
             session.appendMessage(null, MessageSource.CARD_EDIT, description);
             assess(session, AuditTrigger.CARD_EDIT);
+            // 改完描述命中急症或转人工：卡片作废，返回安全画面。
             if (SafetyPolicy.isSafetyStop(session)) {
                 SafetyPolicy.applyStopCardPolicy(session);
                 return buildResponse(session);
             }
             symptoms = symptomExtractor.extract(description);
+            // 调用方没指定科室时，按新描述重新推荐。
             if (patch.department() == null) {
                 department = departmentRouter.recommend(description);
             }
@@ -185,7 +235,11 @@ public class ConsultationService {
         return buildResponse(session);
     }
 
+    /**
+     * 已经拿到会话锁之后确认卡片。
+     */
     private ConsultationRes confirmLocked(ConsultationSession session) {
+        // 确认前如果还有没评估完的原话，先补做一次安全检查。
         if (session.getLastEvaluatedSeq() < session.getLastMessageSeq()) {
             assess(session, AuditTrigger.CONFIRM_RECHECK);
         }
@@ -200,21 +254,28 @@ public class ConsultationService {
         return buildResponse(session);
     }
 
+    /**
+     * 对当前全部原话做安全评估，并写一条不含原文的审计。
+     */
     private void assess(ConsultationSession session, AuditTrigger trigger) {
+        // 评估前的对外状态、业务状态，写进审计方便对照。
         int previousStatus = SafetyPolicy.view(session, catalog()).status().getCode();
         int businessBefore = session.getBusinessStatus().getCode();
         SafetyAssessment assessment;
         EvaluationKind kind;
         if (session.isUrgentLatched()) {
+            // 已经急症：不再跑引擎，也不因「好一点了」解除。
             assessment = SafetyAssessment.none(ModelStatus.SKIPPED);
             kind = EvaluationKind.PINNED_URGENT;
         } else {
+            // 用原话 + 已知年龄性别评估。结果合并进锁存位，只升不降。
             assessment = safetyGate.assess(session.messages(), new Demographics(session.getAge(), session.getGender()));
             SafetyPolicy.merge(session, assessment);
             session.setLastEvaluatedSeq(session.getLastMessageSeq());
             kind = EvaluationKind.EVALUATED;
         }
         ConsultationRes view = SafetyPolicy.view(session, catalog());
+        // 审计只记规则编号和证据位置，不存病情原文。
         session.addPendingAudit(new SafetyDecisionAudit(
                 UUID.randomUUID().toString(),
                 session.getId(),
@@ -236,11 +297,15 @@ public class ConsultationService {
                 view.prompt() == null ? null : templateIdOf(view.status()),
                 Instant.now()));
         metrics.increment("status." + view.status().getCode());
+        // DRAFT 规则命中只进影子计数，不影响患者决策。
         if (!assessment.shadowRuleIds().isEmpty()) {
             metrics.increment("shadow.hit");
         }
     }
 
+    /**
+     * 按对外状态选出患者提示模板编号。
+     */
     private String templateIdOf(ConsultationStatus status) {
         if (status == ConsultationStatus.URGENT) {
             return SafetyCatalog.URGENT_DEFAULT;
@@ -257,6 +322,9 @@ public class ConsultationService {
         return null;
     }
 
+    /**
+     * 写入服务类型。确认后改成不同值返回 true，调用方据此抛 1113。
+     */
     private boolean applyServiceType(ConsultationSession session, ServiceType requestedType) {
         if (requestedType == null) {
             return false;
@@ -270,6 +338,9 @@ public class ConsultationService {
         return false;
     }
 
+    /**
+     * 把前端传来的 1/2/3 转成枚举。对不上就是 1114。
+     */
     private ServiceType parseServiceType(Integer code) {
         if (code == null) {
             return null;
@@ -281,6 +352,9 @@ public class ConsultationService {
         }
     }
 
+    /**
+     * 空着的槽位才从这句话里抽。已经有的性别、年龄、病程不覆盖。
+     */
     private void fillEmptySlots(ConsultationSession session, String sentence) {
         if (session.getGender() == null) {
             Gender gender = slotParser.gender(sentence);
@@ -302,6 +376,9 @@ public class ConsultationService {
         }
     }
 
+    /**
+     * 卡片上的展示描述。多句用换行拼起来，不是原话记录。
+     */
     private void addDescription(ConsultationSession session, String sentence) {
         if (session.getDescription().isEmpty()) {
             session.setDescription(sentence);
@@ -310,6 +387,9 @@ public class ConsultationService {
         session.setDescription(session.getDescription() + "\n" + sentence);
     }
 
+    /**
+     * 收集阶段的下一步：缺槽位就追问，齐了就生成卡片。
+     */
     private ConsultationRes nextView(ConsultationSession session) {
         if (Slots.nextMissing(session) != null) {
             session.setBusinessStatus(ConsultationStatus.NEED_SLOT);
@@ -328,6 +408,9 @@ public class ConsultationService {
         return buildResponse(session);
     }
 
+    /**
+     * 空文本：请对方重新描述；如果正在补槽，状态仍是待补槽。
+     */
     private ConsultationRes blankView(ConsultationSession session) {
         if (session.getBusinessStatus() != ConsultationStatus.NEED_SLOT) {
             session.setBusinessStatus(ConsultationStatus.NEED_DESCRIPTION);
@@ -335,12 +418,18 @@ public class ConsultationService {
         return buildResponse(session);
     }
 
+    /**
+     * 唯一出口：按安全状态和业务状态拼出给前端的 ConsultationRes。
+     */
     private ConsultationRes buildResponse(ConsultationSession session) {
         ConsultationRes view = SafetyPolicy.view(session, catalog());
         metrics.increment("view." + view.status().getCode());
         return view;
     }
 
+    /**
+     * 五个可改字段都没传，就算空修改。
+     */
     private boolean hasCardChange(CardPatchReq patch) {
         return patch.gender() != null
                 || patch.age() != null
@@ -349,6 +438,7 @@ public class ConsultationService {
                 || patch.department() != null;
     }
 
+    /** 当前生效的急症目录，用来取提示文案和版本号。 */
     private SafetyCatalog catalog() {
         return safetyGate.catalog();
     }
