@@ -21,8 +21,10 @@ public record ConsultationCardRes(
         String description,
         /** 抽出的症状标签。 */
         List<String> symptoms,
-        /** 推荐科室。 */
+        /** 一级类，派医生用。 */
         Department department,
+        /** 二级挂号科，咨询科室展示这个。 */
+        String specialty,
         /** 伴随症状。 */
         List<String> associatedSymptoms,
         /** 过敏史，描述里提到才有。 */

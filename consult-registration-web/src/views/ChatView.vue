@@ -61,14 +61,8 @@ const placeholder = computed(() => {
   if (store.status === STATUS.URGENT) {
     return '急症已锁定，如需补充请继续输入'
   }
-  if (store.status === STATUS.CARD_READY) {
-    return '请先确认分诊建议，或补充症状'
-  }
   if (store.status === STATUS.NEED_HUMAN) {
     return '正在与人工客服对话，可直接输入'
-  }
-  if (store.status === STATUS.CONFIRMED) {
-    return '选择咨询档位后即可支付'
   }
   if (store.missingSlot === MISSING_SLOT.GENDER) {
     return '请点选上方性别，不要手打'
@@ -85,8 +79,16 @@ const placeholder = computed(() => {
   return '可以打字描述不舒服'
 })
 
+const hideComposer = computed(() => (
+  !store.humanOnline
+  && !store.doctorOnline
+  && (store.showCard || matching.value)
+  && !store.stopped
+))
+
 const lockComposer = computed(() => (
-  store.missingSlot === MISSING_SLOT.GENDER
+  hideComposer.value
+  || store.missingSlot === MISSING_SLOT.GENDER
   || store.missingSlot === MISSING_SLOT.AGE
   || matching.value
   || store.paying
@@ -365,7 +367,7 @@ function initialOf(name) {
       </div>
     </div>
 
-    <footer class="dock">
+    <footer v-if="!hideComposer" class="dock">
       <p v-if="attachHint" class="attach-hint">{{ attachHint }}</p>
       <div class="composer">
         <button class="attach" type="button" aria-label="上传检查单或照片" @click="onAttach">+</button>

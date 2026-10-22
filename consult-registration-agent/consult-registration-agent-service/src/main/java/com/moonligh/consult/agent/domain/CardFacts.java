@@ -1,10 +1,10 @@
 package com.moonligh.consult.agent.domain;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.moonligh.consult.agent.api.enums.Department;
 import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
 
@@ -19,32 +19,7 @@ public final class CardFacts {
     private CardFacts() {
     }
 
-    /** 组一张卡片。科室覆盖时依据写成患者确认。 */
-    public static ConsultationCardRes compose(
-            Gender gender,
-            Integer age,
-            String duration,
-            String description,
-            List<String> symptoms,
-            DepartmentRouter.Advice advice,
-            Department overrideDepartment) {
-        Department department = overrideDepartment != null ? overrideDepartment : advice.department();
-        String evidence = overrideDepartment != null ? "患者确认科室" : advice.evidence();
-        List<String> tags = symptoms == null ? List.of() : symptoms;
-        List<String> associated = tags.size() > 1 ? tags.subList(1, tags.size()) : List.of();
-        return new ConsultationCardRes(
-                gender,
-                age,
-                duration,
-                description,
-                tags,
-                department,
-                associated,
-                first(ALLERGY, description),
-                first(MEDICATION, description),
-                evidence);
-    }
-
+    /** 组一张卡片。科室以 advice 为准。 */
     public static ConsultationCardRes compose(
             Gender gender,
             Integer age,
@@ -52,7 +27,29 @@ public final class CardFacts {
             String description,
             List<String> symptoms,
             DepartmentRouter.Advice advice) {
-        return compose(gender, age, duration, description, symptoms, advice, null);
+        List<String> tags = symptoms == null ? List.of() : symptoms;
+        String allergy = first(ALLERGY, description);
+        List<String> associated = new ArrayList<>();
+        if (tags.size() > 1) {
+            for (String tag : tags.subList(1, tags.size())) {
+                if (allergy != null && (allergy.contains(tag) || tag.contains("过敏"))) {
+                    continue;
+                }
+                associated.add(tag);
+            }
+        }
+        return new ConsultationCardRes(
+                gender,
+                age,
+                duration,
+                description,
+                tags,
+                advice.department(),
+                advice.specialty(),
+                associated,
+                allergy,
+                first(MEDICATION, description),
+                advice.evidence());
     }
 
     private static String first(Pattern pattern, String text) {

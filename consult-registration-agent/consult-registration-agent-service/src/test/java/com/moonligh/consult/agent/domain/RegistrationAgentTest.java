@@ -19,6 +19,7 @@ class RegistrationAgentTest {
         RegistrationAgent agent = new RegistrationAgent(router);
         DepartmentRouter.Advice advice = agent.advise("干咳半年");
         assertEquals(Department.INTERNAL, advice.department());
+        assertEquals("呼吸内科", advice.specialty());
         assertEquals("干咳", advice.evidence());
     }
 
@@ -27,6 +28,7 @@ class RegistrationAgentTest {
         RegistrationAgent agent = new RegistrationAgent(router);
         DepartmentRouter.Advice advice = agent.advise("体检报告看不懂");
         assertEquals(Department.GENERAL, advice.department());
+        assertEquals("全科", advice.specialty());
         assertNull(advice.evidence());
     }
 
@@ -47,6 +49,7 @@ class RegistrationAgentTest {
         RegistrationAgent agent = new RegistrationAgent(router, advisor, MemoryDepartmentCatalog.seed());
         DepartmentRouter.Advice advice = agent.advise("肚子疼，说不清哪个位置");
         assertEquals(Department.GENERAL, advice.department());
+        assertEquals("全科", advice.specialty());
         assertNull(advice.evidence());
     }
 }

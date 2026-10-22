@@ -80,10 +80,6 @@ public final class DepartmentSnapshot {
         return fallback;
     }
 
-    public Department fallbackDepartment() {
-        return fallback.toDepartment();
-    }
-
     public List<MatchTypo> typos() {
         return typos;
     }
@@ -106,6 +102,39 @@ public final class DepartmentSnapshot {
             throw new BusinessException(ErrorCode.INVALID_DEPARTMENT);
         }
         return Department.fromCode(code);
+    }
+
+    public DepartmentRecord recordOf(int code) {
+        return enabledByCode.get(code);
+    }
+
+    public String resolveSpecialty(Department department, String specialty) {
+        DepartmentRecord rec = department == null ? null : enabledByCode.get(department.getCode());
+        if (rec == null) {
+            return fallback.defaultSpecialty();
+        }
+        if (rec.hasSpecialty(specialty)) {
+            return specialty;
+        }
+        return rec.defaultSpecialty();
+    }
+
+    /** 按二级科名反查一级类。重名时返回空，调用方按一级码来。 */
+    public DepartmentRecord parentOfSpecialty(String specialty) {
+        if (specialty == null || specialty.isBlank()) {
+            return null;
+        }
+        DepartmentRecord found = null;
+        for (DepartmentRecord dept : enabled) {
+            if (!dept.hasSpecialty(specialty)) {
+                continue;
+            }
+            if (found != null) {
+                return null;
+            }
+            found = dept;
+        }
+        return found;
     }
 
     public DepartmentSnapshot withoutEnabled(int code) {
@@ -152,6 +181,9 @@ public final class DepartmentSnapshot {
         LinkedHashSet<String> phrases = new LinkedHashSet<>();
         for (DepartmentRecord dept : departments) {
             phrases.addAll(dept.routingKeywords());
+            for (DepartmentSpecialty spec : dept.specialties()) {
+                phrases.addAll(spec.routingKeywords());
+            }
         }
         phrases.addAll(SAFETY_PHRASES);
         return List.copyOf(phrases);

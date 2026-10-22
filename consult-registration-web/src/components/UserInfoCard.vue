@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { departmentLabel, genderLabel } from '../constants/catalog'
+import { consultDepartmentLabel, genderLabel } from '../constants/catalog'
 import { useConsultationStore } from '../stores/consultation'
 
 const store = useConsultationStore()
@@ -37,8 +37,8 @@ const shortChief = computed(() => {
     <button class="user-info-go" type="button" @click="open = !open">
       {{ open ? '收起' : '查看/补充' }}
     </button>
-    <p v-if="open && departmentLabel(store.card?.department) !== '—'" class="user-info-dept">
-      分诊科室：{{ departmentLabel(store.card?.department) }}
+    <p v-if="open && consultDepartmentLabel(store.card) !== '—'" class="user-info-dept">
+      分诊科室：{{ consultDepartmentLabel(store.card) }}
     </p>
     <footer>平台保障您的咨询隐私安全</footer>
   </article>

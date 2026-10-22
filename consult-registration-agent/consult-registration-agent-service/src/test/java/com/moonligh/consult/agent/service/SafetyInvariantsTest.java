@@ -136,6 +136,7 @@ class SafetyInvariantsTest {
     void inv011DepartmentEvidenceIsRecorded() {
         ConsultationRes view = ConsultationsFixture.shadow().service.acceptMessage(null, "女，32岁，干咳半年，运动后加重");
         assertEquals(Department.INTERNAL, view.card().department());
+        assertEquals("呼吸内科", view.card().specialty());
         assertEquals("干咳", view.card().departmentEvidence());
     }
 

@@ -1,4 +1,4 @@
-import { departmentLabel } from '../constants/catalog'
+import { consultDepartmentLabel } from '../constants/catalog'
 
 /** 演示坐席接入语。不看病、不开药。 */
 export const HUMAN_JOIN =
@@ -19,7 +19,7 @@ export function waitForHuman() {
 /** 按患者这句话给一条演示回复。不编造诊断。 */
 export function replyAsHuman(text, card) {
   const sentence = (text || '').trim()
-  const dept = departmentLabel(card?.department)
+  const dept = consultDepartmentLabel(card)
   const hasDept = dept !== '—'
 
   if (/结束|再见|谢谢|不用了/.test(sentence)) {

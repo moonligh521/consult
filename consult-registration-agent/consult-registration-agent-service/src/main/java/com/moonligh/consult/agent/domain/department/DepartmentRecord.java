@@ -5,7 +5,7 @@ import java.util.List;
 import com.moonligh.consult.agent.api.enums.Department;
 
 /**
- * 目录里的一个科室。关键词只给已开通的科用来匹配。
+ * 目录里的一个一级类。真正挂号挂到 specialties 里的二级科。
  */
 public record DepartmentRecord(
         int code,
@@ -16,11 +16,29 @@ public record DepartmentRecord(
         int genderScope,
         Integer childAgeLt,
         List<String> routingKeywords,
-        List<String> overrideKeywords) {
+        List<String> overrideKeywords,
+        String treatDesc,
+        List<DepartmentSpecialty> specialties) {
 
     public DepartmentRecord {
         routingKeywords = routingKeywords == null ? List.of() : List.copyOf(routingKeywords);
         overrideKeywords = overrideKeywords == null ? List.of() : List.copyOf(overrideKeywords);
+        treatDesc = treatDesc == null ? "" : treatDesc;
+        specialties = specialties == null ? List.of() : List.copyOf(specialties);
+    }
+
+    public DepartmentRecord(
+            int code,
+            String name,
+            boolean enabled,
+            int sort,
+            boolean fallback,
+            int genderScope,
+            Integer childAgeLt,
+            List<String> routingKeywords,
+            List<String> overrideKeywords) {
+        this(code, name, enabled, sort, fallback, genderScope, childAgeLt,
+                routingKeywords, overrideKeywords, "", List.of());
     }
 
     public boolean maleOnly() {
@@ -37,5 +55,30 @@ public record DepartmentRecord(
 
     public Department toDepartment() {
         return Department.fromCode(code);
+    }
+
+    /** 没有更细的二级时，落到与一级同名的二级，否则第一个二级。 */
+    public String defaultSpecialty() {
+        for (DepartmentSpecialty spec : specialties) {
+            if (name.equals(spec.name())) {
+                return spec.name();
+            }
+        }
+        if (!specialties.isEmpty()) {
+            return specialties.get(0).name();
+        }
+        return name;
+    }
+
+    public boolean hasSpecialty(String specialty) {
+        if (specialty == null || specialty.isBlank()) {
+            return false;
+        }
+        for (DepartmentSpecialty spec : specialties) {
+            if (specialty.equals(spec.name())) {
+                return true;
+            }
+        }
+        return specialties.isEmpty() && name.equals(specialty);
     }
 }

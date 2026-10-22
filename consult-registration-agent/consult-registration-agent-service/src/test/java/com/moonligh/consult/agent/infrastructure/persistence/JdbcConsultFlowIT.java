@@ -97,9 +97,14 @@ class JdbcConsultFlowIT {
         if (exists != null && exists > 0) {
             return;
         }
-        try (InputStream in = new ClassPathResource("db/V0.3.20261022__consult_order.sql").getInputStream()) {
+        try (InputStream in = new ClassPathResource("db/schema.sql").getInputStream()) {
             String sql = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            jdbc.execute(stripComments(sql));
+            for (String stmt : stripComments(sql).split(";")) {
+                if (stmt.contains("consult_order")) {
+                    jdbc.execute(stmt);
+                    break;
+                }
+            }
         }
         assertNotNull(jdbc.queryForObject(
                 """

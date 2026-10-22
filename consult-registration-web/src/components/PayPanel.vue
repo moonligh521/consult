@@ -9,7 +9,10 @@ const activeCode = ref(null)
 const checkoutPkg = ref(null)
 const channel = ref('wechat')
 
-const visible = computed(() => store.status === STATUS.CONFIRMED && store.showCard)
+const visible = computed(() => (
+  (store.status === STATUS.CARD_READY || store.status === STATUS.CONFIRMED)
+  && store.showCard
+))
 const packages = computed(() => store.packages)
 const active = computed(() => packages.value.find((item) => item.code === activeCode.value) || null)
 const paid = computed(() => store.order)
@@ -34,9 +37,15 @@ function openDetail(item) {
   sheet.value = 'detail'
 }
 
-function openCheckout(item) {
-  if (paid.value || store.paying) {
+async function openCheckout(item) {
+  if (paid.value || store.paying || store.sending) {
     return
+  }
+  if (store.status === STATUS.CARD_READY) {
+    await store.confirm()
+    if (store.status !== STATUS.CONFIRMED) {
+      return
+    }
   }
   checkoutPkg.value = item
   activeCode.value = item.code

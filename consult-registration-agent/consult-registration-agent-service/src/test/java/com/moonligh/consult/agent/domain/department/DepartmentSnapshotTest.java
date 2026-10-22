@@ -18,7 +18,7 @@ class DepartmentSnapshotTest {
     void seedFallbackIsGeneral() {
         DepartmentSnapshot snapshot = MemoryDepartmentCatalog.seed().snapshot();
         assertEquals("全科", snapshot.fallback().name());
-        assertEquals(Department.GENERAL, snapshot.fallbackDepartment());
+        assertEquals(Department.GENERAL, snapshot.fallback().toDepartment());
     }
 
     @Test

@@ -17,6 +17,18 @@ public record CardPatchReq(
         String duration,
         /** 病情描述。 */
         String description,
-        /** 推荐科室，JSON 传科室 code。 */
-        Department department) {
+        /** 一级类，JSON 传科室 code。 */
+        Department department,
+        /** 二级挂号科名。和 department 一起改咨询科室。 */
+        String specialty) {
+
+    public CardPatchReq(
+            String consultationId,
+            Gender gender,
+            Integer age,
+            String duration,
+            String description,
+            Department department) {
+        this(consultationId, gender, age, duration, description, department, null);
+    }
 }

@@ -1,14 +1,16 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { NButton, NInput, NSelect } from 'naive-ui'
+import { NButton, NCascader, NInput, NSelect } from 'naive-ui'
 import {
   AGE_OPTIONS,
   DEFAULT_AGE,
-  DEPARTMENT_OPTIONS,
   GENDER_OPTIONS,
+  SPECIALTY_CASCADE,
   STATUS,
-  departmentLabel,
+  consultDepartmentLabel,
   genderLabel,
+  parentDepartmentCode,
+  resolveConsultSpecialty,
 } from '../constants/catalog'
 import { useConsultationStore } from '../stores/consultation'
 
@@ -22,6 +24,7 @@ const form = reactive({
   duration: '',
   description: '',
   department: null,
+  specialty: null,
 })
 
 watch(
@@ -33,14 +36,20 @@ watch(
   },
 )
 
+function fillForm(card) {
+  const specialty = resolveConsultSpecialty(card)
+  form.gender = card?.gender ?? null
+  form.age = card?.age ?? DEFAULT_AGE
+  form.duration = card?.duration ?? ''
+  form.description = card?.description ?? ''
+  form.department = parentDepartmentCode(specialty) || card?.department || null
+  form.specialty = specialty
+}
+
 watch(
   () => store.card,
   (card) => {
-    form.gender = card?.gender ?? null
-    form.age = card?.age ?? DEFAULT_AGE
-    form.duration = card?.duration ?? ''
-    form.description = card?.description ?? ''
-    form.department = card?.department ?? null
+    fillForm(card)
     if (store.status === STATUS.CONFIRMED) {
       editing.value = false
     }
@@ -71,25 +80,30 @@ function startEdit() {
   if (readonly.value) {
     return
   }
+  fillForm(store.card)
   editing.value = true
 }
 
 async function save() {
+  const specialty = resolveConsultSpecialty({
+    specialty: form.specialty,
+    department: form.department,
+  })
+  const department = parentDepartmentCode(specialty)
+  if (!department) {
+    return
+  }
   const ok = await store.saveCard({
     gender: form.gender,
     age: form.age,
     duration: form.duration,
     description: form.description,
-    department: form.department,
+    department,
+    specialty,
   })
   if (ok) {
     editing.value = false
   }
-}
-
-async function confirm() {
-  await store.confirm()
-  editing.value = false
 }
 </script>
 
@@ -102,7 +116,7 @@ async function confirm() {
   >
     <div>
       <strong>咨询信息</strong>
-      <p>{{ personText }} · {{ departmentLabel(store.card?.department) }}</p>
+      <p>{{ personText }} · {{ consultDepartmentLabel(store.card) }}</p>
     </div>
     <span>展开查看</span>
   </button>
@@ -111,7 +125,7 @@ async function confirm() {
     <header class="consult-head">
       <div>
         <div class="consult-title">咨询信息</div>
-        <div class="consult-sub">{{ readonly ? '已确认，后续以卡片信息为准' : '发起咨询以修改后信息为准' }}</div>
+        <div class="consult-sub">{{ readonly ? '已确认，后续以卡片信息为准' : '可修改后选择下方档位咨询' }}</div>
       </div>
       <button v-if="store.order" class="consult-edit" type="button" @click="openFold = false">收起</button>
       <button v-else-if="!readonly" class="consult-edit" type="button" @click="startEdit">修改</button>
@@ -120,7 +134,7 @@ async function confirm() {
 
     <div v-if="!editing" class="consult-body">
       <p><span class="k">咨询人：</span>{{ personText }}</p>
-      <p><span class="k">咨询科室：</span>{{ departmentLabel(store.card?.department) }}</p>
+      <p><span class="k">咨询科室：</span>{{ consultDepartmentLabel(store.card) }}</p>
       <p v-if="store.card?.departmentEvidence"><span class="k">分诊依据：</span>{{ store.card.departmentEvidence }}</p>
       <p><span class="k">问题描述：</span>{{ store.card?.description }}</p>
       <p v-if="store.card?.allergy"><span class="k">过敏：</span>{{ store.card.allergy }}</p>
@@ -142,7 +156,14 @@ async function confirm() {
       </div>
       <div class="field">
         <label>咨询科室</label>
-        <n-select v-model:value="form.department" :options="DEPARTMENT_OPTIONS" />
+        <n-cascader
+          v-model:value="form.specialty"
+          :options="SPECIALTY_CASCADE"
+          filterable
+          show-path
+          leaf-only
+          placeholder="选择二级科室"
+        />
       </div>
       <div class="field">
         <label>问题描述</label>
@@ -153,16 +174,6 @@ async function confirm() {
         <n-button type="primary" :loading="store.sending" @click="save">保存</n-button>
       </div>
     </div>
-
-    <button
-      v-if="!readonly && !editing"
-      class="consult-go"
-      type="button"
-      :disabled="store.sending"
-      @click="confirm"
-    >
-      去挂号
-    </button>
 
     <footer class="consult-foot">平台保障您的咨询隐私安全</footer>
   </article>

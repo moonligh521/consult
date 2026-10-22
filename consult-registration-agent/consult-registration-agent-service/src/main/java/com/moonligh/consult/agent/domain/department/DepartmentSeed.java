@@ -62,6 +62,8 @@ public final class DepartmentSeed {
             boolean fallback,
             int genderScope,
             Integer childAgeLt,
+            String treatDesc,
+            List<SeedSpecialty> specialties,
             List<SeedKw> keywords) {
         private DepartmentRecord toRecord() {
             List<String> routing = new ArrayList<>();
@@ -73,9 +75,18 @@ public final class DepartmentSeed {
                     routing.add(keyword.text());
                 }
             }
+            List<DepartmentSpecialty> specs = new ArrayList<>();
+            for (SeedSpecialty item : specialties == null ? List.<SeedSpecialty>of() : specialties) {
+                specs.add(new DepartmentSpecialty(item.name(), item.treatDesc(), item.keywords()));
+            }
             return new DepartmentRecord(
-                    code, name, enabled, sort, fallback, genderScope, childAgeLt, routing, override);
+                    code, name, enabled, sort, fallback, genderScope, childAgeLt,
+                    routing, override, treatDesc, specs);
         }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record SeedSpecialty(String name, String treatDesc, List<String> keywords) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

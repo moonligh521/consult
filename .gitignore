@@ -45,3 +45,7 @@ Thumbs.db
 node_modules/
 dist/
 *.local
+
+# Generated eval overflow and Python cache
+__pycache__/
+*.next.csv

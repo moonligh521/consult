@@ -952,6 +952,11 @@ input {
   margin-bottom: 4px;
 }
 
+.field .n-select,
+.field .n-cascader {
+  width: 100%;
+}
+
 .pay-wrap {
   margin-top: 12px;
 }

@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.moonligh.consult.agent.api.enums.Department;
 import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.config.SafetyProperties;
 import com.moonligh.consult.agent.domain.DepartmentAdvisor;
@@ -79,25 +78,32 @@ public class DeepSeekDepartmentAdvisor implements DepartmentAdvisor {
         JsonNode payload = MAPPER.readTree(content.substring(start, end + 1));
         String name = payload.path("department").asText("");
         DepartmentSnapshot snapshot = catalog.snapshot();
-        Department department = enabledNamed(snapshot, name);
-        if (department == null) {
+        DepartmentRouter.Advice named = enabledNamed(snapshot, name);
+        if (named == null) {
             return Optional.empty();
         }
         String evidence = payload.path("evidence").asText("");
         if (!evidence.isBlank() && original != null && !original.contains(evidence)) {
             evidence = "";
         }
-        return Optional.of(new DepartmentRouter.Advice(department, evidence.isBlank() ? null : evidence));
+        return Optional.of(new DepartmentRouter.Advice(
+                named.department(), named.specialty(), evidence.isBlank() ? null : evidence));
     }
 
     private String requestBody(String description, Integer age, Gender gender) throws Exception {
         StringJoiner names = new StringJoiner("、");
         for (DepartmentRecord dept : catalog.snapshot().enabled()) {
-            names.add(dept.name());
+            if (dept.specialties().isEmpty()) {
+                names.add(dept.name());
+                continue;
+            }
+            for (var spec : dept.specialties()) {
+                names.add(spec.name());
+            }
         }
         String system = "只输出 JSON：{\"department\":\"全科\",\"evidence\":\"\"}。"
-                + "department 只能是这些已开通科室：" + names + "。"
-                + "对不上词、体检、皮肤、眼科、报告看不懂一律全科。"
+                + "department 只能是这些二级挂号科：" + names + "。"
+                + "对不上词、体检、报告看不懂一律全科。"
                 + "不得输出未开通科室。不得给诊疗建议。不得把急症改成普通挂号。"
                 + "evidence 必须是原话子串，没有则空。不要输出 JSON 之外的文字。";
         var root = MAPPER.createObjectNode();
@@ -110,13 +116,17 @@ public class DeepSeekDepartmentAdvisor implements DepartmentAdvisor {
         return MAPPER.writeValueAsString(root);
     }
 
-    private static Department enabledNamed(DepartmentSnapshot snapshot, String name) {
+    private static DepartmentRouter.Advice enabledNamed(DepartmentSnapshot snapshot, String name) {
         if (name == null || name.isBlank()) {
             return null;
         }
+        DepartmentRecord parent = snapshot.parentOfSpecialty(name);
+        if (parent != null) {
+            return new DepartmentRouter.Advice(parent.toDepartment(), name, null);
+        }
         for (DepartmentRecord dept : snapshot.enabled()) {
             if (name.equals(dept.name())) {
-                return dept.toDepartment();
+                return new DepartmentRouter.Advice(dept.toDepartment(), dept.defaultSpecialty(), null);
             }
         }
         return null;

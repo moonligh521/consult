@@ -52,7 +52,6 @@ export const useConsultationStore = defineStore('consultation', {
     card: (state) => state.latest?.card ?? null,
     prompt: (state) => state.latest?.prompt ?? '',
     safetyNotice: (state) => state.latest?.safetyNotice ?? null,
-    handoff: (state) => state.latest?.handoff ?? null,
     showCard: (state) => canShowCard(state.latest?.status, state.latest?.card),
     missingSlot: (state) => (state.latest?.status === STATUS.NEED_SLOT ? state.latest?.missingSlot ?? null : null),
     packages: (state) => state.latest?.packages ?? [],
@@ -147,6 +146,9 @@ export const useConsultationStore = defineStore('consultation', {
     async send(text) {
       const sentence = text.trim()
       if (!sentence || this.sending) {
+        return
+      }
+      if (this.showCard && !this.doctorOnline && !this.humanOnline) {
         return
       }
       this.sending = true

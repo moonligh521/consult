@@ -1,4 +1,4 @@
-import { departmentLabel } from '../constants/catalog'
+import { consultDepartmentLabel } from '../constants/catalog'
 
 const DOCTORS = {
   1: { name: '周宁', title: '主治医师', hospital: '演示医院', dept: '内科' },
@@ -9,8 +9,20 @@ const DOCTORS = {
   6: { name: '苏敏', title: '主治医师', hospital: '演示医院', dept: '妇产科' },
   7: { name: '何川', title: '主治医师', hospital: '演示医院', dept: '口腔科' },
   8: { name: '林晓', title: '主治医师', hospital: '演示医院', dept: '儿科' },
-  9: { name: '吴桐', title: '主治医师', hospital: '演示医院', dept: '耳鼻喉科' },
+  9: { name: '吴桐', title: '主治医师', hospital: '演示医院', dept: '耳鼻咽喉科' },
   10: { name: '郑白', title: '主治医师', hospital: '演示医院', dept: '中医科' },
+  11: { name: '韩霜', title: '主治医师', hospital: '演示医院', dept: '皮肤科' },
+  12: { name: '方毅', title: '主治医师', hospital: '演示医院', dept: '感染病科' },
+  13: { name: '沈清', title: '主治医师', hospital: '演示医院', dept: '眼科' },
+  14: { name: '曹宁', title: '主治医师', hospital: '演示医院', dept: '精神科' },
+  15: { name: '姚岚', title: '主治医师', hospital: '演示医院', dept: '整形外科' },
+  16: { name: '顾青', title: '主治医师', hospital: '演示医院', dept: '营养科' },
+  17: { name: '蒋远', title: '主治医师', hospital: '演示医院', dept: '肿瘤综合科' },
+  18: { name: '潘夏', title: '主治医师', hospital: '演示医院', dept: '辅助生殖科' },
+  19: { name: '丁和', title: '主治医师', hospital: '演示医院', dept: '疼痛科' },
+  20: { name: '魏安', title: '主治医师', hospital: '演示医院', dept: '睡眠医学科' },
+  21: { name: '钱合', title: '主治医师', hospital: '演示医院', dept: '中西医结合科' },
+  22: { name: '冯康', title: '主治医师', hospital: '演示医院', dept: '康复科' },
 }
 
 function wait(ms) {
@@ -25,9 +37,11 @@ export function waitMs(ms) {
 
 /** 按分诊科室派一位演示医生。不接真实号源。 */
 export function assignDoctor(card) {
-  return DOCTORS[card?.department] || {
-    ...DOCTORS[4],
-    dept: departmentLabel(card?.department) === '—' ? '全科' : departmentLabel(card?.department),
+  const fallback = consultDepartmentLabel(card)
+  const doctor = DOCTORS[card?.department] || DOCTORS[4]
+  return {
+    ...doctor,
+    dept: fallback === '—' ? doctor.dept : fallback,
   }
 }
 
@@ -59,7 +73,7 @@ export function firstAskAsDoctor() {
 /** 按患者这句话给一条演示追问。不编造诊断或用药。 */
 export function replyAsDoctor(text, card, doctor) {
   const sentence = (text || '').trim()
-  const dept = doctor?.dept || departmentLabel(card?.department)
+  const dept = doctor?.dept || consultDepartmentLabel(card)
 
   if (/结束|再见|谢谢|不用了|没有了/.test(sentence)) {
     return '问诊可以先到这里。如症状加重、出现胸痛气促或意识改变，请立即就医或拨打 120。祝早日康复。'

@@ -273,7 +273,8 @@ public class ConsultationService {
             }
             symptoms = symptomExtractor.extract(description);
         }
-        DepartmentRouter.Advice advice = departmentAdvice(patch.department(), descriptionChanged, description, current);
+        DepartmentRouter.Advice advice = departmentAdvice(
+                patch.department(), patch.specialty(), descriptionChanged, description, current);
         ConsultationCardRes card = CardFacts.compose(gender, age, duration, description, symptoms, advice);
         session.setCard(card);
         session.setBusinessStatus(ConsultationStatus.CARD_READY);
@@ -514,13 +515,14 @@ public class ConsultationService {
                 order == null ? null : order.toRes());
     }
 
-    /** 五个可改字段都没传，就算空修改。 */
+    /** 可改字段都没传，就算空修改。 */
     private boolean hasCardChange(CardPatchReq patch) {
         return patch.gender() != null
                 || patch.age() != null
                 || patch.duration() != null
                 || patch.description() != null
-                || patch.department() != null;
+                || patch.department() != null
+                || (patch.specialty() != null && !patch.specialty().isBlank());
     }
 
     /** 问诊关闭时确认和下单都挡住。 */
@@ -533,19 +535,23 @@ public class ConsultationService {
     /** 改科室用患者确认；改描述则重新推荐；其它改动沿用原依据。 */
     private DepartmentRouter.Advice departmentAdvice(
             Department patched,
+            String specialty,
             boolean descriptionChanged,
             String description,
             ConsultationCardRes current) {
+        boolean specialtyChanged = specialty != null && !specialty.isBlank();
         if (patched != null) {
-            registrationAgent.requireEnabled(patched);
-            return new DepartmentRouter.Advice(patched, "患者确认科室");
+            return registrationAgent.confirm(patched, specialtyChanged ? specialty : null);
+        }
+        if (specialtyChanged) {
+            return registrationAgent.confirmSpecialty(specialty);
         }
         if (descriptionChanged) {
             Integer age = current == null ? null : current.age();
             Gender gender = current == null ? null : current.gender();
             return registrationAgent.advise(description, age, gender);
         }
-        return new DepartmentRouter.Advice(current.department(), current.departmentEvidence());
+        return new DepartmentRouter.Advice(current.department(), current.specialty(), current.departmentEvidence());
     }
 
     /** 当前生效的急症目录，用来取提示文案。 */

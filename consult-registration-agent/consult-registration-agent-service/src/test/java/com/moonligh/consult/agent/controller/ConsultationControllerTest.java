@@ -53,7 +53,8 @@ class ConsultationControllerTest {
                 .andExpect(jsonPath("$.data.card.age").value(32))
                 .andExpect(jsonPath("$.data.card.duration").value("半年"))
                 .andExpect(jsonPath("$.data.card.symptoms[0]").value("干咳"))
-                .andExpect(jsonPath("$.data.card.department").value(1));
+                .andExpect(jsonPath("$.data.card.department").value(1))
+                .andExpect(jsonPath("$.data.card.specialty").value("呼吸内科"));
     }
 
     @Test
@@ -71,7 +72,8 @@ class ConsultationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ResultCode.SUCCESS.getCode()))
                 .andExpect(jsonPath("$.data.status").value(4))
-                .andExpect(jsonPath("$.data.card.department").value(4));
+                .andExpect(jsonPath("$.data.card.department").value(4))
+                .andExpect(jsonPath("$.data.card.specialty").value("全科"));
 
         mockMvc.perform(post("/api/consultations/confirmation")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -80,6 +82,7 @@ class ConsultationControllerTest {
                 .andExpect(jsonPath("$.code").value(ResultCode.SUCCESS.getCode()))
                 .andExpect(jsonPath("$.data.status").value(5))
                 .andExpect(jsonPath("$.data.card.department").value(4))
+                .andExpect(jsonPath("$.data.card.specialty").value("全科"))
                 .andExpect(jsonPath("$.data.packages.length()").value(4))
                 .andExpect(jsonPath("$.data.order").value(nullValue()));
 

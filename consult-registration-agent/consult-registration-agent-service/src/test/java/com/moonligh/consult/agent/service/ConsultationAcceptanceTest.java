@@ -118,6 +118,7 @@ class ConsultationAcceptanceTest {
         ConsultationRes patched = service.updateCard(new CardPatchReq(id, null, null, null, null, Department.GENERAL));
         assertEquals(ConsultationStatus.CARD_READY, patched.status());
         assertEquals(Department.GENERAL, patched.card().department());
+        assertEquals("全科", patched.card().specialty());
         assertEquals(List.of("干咳"), patched.card().symptoms());
 
         ConsultationRes confirmed = service.confirm(id);

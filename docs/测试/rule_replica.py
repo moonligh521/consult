@@ -300,16 +300,78 @@ def _first_hit(haystack: str, keywords: list[str]) -> tuple[int, str] | None:
     return best
 
 
-def advise(description: str) -> tuple[str, str | None]:
-    """复刻 DepartmentRouter.advise：只匹配种子目录里已开通的科室。"""
+def _default_specialty(dept: dict) -> str:
+    for spec in dept.get("specialties") or []:
+        if spec.get("name") == dept["name"]:
+            return spec["name"]
+    specs = dept.get("specialties") or []
+    return specs[0]["name"] if specs else dept["name"]
+
+
+def _map_pediatric(pediatric: dict, adult_specialty: str) -> str:
+    names = [spec["name"] for spec in pediatric.get("specialties") or []]
+    if adult_specialty in names:
+        return adult_specialty
+    best = _default_specialty(pediatric)
+    best_len = 0
+    for spec in pediatric.get("specialties") or []:
+        stem = spec["name"].replace("小儿", "")
+        if stem.endswith("科") and len(stem) > 2:
+            stem = stem[:-1]
+        if len(stem) < 2:
+            continue
+        if adult_specialty and stem in adult_specialty and len(stem) > best_len:
+            best = spec["name"]
+            best_len = len(stem)
+    return best
+
+
+def _first_routing(
+    haystack: str,
+    depts: list[dict],
+    only: dict | None,
+    gender: str | None,
+) -> tuple[str, str, int, str] | None:
+    best: tuple[str, str, int, str] | None = None
+    for dept in depts:
+        if only is not None and dept["code"] != only["code"]:
+            continue
+        if only is None and gender == "女" and dept.get("genderScope") == 1:
+            continue
+        if only is None and gender == "男" and dept.get("genderScope") == 2:
+            continue
+        used: set[str] = set()
+        for spec in dept.get("specialties") or []:
+            for keyword in spec.get("keywords") or []:
+                used.add(keyword)
+                at = haystack.find(keyword)
+                if at < 0:
+                    continue
+                if best is None or at < best[2] or (at == best[2] and len(keyword) > len(best[3])):
+                    best = (dept["name"], spec["name"], at, keyword)
+        fallback_spec = _default_specialty(dept)
+        for keyword in keywords_of(dept, "ROUTING"):
+            if keyword in used:
+                continue
+            at = haystack.find(keyword)
+            if at < 0:
+                continue
+            if best is None or at < best[2] or (at == best[2] and len(keyword) > len(best[3])):
+                best = (dept["name"], fallback_spec, at, keyword)
+    return best
+
+
+def advise_full(description: str) -> tuple[str, str, str | None]:
+    """复刻 DepartmentRouter.advise：一级类、二级挂号科、依据。"""
     fallback = general_label()
+    fallback_spec = "全科"
     if description is None or not description.strip():
-        return fallback, None
+        return fallback, fallback_spec, None
     if uncertain_department(description):
-        return fallback, None
+        return fallback, fallback_spec, None
     haystack = match_compact(description)
     depts = catalog_departments()
-    override_best: tuple[int, str, str] | None = None
+    override_best: tuple[int, str, str, str] | None = None
     for dept in depts:
         if dept.get("childAgeLt") is not None:
             continue
@@ -319,33 +381,39 @@ def advise(description: str) -> tuple[str, str | None]:
         if override_best is None or hit[0] < override_best[0] or (
             hit[0] == override_best[0] and len(hit[1]) > len(override_best[1])
         ):
-            override_best = (hit[0], hit[1], dept["name"])
+            override_best = (hit[0], hit[1], dept["name"], _default_specialty(dept))
     if override_best is not None:
-        return override_best[2], override_best[1]
+        parent = next(item for item in depts if item["name"] == override_best[2])
+        inner = _first_routing(haystack, depts, parent, None)
+        if inner is not None:
+            return inner[0], inner[1], inner[3]
+        return override_best[2], override_best[3], override_best[1]
     age = age_of(description) or age_of(haystack)
     gender = gender_of(haystack)
     pediatric = pediatric_dept()
     if pediatric is not None:
         child = _first_hit(haystack, keywords_of(pediatric, "OVERRIDE"))
-        if child is not None:
-            return pediatric["name"], child[1]
-        if age is not None and age < int(pediatric["childAgeLt"]):
-            return pediatric["name"], "儿童"
-    best: tuple[str, int, str] | None = None
-    for dept in depts:
-        if gender == "女" and dept.get("genderScope") == 1:
-            continue
-        if gender == "男" and dept.get("genderScope") == 2:
-            continue
-        for keyword in keywords_of(dept, "ROUTING"):
-            at = haystack.find(keyword)
-            if at < 0:
-                continue
-            if best is None or at < best[1] or (at == best[1] and len(keyword) > len(best[2])):
-                best = (dept["name"], at, keyword)
+        child_hit = child is not None or (age is not None and age < int(pediatric["childAgeLt"]))
+        if child_hit:
+            routing = _first_routing(haystack, depts, pediatric, gender)
+            if routing is not None:
+                return routing[0], routing[1], routing[3]
+            adult = _first_routing(haystack, depts, None, gender)
+            if adult is not None:
+                return pediatric["name"], _map_pediatric(pediatric, adult[1]), adult[3]
+            if child is not None:
+                return pediatric["name"], _default_specialty(pediatric), child[1]
+            return pediatric["name"], _default_specialty(pediatric), "儿童"
+    best = _first_routing(haystack, depts, None, gender)
     if best is None:
-        return fallback, None
-    return best[0], best[2]
+        return fallback, fallback_spec, None
+    return best[0], best[1], best[3]
+
+
+def advise(description: str) -> tuple[str, str | None]:
+    """黄金样例看二级挂号科。"""
+    _l1, specialty, evidence = advise_full(description)
+    return specialty, evidence
 
 
 def evaluate(text: str, rules: list[dict] | None = None) -> dict:
@@ -389,12 +457,13 @@ def evaluate(text: str, rules: list[dict] | None = None) -> dict:
         status = STATUS_NEED_DESC
     else:
         status = STATUS_PLAIN
-    dept, evidence = advise(text)
+    l1, specialty, evidence = advise_full(text)
     return {
         "status": status,
         "urgent": urgent,
         "human": human,
-        "department": dept,
+        "department": l1,
+        "specialty": specialty,
         "evidence": evidence,
         "matched": list(dict.fromkeys(matched)),
         "shadows": list(dict.fromkeys(shadows)),
