@@ -10,6 +10,6 @@ public record MessageReq(
         String messageId,
         /** 服务类型，JSON 传 1、2 或 3。不传则卡片只作预约前信息整理。 */
         Integer serviceType,
-        /** 患者原文。 */
+        /** 患者原文，例如「女，32岁，干咳半年」。 */
         String text) {
 }

@@ -1,7 +1,8 @@
 package com.moonligh.consult.framework;
 
 /**
- * 业务错误码。1xxx 通用，11xx 挂号咨询。
+ * 业务错误码，失败时放在 Result 的 code 里。
+ * 1xxx 通用，11xx 挂号咨询。接口和数据库都传数字。
  */
 public enum ErrorCode {
 
@@ -24,7 +25,9 @@ public enum ErrorCode {
     SERVICE_TYPE_LOCKED(1113, "卡片确认后不能修改服务类型。"),
     INVALID_SERVICE_TYPE(1114, "服务类型须为 1、2 或 3。");
 
+    /** 放进 Result.code 的数字。 */
     private final int code;
+    /** 给调用方看的说明。 */
     private final String message;
 
     ErrorCode(int code, String message) {

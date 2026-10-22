@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+/** 统一返回：成功是 200，失败带业务错误码。 */
 class ResultTest {
 
     @Test

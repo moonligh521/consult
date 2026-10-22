@@ -42,10 +42,12 @@ public class DeepSeekSignalExtractor implements SignalExtractor {
         this.limiter = new Semaphore(settings.getMaxConcurrency());
     }
 
+    /** 限流后调用一次。输出不合格时按配置再试一次。 */
     @Override
     public SignalExtraction extract(List<ConsultationMessage> transcript, Demographics demographics) {
         boolean acquired;
         try {
+            // 同时调用不能超过 maxConcurrency。抢不到许可就算模型不可用。
             acquired = limiter.tryAcquire(settings.getTimeoutMs(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
@@ -66,6 +68,7 @@ public class DeepSeekSignalExtractor implements SignalExtractor {
         }
     }
 
+    /** 真正打一次 HTTP。没密钥、超时、4xx 都当成模型不可用。 */
     private SignalExtraction callOnce(List<ConsultationMessage> transcript, Demographics demographics) {
         if (settings.getApiKey() == null || settings.getApiKey().isBlank()) {
             log.error("model unavailable reason=missing-key");
@@ -95,12 +98,14 @@ public class DeepSeekSignalExtractor implements SignalExtractor {
         }
     }
 
+    /** 从模型回复里抠 JSON。对不上原话格式就当输出不合格。 */
     private SignalExtraction parse(String body) throws Exception {
         JsonNode root = MAPPER.readTree(body);
         String content = root.path("choices").path(0).path("message").path("content").asText("");
         if (content.isBlank()) {
             return SignalExtraction.invalid();
         }
+        // 模型偶尔会在 JSON 前后加说明文字，只取第一个 { 到最后一个 }。
         int start = content.indexOf('{');
         int end = content.lastIndexOf('}');
         if (start < 0 || end < start) {
@@ -132,6 +137,7 @@ public class DeepSeekSignalExtractor implements SignalExtractor {
                 unresolved);
     }
 
+    /** 拼请求体。原话带序号交给模型，日志里不打印这段。 */
     private String requestBody(List<ConsultationMessage> transcript, Demographics demographics) throws Exception {
         StringBuilder numbered = new StringBuilder();
         for (ConsultationMessage message : transcript) {
@@ -149,6 +155,7 @@ public class DeepSeekSignalExtractor implements SignalExtractor {
         return MAPPER.writeValueAsString(root);
     }
 
+    /** 去掉地址末尾的 /，避免拼出双斜杠。 */
     private static String trimSlash(String url) {
         if (url.endsWith("/")) {
             return url.substring(0, url.length() - 1);

@@ -22,6 +22,7 @@ import com.moonligh.consult.framework.GlobalExceptionHandler;
 import com.moonligh.consult.framework.ResultCode;
 import com.moonligh.consult.framework.TraceIdFilter;
 
+/** HTTP 包装：统一 Result、追踪号、错误码。不启动完整 Spring。 */
 class ConsultationControllerTest {
 
     private MockMvc mockMvc;

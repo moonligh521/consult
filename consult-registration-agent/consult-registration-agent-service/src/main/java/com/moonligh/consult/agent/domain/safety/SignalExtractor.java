@@ -7,5 +7,6 @@ import java.util.List;
  */
 public interface SignalExtractor {
 
+    /** 从原话里抽急症信号。不能在这里改会话状态。 */
     SignalExtraction extract(List<ConsultationMessage> transcript, Demographics demographics);
 }

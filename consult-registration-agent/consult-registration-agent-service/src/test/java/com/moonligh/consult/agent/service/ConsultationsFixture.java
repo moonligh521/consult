@@ -14,6 +14,10 @@ import com.moonligh.consult.agent.domain.safety.SafetyGate;
 import com.moonligh.consult.agent.domain.safety.SafetyMetrics;
 import com.moonligh.consult.agent.domain.safety.SignalExtractor;
 
+/**
+ * 测试用装配：内存仓储 + 默认急症目录 + 关闭模型。
+ * 不连 MySQL，方便单测快速跑。
+ */
 public final class ConsultationsFixture {
 
     public final InMemoryConsultationRepository repository;
@@ -43,10 +47,12 @@ public final class ConsultationsFixture {
                 metrics);
     }
 
+    /** 生产同款：DRAFT 规则只记影子。 */
     public static ConsultationsFixture shadow() {
         return of(CatalogLoader.loadDefault(DraftMode.SHADOW), new DisabledSignalExtractor());
     }
 
+    /** 测试专用：DRAFT 也参与决策。 */
     public static ConsultationsFixture enforce() {
         return of(CatalogLoader.loadDefault(DraftMode.ENFORCE), new DisabledSignalExtractor());
     }

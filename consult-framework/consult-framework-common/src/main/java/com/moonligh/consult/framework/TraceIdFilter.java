@@ -26,6 +26,7 @@ public class TraceIdFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        // 调用方带了 X-Trace-Id 就沿用，方便全链路对日志。
         String traceId = request.getHeader(HEADER);
         if (traceId == null || traceId.isBlank()) {
             traceId = UUID.randomUUID().toString();

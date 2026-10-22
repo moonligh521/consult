@@ -49,6 +49,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 
+/** SF 场景：急症钉死、转人工、安全降级、模型补漏。用内存仓储。 */
 class SafetyFlowTest {
 
     private static final String COMPLETE = "女，32岁，干咳半年，运动后加重";

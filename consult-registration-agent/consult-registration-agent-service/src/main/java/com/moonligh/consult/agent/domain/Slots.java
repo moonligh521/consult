@@ -10,7 +10,9 @@ public final class Slots {
     private Slots() {
     }
 
+    /** 下一个还没填的槽位。都齐了返回 null。 */
     public static MissingSlot nextMissing(ConsultationSession session) {
+        // 顺序固定：先性别，再年龄，再病程。
         if (session.getGender() == null) {
             return MissingSlot.GENDER;
         }
@@ -23,6 +25,7 @@ public final class Slots {
         return null;
     }
 
+    /** 追问这句话怎么说。 */
     public static String promptFor(MissingSlot slot) {
         if (slot == MissingSlot.GENDER) {
             return "请补充性别。";

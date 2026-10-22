@@ -19,30 +19,52 @@ import com.moonligh.consult.agent.domain.safety.SafetyDecisionAudit;
  */
 public class ConsultationSession {
 
+    /** 本轮咨询编号。 */
     private final String id;
+    /** 业务状态：待描述、待补槽、卡片待确认、已确认。 */
     private ConsultationStatus businessStatus = ConsultationStatus.NEED_DESCRIPTION;
+    /** 用户要办的服务：线下挂号、互联网复诊、远程会诊。 */
     private ServiceType serviceType;
+    /** 已抽出的性别。空着表示还没抽到。 */
     private Gender gender;
+    /** 已抽出的年龄。空着表示还没抽到。 */
     private Integer age;
+    /** 已抽出的病程，例如「半年」。 */
     private String duration;
+    /** 卡片展示描述，可编辑；不是原话记录。 */
     private String description = "";
+    /** 已经生成的咨询卡片。还没齐或已作废时为 null。 */
     private ConsultationCardRes card;
+    /** 急症锁存：一旦为 true，本轮不再降级。 */
     private boolean urgentLatched;
+    /** 需尽快评估。可以带提示，但不停止挂号。 */
     private boolean promptEvaluationLatched;
+    /** 患者明确要求转人工。 */
     private boolean humanRequestedLatched;
+    /** 当前线上渠道不适用。 */
     private boolean unsuitableLatched;
+    /** 规则或模型说不清楚，走安全降级。 */
     private boolean undetermined;
+    /** 降级原因。没降级时为 null。 */
     private FallbackReason fallbackReason;
+    /** 急症提示用哪条模板。 */
     private String urgentTemplateId;
+    /** 尽快评估提示用哪条模板。 */
     private String noticeTemplateId;
+    /** 最后一条原话的序号。 */
     private int lastMessageSeq;
+    /** 已经评估到哪一条原话。小于 lastMessageSeq 就要补评。 */
     private int lastEvaluatedSeq;
     private Instant createdAt = Instant.now();
     private Instant updatedAt = Instant.now();
+    /** 本轮全部原话，只追加不覆盖。 */
     private final List<ConsultationMessage> messages = new ArrayList<>();
+    /** 本轮评估产生、还没写入数据库的审计。 */
     private final List<SafetyDecisionAudit> pendingAudits = new ArrayList<>();
+    /** 已经落库的原话条数。后面只插入新增的。 */
     private int persistedMessageCount;
 
+    /** 新建一轮咨询。编号由仓储生成或调用方传入。 */
     public ConsultationSession(String id) {
         this.id = id;
     }
@@ -204,10 +226,12 @@ public class ConsultationSession {
         this.updatedAt = updatedAt;
     }
 
+    /** 返回原话副本，外面改不了内部列表。 */
     public List<ConsultationMessage> messages() {
         return List.copyOf(messages);
     }
 
+    /** 从数据库装回原话。已经保存过的条数记下来，后面只插入新增的。 */
     public void restoreMessages(List<ConsultationMessage> loaded) {
         messages.clear();
         messages.addAll(loaded);
@@ -215,6 +239,7 @@ public class ConsultationSession {
         lastMessageSeq = loaded.isEmpty() ? 0 : loaded.get(loaded.size() - 1).seq();
     }
 
+    /** 这个 messageId 是不是已经入库过。用来做幂等。 */
     public boolean hasMessage(String messageId) {
         if (messageId == null) {
             return false;
@@ -227,7 +252,9 @@ public class ConsultationSession {
         return false;
     }
 
+    /** 追加一条原话。不覆盖以前说过的话。 */
     public ConsultationMessage appendMessage(String messageId, MessageSource source, String text) {
+        // 没带 messageId 就现场生成一个，方便幂等和审计对照。
         String id = messageId == null || messageId.isBlank() ? UUID.randomUUID().toString() : messageId;
         lastMessageSeq = lastMessageSeq + 1;
         ConsultationMessage message = new ConsultationMessage(lastMessageSeq, id, source, text, Instant.now());
@@ -236,18 +263,22 @@ public class ConsultationSession {
         return message;
     }
 
+    /** 本轮还没写入数据库的原话。 */
     public List<ConsultationMessage> newMessages() {
         return List.copyOf(messages.subList(persistedMessageCount, messages.size()));
     }
 
+    /** 保存成功后，把新增原话标记成已落库。 */
     public void markMessagesPersisted() {
         persistedMessageCount = messages.size();
     }
 
+    /** 本轮评估产生的审计，等保存时一起写入。 */
     public void addPendingAudit(SafetyDecisionAudit audit) {
         pendingAudits.add(audit);
     }
 
+    /** 取出待写审计并清空列表。 */
     public List<SafetyDecisionAudit> drainPendingAudits() {
         List<SafetyDecisionAudit> drained = List.copyOf(pendingAudits);
         pendingAudits.clear();

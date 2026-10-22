@@ -5,6 +5,7 @@ package com.moonligh.consult.agent.domain.safety;
  */
 public class CatalogException extends RuntimeException {
 
+    /** 目录本身有问题，例如缺模板、正例没命中。 */
     public CatalogException(String message) {
         super(message);
     }

@@ -16,9 +16,12 @@ import com.moonligh.consult.framework.ErrorCode;
  */
 public class InMemoryConsultationRepository implements ConsultationRepository {
 
+    /** 测试里的会话表。 */
     private final ConcurrentMap<String, ConsultationSession> sessions;
+    /** 同一咨询编号排队，模拟生产行锁。 */
     private final ConcurrentMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
     private final InMemorySafetyAuditRecorder auditRecorder;
+    /** 下一次保存故意失败，用来测急症落库保护。 */
     private boolean failNextPersist;
 
     public InMemoryConsultationRepository() {
@@ -32,10 +35,12 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
         this.auditRecorder = auditRecorder;
     }
 
+    /** 下一轮 save 假装数据库挂了。 */
     public void failNextPersist() {
         this.failNextPersist = true;
     }
 
+    /** 测试里直接取出会话。找不到抛 1101。 */
     public ConsultationSession getRequired(String consultationId) {
         ConsultationSession session = sessions.get(consultationId);
         if (session == null) {
@@ -58,6 +63,7 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
             ConsultationSession session = loadOrCreate(id, creating);
             SessionWorkResult result = runAction(action, session);
             persist(session);
+            // 先保存，再抛 1104、1105，避免原话丢失。
             if (result.hasError()) {
                 throw result.error();
             }
@@ -67,6 +73,7 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
         }
     }
 
+    /** 新开一轮就新建；已有编号找不到就 1101。 */
     private ConsultationSession loadOrCreate(String id, boolean creating) {
         if (creating) {
             ConsultationSession session = new ConsultationSession(id);
@@ -80,6 +87,7 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
         return session;
     }
 
+    /** 业务异常先收进结果，让后面的 persist 还能执行。 */
     private SessionWorkResult runAction(SessionAction action, ConsultationSession session) {
         try {
             return SessionWorkResult.ofResponse(action.run(session));
@@ -88,6 +96,7 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
         }
     }
 
+    /** 写入内存表。故意失败时：已急症仍保留画面，其它请求报 1999。 */
     private void persist(ConsultationSession session) {
         if (failNextPersist) {
             failNextPersist = false;

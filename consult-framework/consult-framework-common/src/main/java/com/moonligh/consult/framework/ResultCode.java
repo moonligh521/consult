@@ -5,6 +5,7 @@ package com.moonligh.consult.framework;
  */
 public enum ResultCode {
 
+    /** 业务成功。HTTP 仍是 200。 */
     SUCCESS(200, "操作成功"),
     PARAM_ERROR(400, "参数错误"),
     UNAUTHORIZED(401, "未授权，请先登录"),

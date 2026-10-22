@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+/** 规则引擎：双重否定走不确定，「又痛了」要把前面症状拉回当前。 */
 class RuleSafetyEngineTest {
 
     @Test

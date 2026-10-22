@@ -11,15 +11,18 @@ import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 
 /**
- * 根据安全锁存位组装对外响应。ConsultationRes 只从这里生成。
+ * 根据会话里的安全锁存位，算出给前端看的状态。
+ * 对外 ConsultationRes 只从这里生成。
  */
 public final class SafetyPolicy {
 
+    /** 空描述时请对方重新说一遍。 */
     public static final String REDESCRIBE_PROMPT = "请重新描述病情。";
 
     private SafetyPolicy() {
     }
 
+    /** 把本轮评估结果合并进锁存位。只升不降。 */
     public static void merge(ConsultationSession session, SafetyAssessment assessment) {
         if (assessment.urgent()) {
             session.setUrgentLatched(true);
@@ -43,6 +46,7 @@ public final class SafetyPolicy {
         session.setFallbackReason(assessment.fallbackReason());
     }
 
+    /** 当前有效的紧急程度和渠道。急症优先于转人工。 */
     public static EffectiveSafety effective(ConsultationSession session) {
         Urgency urgency;
         if (session.isUrgentLatched()) {
@@ -68,6 +72,7 @@ public final class SafetyPolicy {
         return new EffectiveSafety(urgency, channel);
     }
 
+    /** 急症、转人工、安全降级、渠道不适用，都算安全停止。 */
     public static boolean isSafetyStop(ConsultationSession session) {
         EffectiveSafety effective = effective(session);
         return effective.urgency() == Urgency.URGENT
@@ -76,6 +81,7 @@ public final class SafetyPolicy {
                 || effective.channel() == ChannelDecision.UNSUITABLE_FOR_ONLINE;
     }
 
+    /** 拼出给前端的画面。安全停止时不带卡片。 */
     public static ConsultationRes view(ConsultationSession session, SafetyCatalog catalog) {
         EffectiveSafety effective = effective(session);
         if (effective.urgency() == Urgency.URGENT) {
@@ -106,6 +112,7 @@ public final class SafetyPolicy {
         return new ConsultationRes(session.getId(), business, null, null, session.getCard(), notice, handoff);
     }
 
+    /** 安全停止时：如果卡片还在待确认，就把卡片作废。 */
     public static void applyStopCardPolicy(ConsultationSession session) {
         if (session.getBusinessStatus() == ConsultationStatus.CARD_READY) {
             session.setCard(null);
@@ -113,6 +120,7 @@ public final class SafetyPolicy {
         }
     }
 
+    /** 安全停止时对应的错误码：1103、1110、1111、1112。 */
     public static ErrorCode stopError(ConsultationSession session) {
         EffectiveSafety effective = effective(session);
         if (effective.urgency() == Urgency.URGENT) {
@@ -127,12 +135,14 @@ public final class SafetyPolicy {
         return ErrorCode.UNSUITABLE_STOP;
     }
 
+    /** 安全停止态不允许改卡或确认，直接抛停止码。 */
     public static void rejectIfSafetyStop(ConsultationSession session) {
         if (isSafetyStop(session)) {
             throw new BusinessException(stopError(session));
         }
     }
 
+    /** 互联网复诊、远程会诊交给预审；其余是预约前信息整理。 */
     public static Handoff handoffOf(ServiceType serviceType) {
         if (serviceType == ServiceType.ONLINE_FOLLOW_UP || serviceType == ServiceType.REMOTE_CONSULT) {
             return Handoff.PRECHECK;
@@ -140,10 +150,12 @@ public final class SafetyPolicy {
         return Handoff.PRE_APPOINTMENT_INFO;
     }
 
+    /** 安全停止画面：只有提示，不带卡片。 */
     private static ConsultationRes safetyView(ConsultationSession session, ConsultationStatus status, String prompt) {
         return new ConsultationRes(session.getId(), status, prompt, null, null, null, null);
     }
 
+    /** 空模板编号时用默认模板。 */
     private static String orDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
     }

@@ -7,23 +7,42 @@ import java.util.List;
  * 一次安全决策的审计记录。不含原话文本。
  */
 public record SafetyDecisionAudit(
+        /** 本条审计编号。 */
         String decisionId,
+        /** 属于哪一轮咨询。 */
         String consultationId,
+        /** 评估到哪一条原话。 */
         int messageSeq,
+        /** 从哪个接口触发。 */
         AuditTrigger trigger,
+        /** 真评估还是急症钉死。 */
         EvaluationKind evaluation,
+        /** 参与决策的规则。 */
         List<String> matchedRuleIds,
+        /** 只记影子的规则。 */
         List<String> shadowRuleIds,
+        /** 证据位置，不含原文。 */
         List<EvidenceRef> evidence,
+        /** 当时用的目录版本。 */
         String catalogVersion,
+        /** 当时用的规则引擎版本。 */
         String ruleEngineVersion,
+        /** 模型补漏结果。 */
         ModelStatus modelStatus,
+        /** 模型名称。没调用时为 null。 */
         String modelVersion,
+        /** 降级原因。 */
         FallbackReason fallbackReason,
+        /** 评估前对外状态码。 */
         int previousStatus,
+        /** 评估后对外状态码。 */
         int resultingStatus,
+        /** 评估前业务状态码。 */
         int businessBefore,
+        /** 评估后业务状态码。 */
         int businessAfter,
+        /** 给患者看的模板编号。 */
         String templateId,
+        /** 决策时间。 */
         Instant decisionTime) {
 }

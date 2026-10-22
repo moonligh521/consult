@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  */
 public class CatalogLoader {
 
+    /** 默认急症目录在 classpath 的位置。 */
     public static final String DEFAULT_LOCATION = "/safety/urgent-catalog.json";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -25,10 +26,12 @@ public class CatalogLoader {
             SafetyCatalog.FALLBACK_DEFAULT,
             SafetyCatalog.UNSUITABLE_DEFAULT);
 
+    /** 加载默认目录。 */
     public static SafetyCatalog loadDefault(DraftMode draftMode) {
         return load(DEFAULT_LOCATION, draftMode);
     }
 
+    /** 从 classpath 读 JSON。找不到文件直接失败，不能空跑。 */
     public static SafetyCatalog load(String classpathLocation, DraftMode draftMode) {
         InputStream input = CatalogLoader.class.getResourceAsStream(classpathLocation);
         if (input == null) {
@@ -43,6 +46,7 @@ public class CatalogLoader {
         }
     }
 
+    /** 解析 JSON、校验必填项，再跑正反例自检。 */
     public static SafetyCatalog load(InputStream input, DraftMode draftMode) {
         JsonNode root;
         try {
@@ -63,10 +67,12 @@ public class CatalogLoader {
         }
         List<SafetyRule> rules = readRules(root.get("rules"), templates);
         SafetyCatalog catalog = new SafetyCatalog(version, effectiveFrom, draftMode, templates, rules);
+        // 正例必须命中、反例不能命中，否则目录不能启用。
         CatalogSelfTest.run(catalog);
         return catalog;
     }
 
+    /** ENFORCE 只允许测试环境。生产必须 SHADOW，DRAFT 规则不能影响患者。 */
     public static void assertDraftModeAllowed(DraftMode draftMode, String[] activeProfiles) {
         if (draftMode != DraftMode.ENFORCE) {
             return;
@@ -81,6 +87,7 @@ public class CatalogLoader {
         throw new CatalogException("draft-mode=ENFORCE 只允许 test profile");
     }
 
+    /** 读提示模板。id 不能重复，正文不能空。 */
     private static Map<String, SafetyTemplate> readTemplates(JsonNode array) {
         Map<String, SafetyTemplate> templates = new HashMap<>();
         if (array == null || !array.isArray()) {
@@ -101,6 +108,7 @@ public class CatalogLoader {
         return templates;
     }
 
+    /** 读规则。ruleId 不能重复，同一状态下别名也不能重复。 */
     private static List<SafetyRule> readRules(JsonNode array, Map<String, SafetyTemplate> templates) {
         if (array == null || !array.isArray()) {
             throw new CatalogException("目录缺少 rules");
@@ -124,6 +132,7 @@ public class CatalogLoader {
         return rules;
     }
 
+    /** 读一条规则。APPROVED 必须有审核人、日期和证据引用。 */
     private static SafetyRule readRule(JsonNode node, Map<String, SafetyTemplate> templates) {
         String ruleId = text(node, "ruleId");
         String ruleVersion = text(node, "ruleVersion");
@@ -165,6 +174,7 @@ public class CatalogLoader {
                 blankToNull(text(node, "evidenceReference")));
     }
 
+    /** 把 JSON 数组转成字符串列表。空元素直接报错。 */
     private static List<String> strings(JsonNode node) {
         if (node == null || node.isNull()) {
             return List.of();
@@ -183,6 +193,7 @@ public class CatalogLoader {
         return List.copyOf(values);
     }
 
+    /** 把 JSON 里的状态字转成枚举。写错了启动失败。 */
     private static RuleStatus parseRuleStatus(String raw, String field) {
         try {
             return RuleStatus.valueOf(raw);
@@ -191,6 +202,7 @@ public class CatalogLoader {
         }
     }
 
+    /** 把否定/不确定等策略字转成枚举。 */
     private static PolicyAction parsePolicyAction(String raw, String field) {
         try {
             return PolicyAction.valueOf(raw);
@@ -199,6 +211,7 @@ public class CatalogLoader {
         }
     }
 
+    /** 把处置字转成枚举。 */
     private static Disposition parseDisposition(String raw, String field) {
         try {
             return Disposition.valueOf(raw);
@@ -207,6 +220,7 @@ public class CatalogLoader {
         }
     }
 
+    /** 取 JSON 字段。没有或为 null 就当空字符串。 */
     private static String text(JsonNode node, String field) {
         if (node == null) {
             return "";
@@ -218,6 +232,7 @@ public class CatalogLoader {
         return value.asText("");
     }
 
+    /** 空白审核字段存成 null，不存空串。 */
     private static String blankToNull(String value) {
         return value.isBlank() ? null : value;
     }

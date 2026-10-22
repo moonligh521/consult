@@ -19,7 +19,9 @@ public enum ConsultationStatus {
     SAFE_FALLBACK(7, "安全分流暂不可用"),
     UNSUITABLE_FOR_ONLINE(8, "当前渠道不适用");
 
+    /** 对外传递的数字。 */
     private final int code;
+    /** 中文说明，给页面展示，不进 JSON。 */
     private final String label;
 
     ConsultationStatus(int code, String label) {
@@ -36,6 +38,7 @@ public enum ConsultationStatus {
         return label;
     }
 
+    /** JSON 反序列化时按数字找到枚举。 */
     @JsonCreator
     public static ConsultationStatus fromCode(int code) {
         for (ConsultationStatus item : ConsultationStatus.values()) {

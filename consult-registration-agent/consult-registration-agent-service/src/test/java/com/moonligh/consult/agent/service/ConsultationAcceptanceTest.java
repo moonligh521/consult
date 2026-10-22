@@ -19,12 +19,14 @@ import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 
+/** AC-1～14：挂号主流程验收。用内存仓储，不连数据库。 */
 class ConsultationAcceptanceTest {
 
     private ConsultationService service;
 
     @BeforeEach
     void setUp() {
+        // 每条用例一套新的内存会话，互不影响。
         service = ConsultationsFixture.shadow().service;
     }
 

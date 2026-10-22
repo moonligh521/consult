@@ -12,7 +12,9 @@ public enum Handoff {
     PRE_APPOINTMENT_INFO(1, "预约前信息整理"),
     PRECHECK(2, "人工/医师预审");
 
+    /** 对外传递的数字。 */
     private final int code;
+    /** 中文名称，给页面展示，不进 JSON。 */
     private final String label;
 
     Handoff(int code, String label) {
@@ -29,6 +31,7 @@ public enum Handoff {
         return label;
     }
 
+    /** JSON 里的数字转成枚举。1 预约前整理，2 预审。 */
     @JsonCreator
     public static Handoff fromCode(int code) {
         for (Handoff item : values()) {

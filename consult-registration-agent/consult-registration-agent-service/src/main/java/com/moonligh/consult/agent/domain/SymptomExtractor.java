@@ -11,10 +11,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class SymptomExtractor {
 
+    /** 可识别的症状短语。长的写在前面，同一位置优先匹配更长的。 */
     private static final String[] PHRASES = {
             "呼吸困难", "干咳", "咳嗽", "气促", "胸痛", "头痛", "头晕", "腹痛", "腹泻", "恶心", "呼吸"
     };
 
+    /** 从描述里抽出不重复的症状标签。 */
     public List<String> extract(String description) {
         List<String> found = new ArrayList<>();
         int index = 0;
@@ -32,6 +34,7 @@ public class SymptomExtractor {
         return List.copyOf(found);
     }
 
+    /** 从 index 开始，找出能对上的最长短语。 */
     private String longestPhraseAt(String description, int index) {
         String best = null;
         for (String phrase : PHRASES) {

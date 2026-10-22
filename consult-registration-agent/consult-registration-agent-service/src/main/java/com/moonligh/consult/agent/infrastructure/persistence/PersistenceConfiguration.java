@@ -6,11 +6,12 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 数据库事务配置。
+ * 数据库事务模板。一次 runLocked 包在一个事务里。
  */
 @Configuration
 public class PersistenceConfiguration {
 
+    /** Spring 事务模板。仓储用它包住一次 runLocked。 */
     @Bean
     public TransactionTemplate transactionTemplate(PlatformTransactionManager transactionManager) {
         return new TransactionTemplate(transactionManager);

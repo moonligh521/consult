@@ -7,6 +7,7 @@ import java.util.List;
  */
 public class DisabledSignalExtractor implements SignalExtractor {
 
+    /** 直接返回 DISABLED，不调任何模型。 */
     @Override
     public SignalExtraction extract(List<ConsultationMessage> transcript, Demographics demographics) {
         return SignalExtraction.disabled();

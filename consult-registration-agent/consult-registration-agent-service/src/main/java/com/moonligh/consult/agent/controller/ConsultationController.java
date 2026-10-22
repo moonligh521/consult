@@ -14,7 +14,7 @@ import com.moonligh.consult.agent.service.ConsultationService;
 import com.moonligh.consult.framework.Result;
 
 /**
- * 咨询接口。
+ * 咨询 HTTP 入口。这里不写规则，只把请求转给 ConsultationService。
  */
 @RestController
 @RequestMapping("/api/consultations")
@@ -31,6 +31,7 @@ public class ConsultationController {
      */
     @PostMapping("/messages")
     public Result<ConsultationRes> acceptMessage(@RequestBody MessageReq request) {
+        // 请求体为空时按空文本处理，由服务返回提示。
         if (request == null) {
             return Result.ok(service.acceptMessage(null, null, null, ""));
         }
