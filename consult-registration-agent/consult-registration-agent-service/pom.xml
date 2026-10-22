@@ -56,6 +56,10 @@
         </dependency>
     </dependencies>
 
+    <properties>
+        <it.mysql>false</it.mysql>
+    </properties>
+
     <build>
         <plugins>
             <plugin>
@@ -63,6 +67,15 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <skip>false</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <it.mysql>${it.mysql}</it.mysql>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
         </plugins>

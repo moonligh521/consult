@@ -1,6 +1,7 @@
 package com.moonligh.consult.agent.controller;
 
 import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -78,7 +79,25 @@ class ConsultationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ResultCode.SUCCESS.getCode()))
                 .andExpect(jsonPath("$.data.status").value(5))
-                .andExpect(jsonPath("$.data.card.department").value(4));
+                .andExpect(jsonPath("$.data.card.department").value(4))
+                .andExpect(jsonPath("$.data.packages.length()").value(4))
+                .andExpect(jsonPath("$.data.order").value(nullValue()));
+
+        mockMvc.perform(get("/api/consultations/packages"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(ResultCode.SUCCESS.getCode()))
+                .andExpect(jsonPath("$.data[2].code").value(3))
+                .andExpect(jsonPath("$.data[2].name").value("三甲医生"));
+
+        mockMvc.perform(post("/api/consultations/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"consultationId\":\"" + consultationId + "\",\"packageCode\":3}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(ResultCode.SUCCESS.getCode()))
+                .andExpect(jsonPath("$.data.status").value(5))
+                .andExpect(jsonPath("$.data.order.packageCode").value(3))
+                .andExpect(jsonPath("$.data.order.packageName").value("三甲医生"))
+                .andExpect(jsonPath("$.data.order.payStatus").value(2));
     }
 
     @Test

@@ -13,8 +13,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moonligh.consult.agent.api.enums.ConsultationStatus;
 import com.moonligh.consult.agent.api.enums.Gender;
+import com.moonligh.consult.agent.api.enums.PayStatus;
 import com.moonligh.consult.agent.api.enums.ServiceType;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
+import com.moonligh.consult.agent.domain.ConsultOrder;
 import com.moonligh.consult.agent.domain.ConsultationSession;
 import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
 import com.moonligh.consult.agent.domain.safety.FallbackReason;
@@ -207,6 +209,55 @@ public class ConsultationMapper {
         session.setCreatedAt(rs.getTimestamp("created_at").toInstant());
         session.setUpdatedAt(rs.getTimestamp("updated_at").toInstant());
         return session;
+    }
+
+    /** 查出这一轮未删除的订单。没有就返回 null。 */
+    public ConsultOrder selectOrder(String consultationId) {
+        List<ConsultOrder> rows = jdbc.query(
+                """
+                SELECT id, package_code, package_name, origin_amount, pay_amount, discount_amount, pay_status, paid_at
+                FROM consult_order
+                WHERE consultation_id = ? AND is_deleted = 0
+                """,
+                this::mapOrder,
+                consultationId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /** 插入一笔新订单。同一咨询只能有一行未删除订单。 */
+    public void insertOrder(String consultationId, ConsultOrder order) {
+        Instant now = Instant.now();
+        jdbc.update(
+                """
+                INSERT INTO consult_order
+                (id, consultation_id, package_code, package_name, origin_amount, pay_amount, discount_amount,
+                 pay_status, paid_at, created_at, updated_at, is_deleted)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                """,
+                order.orderId(),
+                consultationId,
+                order.packageCode(),
+                order.packageName(),
+                order.originAmount(),
+                order.payAmount(),
+                order.discountAmount(),
+                order.payStatus().getCode(),
+                Timestamp.from(order.paidAt()),
+                Timestamp.from(now),
+                Timestamp.from(now));
+    }
+
+    private ConsultOrder mapOrder(ResultSet rs, int rowNum) throws SQLException {
+        Timestamp paidAt = rs.getTimestamp("paid_at");
+        return new ConsultOrder(
+                rs.getString("id"),
+                rs.getInt("package_code"),
+                rs.getString("package_name"),
+                rs.getBigDecimal("origin_amount"),
+                rs.getBigDecimal("pay_amount"),
+                rs.getBigDecimal("discount_amount"),
+                PayStatus.fromCode(rs.getInt("pay_status")),
+                paidAt == null ? null : paidAt.toInstant());
     }
 
     /** 卡片转成 JSON 存库。没有卡片就存 null。 */

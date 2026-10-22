@@ -125,6 +125,42 @@ class ConsultationAcceptanceTest {
         assertEquals(List.of("干咳"), confirmed.card().symptoms());
         assertNull(confirmed.prompt());
         assertNull(confirmed.missingSlot());
+        assertEquals(4, confirmed.packages().size());
+        assertNull(confirmed.order());
+    }
+
+    @Test
+    void confirmedCardCanPlaceDemoOrder() {
+        String id = service.acceptMessage(null, "女，32岁，干咳半年，运动后加重").consultationId();
+        service.confirm(id);
+
+        BusinessException beforeConfirm = assertThrows(
+                BusinessException.class,
+                () -> service.placeOrder(service.acceptMessage(null, "女，32岁，干咳半年，运动后加重").consultationId(), 3));
+        assertEquals(ErrorCode.ORDER_NOT_ALLOWED, beforeConfirm.getErrorCode());
+
+        ConsultationRes ordered = service.placeOrder(id, 3);
+        assertEquals(ConsultationStatus.CONFIRMED, ordered.status());
+        assertEquals(3, ordered.order().packageCode());
+        assertEquals("三甲医生", ordered.order().packageName());
+        assertEquals(2, ordered.order().payStatus().getCode());
+        assertEquals(4, ordered.packages().size());
+
+        ConsultationRes again = service.placeOrder(id, 3);
+        assertEquals(ordered.order().orderId(), again.order().orderId());
+
+        BusinessException other = assertThrows(BusinessException.class, () -> service.placeOrder(id, 4));
+        assertEquals(ErrorCode.ALREADY_ORDERED, other.getErrorCode());
+
+        BusinessException bad = assertThrows(BusinessException.class, () -> service.placeOrder(id, 9));
+        assertEquals(ErrorCode.INVALID_PACKAGE, bad.getErrorCode());
+    }
+
+    @Test
+    void urgentCannotPlaceOrder() {
+        String id = service.acceptMessage(null, "胸痛").consultationId();
+        BusinessException error = assertThrows(BusinessException.class, () -> service.placeOrder(id, 1));
+        assertEquals(ErrorCode.URGENT_STOP, error.getErrorCode());
     }
 
     @Test

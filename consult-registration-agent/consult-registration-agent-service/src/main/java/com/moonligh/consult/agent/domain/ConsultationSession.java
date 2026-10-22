@@ -63,6 +63,10 @@ public class ConsultationSession {
     private final List<SafetyDecisionAudit> pendingAudits = new ArrayList<>();
     /** 已经落库的原话条数。后面只插入新增的。 */
     private int persistedMessageCount;
+    /** 本轮订单。还没下单为 null。 */
+    private ConsultOrder order;
+    /** 这次请求新写下单，保存时要插入。 */
+    private boolean orderDirty;
 
     /** 新建一轮咨询。编号由仓储生成或调用方传入。 */
     public ConsultationSession(String id) {
@@ -283,5 +287,31 @@ public class ConsultationSession {
         List<SafetyDecisionAudit> drained = List.copyOf(pendingAudits);
         pendingAudits.clear();
         return drained;
+    }
+
+    public ConsultOrder getOrder() {
+        return order;
+    }
+
+    /** 本轮新下单。保存时插入一行。 */
+    public void setOrder(ConsultOrder order) {
+        this.order = order;
+        this.orderDirty = true;
+        this.updatedAt = Instant.now();
+    }
+
+    /** 从数据库装回已有订单。不算新下单。 */
+    public void restoreOrder(ConsultOrder loaded) {
+        this.order = loaded;
+        this.orderDirty = false;
+    }
+
+    public boolean isOrderDirty() {
+        return orderDirty;
+    }
+
+    /** 订单插入成功后清脏标记。 */
+    public void markOrderPersisted() {
+        this.orderDirty = false;
     }
 }

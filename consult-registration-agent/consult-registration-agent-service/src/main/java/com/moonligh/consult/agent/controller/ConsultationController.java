@@ -1,5 +1,8 @@
 package com.moonligh.consult.agent.controller;
 
+import java.util.List;
+
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -9,7 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.moonligh.consult.agent.api.req.CardPatchReq;
 import com.moonligh.consult.agent.api.req.ConfirmReq;
 import com.moonligh.consult.agent.api.req.MessageReq;
+import com.moonligh.consult.agent.api.req.OrderReq;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
+import com.moonligh.consult.agent.api.res.PayPackageRes;
 import com.moonligh.consult.agent.service.ConsultationService;
 import com.moonligh.consult.framework.Result;
 
@@ -56,5 +61,24 @@ public class ConsultationController {
             return Result.ok(service.confirm(null));
         }
         return Result.ok(service.confirm(request.consultationId()));
+    }
+
+    /**
+     * 卡片确认后的四档咨询。不依赖某一轮会话。
+     */
+    @GetMapping("/packages")
+    public Result<List<PayPackageRes>> packages() {
+        return Result.ok(service.packages());
+    }
+
+    /**
+     * 选择档位并记下演示订单。不走真实支付。
+     */
+    @PostMapping("/orders")
+    public Result<ConsultationRes> placeOrder(@RequestBody OrderReq request) {
+        if (request == null) {
+            return Result.ok(service.placeOrder(null, null));
+        }
+        return Result.ok(service.placeOrder(request.consultationId(), request.packageCode()));
     }
 }

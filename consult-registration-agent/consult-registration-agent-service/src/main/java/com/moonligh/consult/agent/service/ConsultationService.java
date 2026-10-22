@@ -13,9 +13,12 @@ import com.moonligh.consult.agent.api.enums.ServiceType;
 import com.moonligh.consult.agent.api.req.CardPatchReq;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
+import com.moonligh.consult.agent.api.res.PayPackageRes;
+import com.moonligh.consult.agent.domain.ConsultOrder;
 import com.moonligh.consult.agent.domain.ConsultationRepository;
 import com.moonligh.consult.agent.domain.ConsultationSession;
 import com.moonligh.consult.agent.domain.DepartmentRouter;
+import com.moonligh.consult.agent.domain.PayCatalog;
 import com.moonligh.consult.agent.domain.SlotParser;
 import com.moonligh.consult.agent.domain.Slots;
 import com.moonligh.consult.agent.domain.SymptomExtractor;
@@ -102,6 +105,18 @@ public class ConsultationService {
      */
     public ConsultationRes confirm(String consultationId) {
         return repository.runLocked(consultationId, this::confirmLocked);
+    }
+
+    /** 下单页四档，不依赖某一轮咨询。 */
+    public List<PayPackageRes> packages() {
+        return PayCatalog.list();
+    }
+
+    /**
+     * 卡片确认后选择档位。演示环境直接记已支付，不走微信/支付宝。
+     */
+    public ConsultationRes placeOrder(String consultationId, Integer packageCode) {
+        return repository.runLocked(consultationId, session -> placeOrderLocked(session, packageCode));
     }
 
     /**
@@ -248,6 +263,32 @@ public class ConsultationService {
             throw new BusinessException(ErrorCode.CARD_NOT_READY);
         }
         session.setBusinessStatus(ConsultationStatus.CONFIRMED);
+        return buildResponse(session);
+    }
+
+    /**
+     * 已经拿到会话锁之后下单。急症和未确认都不能买。
+     */
+    private ConsultationRes placeOrderLocked(ConsultationSession session, Integer packageCode) {
+        SafetyPolicy.rejectIfSafetyStop(session);
+        if (session.getBusinessStatus() != ConsultationStatus.CONFIRMED) {
+            throw new BusinessException(ErrorCode.ORDER_NOT_ALLOWED);
+        }
+        if (packageCode == null) {
+            throw new BusinessException(ErrorCode.INVALID_PACKAGE);
+        }
+        PayPackageRes pkg = PayCatalog.find(packageCode);
+        if (pkg == null) {
+            throw new BusinessException(ErrorCode.INVALID_PACKAGE);
+        }
+        ConsultOrder existing = session.getOrder();
+        if (existing != null) {
+            if (existing.packageCode() == packageCode) {
+                return buildResponse(session);
+            }
+            throw new BusinessException(ErrorCode.ALREADY_ORDERED);
+        }
+        session.setOrder(ConsultOrder.paidOf(pkg));
         return buildResponse(session);
     }
 
@@ -401,11 +442,22 @@ public class ConsultationService {
         return buildResponse(session);
     }
 
-    /** 按安全状态和业务状态拼出给前端的画面。 */
+    /** 按安全状态和业务状态拼出给前端的画面。已确认时带上四档和下单结果。 */
     private ConsultationRes buildResponse(ConsultationSession session) {
         ConsultationRes view = SafetyPolicy.view(session, catalog());
         metrics.increment("view." + view.status().getCode());
-        return view;
+        List<PayPackageRes> packages = view.status() == ConsultationStatus.CONFIRMED ? PayCatalog.list() : null;
+        ConsultOrder order = session.getOrder();
+        return new ConsultationRes(
+                view.consultationId(),
+                view.status(),
+                view.prompt(),
+                view.missingSlot(),
+                view.card(),
+                view.safetyNotice(),
+                view.handoff(),
+                packages,
+                order == null ? null : order.toRes());
     }
 
     /** 五个可改字段都没传，就算空修改。 */

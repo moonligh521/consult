@@ -89,6 +89,7 @@ public class JdbcConsultationRepository implements ConsultationRepository {
             return null;
         }
         session.restoreMessages(mapper.selectMessages(id));
+        session.restoreOrder(mapper.selectOrder(id));
         return session;
     }
 
@@ -110,6 +111,10 @@ public class JdbcConsultationRepository implements ConsultationRepository {
         session.markMessagesPersisted();
         for (SafetyDecisionAudit audit : session.drainPendingAudits()) {
             mapper.insertAudit(audit);
+        }
+        if (session.isOrderDirty() && session.getOrder() != null) {
+            mapper.insertOrder(session.getId(), session.getOrder());
+            session.markOrderPersisted();
         }
     }
 }
