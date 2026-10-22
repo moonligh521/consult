@@ -435,6 +435,6 @@ class SafetyFlowTest {
     }
 
     private ConsultationSession session(ConsultationsFixture fixture, String id) {
-        return fixture.repository.inLock(id, current -> current);
+        return fixture.repository.getRequired(id);
     }
 }

@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 按目录匹配急症信号。模型不能调用本类去设置最终状态。
+ * 按急症目录匹配患者原话。
+ * 步骤：归一 → 分句 → 找别名 → 看否定/时间 → 按规则写出处置。
+ * 模型不能调用本类去设置最终状态。
  */
 public class RuleSafetyEngine {
 

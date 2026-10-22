@@ -11,7 +11,8 @@ import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 
 /**
- * 安全状态合并、有效值和对外视图。纯函数，唯一出口。
+ * 根据会话里的安全锁存位，算出给前端看的状态。
+ * 对外 ConsultationRes 只从这里生成，避免各处自己拼响应。
  */
 public final class SafetyPolicy {
 
@@ -79,7 +80,8 @@ public final class SafetyPolicy {
     public static ConsultationRes view(ConsultationSession session, SafetyCatalog catalog) {
         EffectiveSafety effective = effective(session);
         if (effective.urgency() == Urgency.URGENT) {
-            return safetyView(session, ConsultationStatus.URGENT, catalog.templateText(orDefault(session.getUrgentTemplateId(), SafetyCatalog.URGENT_DEFAULT)));
+            String prompt = catalog.templateText(orDefault(session.getUrgentTemplateId(), SafetyCatalog.URGENT_DEFAULT));
+            return safetyView(session, ConsultationStatus.URGENT, prompt);
         }
         if (effective.channel() == ChannelDecision.NEED_HUMAN) {
             return safetyView(session, ConsultationStatus.NEED_HUMAN, catalog.templateText(SafetyCatalog.HUMAN_DEFAULT));

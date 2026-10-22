@@ -4,8 +4,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.moonligh.consult.agent.api.enums.ConsultationStatus;
@@ -25,6 +23,8 @@ import com.moonligh.consult.agent.domain.safety.AuditTrigger;
 import com.moonligh.consult.agent.domain.safety.Demographics;
 import com.moonligh.consult.agent.domain.safety.EvaluationKind;
 import com.moonligh.consult.agent.domain.safety.MessageSource;
+import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.agent.domain.safety.RuleSafetyEngine;
 import com.moonligh.consult.agent.domain.safety.SafetyAssessment;
 import com.moonligh.consult.agent.domain.safety.SafetyCatalog;
 import com.moonligh.consult.agent.domain.safety.SafetyDecisionAudit;
@@ -39,8 +39,6 @@ import com.moonligh.consult.framework.ErrorCode;
  */
 @Service
 public class ConsultationService {
-
-    private static final Logger log = LoggerFactory.getLogger(ConsultationService.class);
 
     private final ConsultationRepository repository;
     private final SafetyGate safetyGate;
@@ -68,23 +66,27 @@ public class ConsultationService {
         return acceptMessage(consultationId, null, null, text);
     }
 
+    /**
+     * 收一句病情。先加锁取出会话，再安全评估，最后保存。
+     * 返回值始终是 ConsultationRes，给前端展示。
+     */
     public ConsultationRes acceptMessage(String consultationId, String messageId, Integer serviceTypeCode, String text) {
         if (messageId != null && messageId.length() > 64) {
             throw new BusinessException(ErrorCode.PARAM_INVALID);
         }
         ServiceType requestedType = parseServiceType(serviceTypeCode);
-        return repository.inLock(consultationId, session -> acceptLocked(session, messageId, requestedType, text));
+        return repository.runLocked(consultationId, session -> acceptLocked(session, messageId, requestedType, text));
     }
 
     public ConsultationRes updateCard(CardPatchReq patch) {
         if (patch == null) {
             throw new BusinessException(ErrorCode.EMPTY_CARD_PATCH);
         }
-        return repository.inLock(patch.consultationId(), session -> updateLocked(session, patch));
+        return repository.runLocked(patch.consultationId(), session -> updateLocked(session, patch));
     }
 
     public ConsultationRes confirm(String consultationId) {
-        return repository.inLock(consultationId, this::confirmLocked);
+        return repository.runLocked(consultationId, this::confirmLocked);
     }
 
     private ConsultationRes acceptLocked(ConsultationSession session, String messageId, ServiceType requestedType, String text) {
@@ -103,7 +105,7 @@ public class ConsultationService {
         boolean serviceTypeRejected = applyServiceType(session, requestedType);
         if (SafetyPolicy.isSafetyStop(session)) {
             SafetyPolicy.applyStopCardPolicy(session);
-            return countedView(session);
+            return buildResponse(session);
         }
         if (serviceTypeRejected) {
             throw new BusinessException(ErrorCode.SERVICE_TYPE_LOCKED);
@@ -170,7 +172,7 @@ public class ConsultationService {
             assess(session, AuditTrigger.CARD_EDIT);
             if (SafetyPolicy.isSafetyStop(session)) {
                 SafetyPolicy.applyStopCardPolicy(session);
-                return countedView(session);
+                return buildResponse(session);
             }
             symptoms = symptomExtractor.extract(description);
             if (patch.department() == null) {
@@ -180,7 +182,7 @@ public class ConsultationService {
         ConsultationCardRes card = new ConsultationCardRes(gender, age, duration, description, symptoms, department);
         session.setCard(card);
         session.setBusinessStatus(ConsultationStatus.CARD_READY);
-        return countedView(session);
+        return buildResponse(session);
     }
 
     private ConsultationRes confirmLocked(ConsultationSession session) {
@@ -195,7 +197,7 @@ public class ConsultationService {
             throw new BusinessException(ErrorCode.CARD_NOT_READY);
         }
         session.setBusinessStatus(ConsultationStatus.CONFIRMED);
-        return countedView(session);
+        return buildResponse(session);
     }
 
     private void assess(ConsultationSession session, AuditTrigger trigger) {
@@ -204,7 +206,7 @@ public class ConsultationService {
         SafetyAssessment assessment;
         EvaluationKind kind;
         if (session.isUrgentLatched()) {
-            assessment = SafetyAssessment.none(com.moonligh.consult.agent.domain.safety.ModelStatus.SKIPPED);
+            assessment = SafetyAssessment.none(ModelStatus.SKIPPED);
             kind = EvaluationKind.PINNED_URGENT;
         } else {
             assessment = safetyGate.assess(session.messages(), new Demographics(session.getAge(), session.getGender()));
@@ -223,7 +225,7 @@ public class ConsultationService {
                 assessment.shadowRuleIds(),
                 assessment.evidence(),
                 catalog().catalogVersion(),
-                com.moonligh.consult.agent.domain.safety.RuleSafetyEngine.VERSION,
+                RuleSafetyEngine.VERSION,
                 assessment.modelStatus(),
                 null,
                 assessment.fallbackReason(),
@@ -312,7 +314,7 @@ public class ConsultationService {
         if (Slots.nextMissing(session) != null) {
             session.setBusinessStatus(ConsultationStatus.NEED_SLOT);
             session.setCard(null);
-            return countedView(session);
+            return buildResponse(session);
         }
         ConsultationCardRes card = new ConsultationCardRes(
                 session.getGender(),
@@ -323,17 +325,17 @@ public class ConsultationService {
                 departmentRouter.recommend(session.getDescription()));
         session.setCard(card);
         session.setBusinessStatus(ConsultationStatus.CARD_READY);
-        return countedView(session);
+        return buildResponse(session);
     }
 
     private ConsultationRes blankView(ConsultationSession session) {
         if (session.getBusinessStatus() != ConsultationStatus.NEED_SLOT) {
             session.setBusinessStatus(ConsultationStatus.NEED_DESCRIPTION);
         }
-        return countedView(session);
+        return buildResponse(session);
     }
 
-    private ConsultationRes countedView(ConsultationSession session) {
+    private ConsultationRes buildResponse(ConsultationSession session) {
         ConsultationRes view = SafetyPolicy.view(session, catalog());
         metrics.increment("view." + view.status().getCode());
         return view;

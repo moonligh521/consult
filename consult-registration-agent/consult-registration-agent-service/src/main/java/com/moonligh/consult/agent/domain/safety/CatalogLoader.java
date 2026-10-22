@@ -89,7 +89,7 @@ public class CatalogLoader {
         for (JsonNode node : array) {
             String id = text(node, "id");
             String body = text(node, "text");
-            RuleStatus status = enumValue(RuleStatus.class, text(node, "reviewStatus"), "reviewStatus");
+            RuleStatus status = parseRuleStatus(text(node, "reviewStatus"), "reviewStatus");
             if (id.isBlank() || body.isBlank()) {
                 throw new CatalogException("模板 id 或 text 为空");
             }
@@ -127,7 +127,7 @@ public class CatalogLoader {
     private static SafetyRule readRule(JsonNode node, Map<String, SafetyTemplate> templates) {
         String ruleId = text(node, "ruleId");
         String ruleVersion = text(node, "ruleVersion");
-        RuleStatus status = enumValue(RuleStatus.class, text(node, "status"), "status");
+        RuleStatus status = parseRuleStatus(text(node, "status"), "status");
         String templateId = text(node, "patientMessageTemplateId");
         List<String> aliases = strings(node.get("aliases"));
         if (ruleId.isBlank() || aliases.isEmpty()) {
@@ -152,11 +152,11 @@ public class CatalogLoader {
                 aliases,
                 strings(node.get("requiredContext")),
                 strings(node.get("exclusionConditions")),
-                enumValue(PolicyAction.class, text(node, "negatedPolicy"), "negatedPolicy"),
-                enumValue(PolicyAction.class, text(node, "uncertaintyPolicy"), "uncertaintyPolicy"),
-                enumValue(PolicyAction.class, text(node, "resolvedPolicy"), "resolvedPolicy"),
-                enumValue(PolicyAction.class, text(node, "missingContextPolicy"), "missingContextPolicy"),
-                enumValue(Disposition.class, text(node, "disposition"), "disposition"),
+                parsePolicyAction(text(node, "negatedPolicy"), "negatedPolicy"),
+                parsePolicyAction(text(node, "uncertaintyPolicy"), "uncertaintyPolicy"),
+                parsePolicyAction(text(node, "resolvedPolicy"), "resolvedPolicy"),
+                parsePolicyAction(text(node, "missingContextPolicy"), "missingContextPolicy"),
+                parseDisposition(text(node, "disposition"), "disposition"),
                 templateId,
                 strings(node.get("positiveCases")),
                 strings(node.get("negativeCases")),
@@ -183,9 +183,25 @@ public class CatalogLoader {
         return List.copyOf(values);
     }
 
-    private static <T extends Enum<T>> T enumValue(Class<T> type, String raw, String field) {
+    private static RuleStatus parseRuleStatus(String raw, String field) {
         try {
-            return Enum.valueOf(type, raw);
+            return RuleStatus.valueOf(raw);
+        } catch (IllegalArgumentException error) {
+            throw new CatalogException("非法 " + field + ": " + raw);
+        }
+    }
+
+    private static PolicyAction parsePolicyAction(String raw, String field) {
+        try {
+            return PolicyAction.valueOf(raw);
+        } catch (IllegalArgumentException error) {
+            throw new CatalogException("非法 " + field + ": " + raw);
+        }
+    }
+
+    private static Disposition parseDisposition(String raw, String field) {
+        try {
+            return Disposition.valueOf(raw);
         } catch (IllegalArgumentException error) {
             throw new CatalogException("非法 " + field + ": " + raw);
         }

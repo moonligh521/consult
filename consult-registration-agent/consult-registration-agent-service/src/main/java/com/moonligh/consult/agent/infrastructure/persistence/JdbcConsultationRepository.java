@@ -6,8 +6,6 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import javax.sql.DataSource;
 
@@ -17,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -25,12 +24,14 @@ import com.moonligh.consult.agent.api.enums.ConsultationStatus;
 import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.api.enums.ServiceType;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
+import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.domain.ConsultationRepository;
 import com.moonligh.consult.agent.domain.ConsultationSession;
+import com.moonligh.consult.agent.domain.SessionAction;
+import com.moonligh.consult.agent.domain.SessionWorkResult;
 import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
 import com.moonligh.consult.agent.domain.safety.FallbackReason;
 import com.moonligh.consult.agent.domain.safety.MessageSource;
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
 import com.moonligh.consult.agent.domain.safety.SafetyDecisionAudit;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
@@ -55,40 +56,47 @@ public class JdbcConsultationRepository implements ConsultationRepository {
     }
 
     @Override
-    public <T> T inLock(String consultationId, Function<ConsultationSession, T> work) {
-        AtomicReference<BusinessException> delayed = new AtomicReference<>();
-        T result = transactions.execute(status -> {
-            boolean creating = consultationId == null || consultationId.isBlank();
-            String id = creating ? UUID.randomUUID().toString() : consultationId;
-            if (creating) {
-                insertBlank(id);
-            }
-            ConsultationSession session = loadForUpdate(id);
-            if (session == null) {
-                throw new BusinessException(ErrorCode.CONSULTATION_NOT_FOUND);
-            }
-            T value = null;
-            try {
-                value = work.apply(session);
-            } catch (BusinessException error) {
-                delayed.set(error);
-            }
-            try {
-                save(session);
-            } catch (DataAccessException error) {
-                status.setRollbackOnly();
-                log.error("persist failed id={} type={}", session.getId(), error.getClass().getName());
-                if (session.isUrgentLatched() && delayed.get() == null && value != null) {
-                    return value;
-                }
-                delayed.set(new BusinessException(ErrorCode.UNKNOWN_ERROR));
-            }
-            return value;
-        });
-        if (delayed.get() != null) {
-            throw delayed.get();
+    public ConsultationRes runLocked(String consultationId, SessionAction action) {
+        SessionWorkResult result = transactions.execute(status -> doInTransaction(status, consultationId, action));
+        if (result.hasError()) {
+            throw result.error();
         }
-        return result;
+        return result.response();
+    }
+
+    private SessionWorkResult doInTransaction(
+            TransactionStatus status,
+            String consultationId,
+            SessionAction action) {
+        boolean creating = consultationId == null || consultationId.isBlank();
+        String id = creating ? UUID.randomUUID().toString() : consultationId;
+        if (creating) {
+            insertBlank(id);
+        }
+        ConsultationSession session = loadForUpdate(id);
+        if (session == null) {
+            throw new BusinessException(ErrorCode.CONSULTATION_NOT_FOUND);
+        }
+        SessionWorkResult result = runAction(action, session);
+        try {
+            save(session);
+            return result;
+        } catch (DataAccessException error) {
+            status.setRollbackOnly();
+            log.error("persist failed id={} type={}", session.getId(), error.getClass().getName());
+            if (session.isUrgentLatched() && !result.hasError() && result.response() != null) {
+                return result;
+            }
+            return SessionWorkResult.ofError(new BusinessException(ErrorCode.UNKNOWN_ERROR));
+        }
+    }
+
+    private SessionWorkResult runAction(SessionAction action, ConsultationSession session) {
+        try {
+            return SessionWorkResult.ofResponse(action.run(session));
+        } catch (BusinessException error) {
+            return SessionWorkResult.ofError(error);
+        }
     }
 
     private void insertBlank(String id) {

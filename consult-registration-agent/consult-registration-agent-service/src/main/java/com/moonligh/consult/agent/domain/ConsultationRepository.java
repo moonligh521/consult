@@ -1,15 +1,17 @@
 package com.moonligh.consult.agent.domain;
 
-import java.util.function.Function;
+import com.moonligh.consult.agent.api.res.ConsultationRes;
 
 /**
- * 咨询聚合仓储。同一会话的请求在锁内串行执行。
+ * 咨询会话的存取。
+ * 同一咨询编号的请求必须排队，避免两条消息互相覆盖安全状态。
  */
 public interface ConsultationRepository {
 
     /**
-     * consultationId 为空则新建；找不到已有编号则抛 1101。
-     * work 里抛出的 BusinessException 必须在持久化提交之后再抛给调用方。
+     * 按编号取出会话并加锁，办完 {@code action} 再保存、解锁。
+     * 编号为空则新建一轮。找不到已有编号则抛 1101。
+     * action 里抛出的业务错误会在保存之后再抛出，避免原话回滚丢失。
      */
-    <T> T inLock(String consultationId, Function<ConsultationSession, T> work);
+    ConsultationRes runLocked(String consultationId, SessionAction action);
 }

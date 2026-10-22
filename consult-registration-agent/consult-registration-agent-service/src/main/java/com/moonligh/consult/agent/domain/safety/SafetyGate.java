@@ -39,6 +39,7 @@ public class SafetyGate {
             log.error("rule engine failed type={}", error.getClass().getName());
             return SafetyAssessment.engineFailure();
         }
+        // 规则已经判急症，不再调用模型，避免模型把急症说成否定。
         if (rules.urgent()) {
             return withModelStatus(rules, ModelStatus.SKIPPED);
         }
