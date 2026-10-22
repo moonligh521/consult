@@ -8,6 +8,8 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.moonligh.consult.agent.domain.CompactText;
+
 /**
  * 安全闸门：先用规则匹配，不够确定再让模型补漏。
  * 模型不能自己定最终状态。
@@ -67,18 +69,24 @@ public class SafetyGate {
         boolean prompt = false;
         boolean human = false;
         boolean unsuitable = false;
-        boolean undetermined = extraction.unresolvedAmbiguity();
+        boolean undetermined = false;
         String templateId = null;
         Set<String> matched = new LinkedHashSet<>();
         List<EvidenceRef> evidence = new ArrayList<>();
         for (ExtractedSignal signal : extraction.signals()) {
             ConsultationMessage message = messageAt(transcript, signal.messageSeq());
-            // 证据对不上原话，或信号不在目录里，整次模型结果作废。
-            if (message == null || signal.evidence() == null || !message.text().contains(signal.evidence())) {
-                return invalidModel();
+            // 证据对不上原话：跳过这条信号，不要把整单打成安全降级。
+            if (message == null || signal.evidence() == null || signal.evidence().isBlank()
+                    || !message.text().contains(signal.evidence())) {
+                continue;
             }
+            // 未知 type 跳过，不要把整单打成安全降级。
             if (!catalog.hasSignal(signal.type())) {
-                return invalidModel();
+                continue;
+            }
+            // 影子目录已经记下的说法，不能靠模型改写成基线急症。
+            if (coveredByDraftAlias(message.text()) && !coveredByDecisionAlias(message.text())) {
+                continue;
             }
             SafetyRule rule = ruleForSignal(signal.type());
             if (rule == null) {
@@ -119,6 +127,36 @@ public class SafetyGate {
         return new SafetyAssessment(
                 urgent, prompt, human, unsuitable, undetermined, null, templateId,
                 List.copyOf(matched), List.of(), List.copyOf(evidence), ModelStatus.SUCCESS);
+    }
+
+    /** 原话已经能被影子别名对上。 */
+    private boolean coveredByDraftAlias(String text) {
+        return coveredByAlias(text, RuleStatus.DRAFT);
+    }
+
+    /** 原话已经能被生产别名对上。 */
+    private boolean coveredByDecisionAlias(String text) {
+        return coveredByAlias(text, RuleStatus.BASELINE) || coveredByAlias(text, RuleStatus.APPROVED);
+    }
+
+    /** 紧凑原话里有没有指定状态规则的别名。 */
+    private boolean coveredByAlias(String text, RuleStatus status) {
+        String compact = CompactText.of(text);
+        if (compact.isEmpty()) {
+            return false;
+        }
+        for (SafetyRule rule : catalog.rulesForEngine()) {
+            if (rule.status() != status) {
+                continue;
+            }
+            for (String alias : rule.aliases()) {
+                String compactAlias = CompactText.of(alias);
+                if (!compactAlias.isEmpty() && compact.contains(compactAlias)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** 按信号名找到目录规则。DRAFT 默认不参与决策。 */
@@ -191,13 +229,6 @@ public class SafetyGate {
                 rules.shadowRuleIds(),
                 rules.evidence(),
                 extraction.status());
-    }
-
-    /** 模型输出不合格：整次补漏作废。 */
-    private static SafetyAssessment invalidModel() {
-        return new SafetyAssessment(
-                false, false, false, false, true, FallbackReason.MODEL_INVALID_OUTPUT, SafetyCatalog.FALLBACK_DEFAULT,
-                List.of(), List.of(), List.of(), ModelStatus.INVALID_OUTPUT);
     }
 
     /** 规则和模型的阳性结论取并集。急症不会被模型否掉。 */

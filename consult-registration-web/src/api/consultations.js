@@ -20,7 +20,7 @@ export function listPackages() {
   return http.get('/api/consultations/packages')
 }
 
-/** 选择档位并记下演示订单。 */
-export function placeOrder(consultationId, packageCode) {
-  return http.post('/api/consultations/orders', { consultationId, packageCode })
+/** 选择档位并支付。后端直接返回支付成功。 */
+export function placeOrder(consultationId, packageCode, payChannel) {
+  return http.post('/api/consultations/orders', { consultationId, packageCode, payChannel })
 }

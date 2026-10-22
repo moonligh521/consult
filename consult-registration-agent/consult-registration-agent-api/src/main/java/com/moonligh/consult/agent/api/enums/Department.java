@@ -4,14 +4,21 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
- * 推荐科室。JSON 与数据库使用 code：1 呼吸内科，2 神经内科，3 消化内科，4 全科医学科。
+ * 推荐科室。只包含当前账号已开通的 10 个极速问诊科室。
+ * JSON 与数据库使用 code：1 内科，2 外科，3 男科，4 全科，5 骨科，6 妇产科，7 口腔科，8 儿科，9 耳鼻喉科，10 中医科。
  */
 public enum Department {
 
-    RESPIRATORY(1, "呼吸内科"),
-    NEUROLOGY(2, "神经内科"),
-    DIGESTIVE(3, "消化内科"),
-    GENERAL(4, "全科医学科");
+    INTERNAL(1, "内科"),
+    SURGERY(2, "外科"),
+    ANDROLOGY(3, "男科"),
+    GENERAL(4, "全科"),
+    ORTHOPEDICS(5, "骨科"),
+    OBGYN(6, "妇产科"),
+    STOMATOLOGY(7, "口腔科"),
+    PEDIATRICS(8, "儿科"),
+    ENT(9, "耳鼻喉科"),
+    TCM(10, "中医科");
 
     /** 对外传递的数字。 */
     private final int code;

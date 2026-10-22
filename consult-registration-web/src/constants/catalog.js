@@ -26,6 +26,28 @@ export const GENDER_OPTIONS = [
   { label: '女', value: 2 },
 ]
 
+/**
+ * 当前账号绑定的就诊人。演示数据，以后换成登录账号的档案接口。
+ * 没有绑定就诊人时返回空数组，这一步整段不展示。
+ * gender：1 男 2 女。
+ */
+export const BOUND_PATIENTS = [
+  { id: 'p-self', name: '张明', gender: 1, age: 32, relation: '本人', isDefault: true },
+  { id: 'p-spouse', name: '李芳', gender: 2, age: 28, relation: '配偶', isDefault: false },
+  { id: 'p-child', name: '张小童', gender: 1, age: 8, relation: '子女', isDefault: false },
+]
+
+/** 问诊通道。closed 与后端 inquiry.closed 对齐，演示默认开放。 */
+export const INQUIRY = {
+  closed: false,
+  matchTimeoutMs: 20000,
+}
+
+/** 当前账号下的就诊人。没有档案就空列表。 */
+export function patientsOfAccount() {
+  return BOUND_PATIENTS
+}
+
 /** 选择器默认落在成年，不从 0 起。列表仍含 1～120 岁。 */
 export const DEFAULT_AGE = 18
 
@@ -40,11 +62,24 @@ export const MISSING_SLOT = {
   DURATION: 3,
 }
 
+/** 病情描述太含糊时给出的示例，点选即发送。 */
+export const DESCRIPTION_EXAMPLES = [
+  '咳嗽3天，伴有黄痰和头痛，无发热',
+  '干咳半年，运动后加重',
+  '头痛两天，时轻时重',
+]
+
 export const DEPARTMENT_OPTIONS = [
-  { label: '呼吸内科', value: 1 },
-  { label: '神经内科', value: 2 },
-  { label: '消化内科', value: 3 },
-  { label: '全科医学科', value: 4 },
+  { label: '内科', value: 1 },
+  { label: '外科', value: 2 },
+  { label: '男科', value: 3 },
+  { label: '全科', value: 4 },
+  { label: '骨科', value: 5 },
+  { label: '妇产科', value: 6 },
+  { label: '口腔科', value: 7 },
+  { label: '儿科', value: 8 },
+  { label: '耳鼻喉科', value: 9 },
+  { label: '中医科', value: 10 },
 ]
 
 export const SERVICE_OPTIONS = [

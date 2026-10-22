@@ -6,9 +6,10 @@ import CardPanel from '../components/CardPanel.vue'
 import PayPanel from '../components/PayPanel.vue'
 import SafetyBanner from '../components/SafetyBanner.vue'
 import SlotAsk from '../components/SlotAsk.vue'
+import UserInfoCard from '../components/UserInfoCard.vue'
 import ZhiAvatar from '../components/ZhiAvatar.vue'
 import { HUMAN_SHORTCUTS } from '../domain/humanAgent'
-import { MISSING_SLOT, STATUS } from '../constants/catalog'
+import { DESCRIPTION_EXAMPLES, MISSING_SLOT, STATUS } from '../constants/catalog'
 import { useConsultationStore } from '../stores/consultation'
 
 const store = useConsultationStore()
@@ -32,7 +33,31 @@ onUnmounted(() => {
   window.removeEventListener('resize', syncDrawer)
 })
 
+const matching = computed(() => store.matchPhase === 'matching')
+
+const pageTitle = computed(() => {
+  if (store.doctorOnline && store.doctor) {
+    return `${store.doctor.name}医生 | 图文问诊`
+  }
+  if (store.matchPhase === 'timeout') {
+    return '匹配超时'
+  }
+  if (matching.value) {
+    return '正在接入问诊'
+  }
+  if (store.humanOnline) {
+    return '人工客服 | 挂号咨询'
+  }
+  return '智能导诊 | 挂号咨询助手'
+})
+
 const placeholder = computed(() => {
+  if (matching.value) {
+    return '正在为您匹配医生'
+  }
+  if (store.doctorOnline) {
+    return '向医生补充病情或提问'
+  }
   if (store.status === STATUS.URGENT) {
     return '急症已锁定，如需补充请继续输入'
   }
@@ -43,7 +68,7 @@ const placeholder = computed(() => {
     return '正在与人工客服对话，可直接输入'
   }
   if (store.status === STATUS.CONFIRMED) {
-    return '如病情有变化，请继续描述'
+    return '选择咨询档位后即可支付'
   }
   if (store.missingSlot === MISSING_SLOT.GENDER) {
     return '请点选上方性别，不要手打'
@@ -54,16 +79,59 @@ const placeholder = computed(() => {
   if (store.missingSlot === MISSING_SLOT.DURATION) {
     return '请补充病程，例如「半年」「3天」'
   }
+  if (store.status === STATUS.NEED_DESCRIPTION && store.messages.some((item) => item.role === 'user')) {
+    return '请详细描述病情'
+  }
   return '可以打字描述不舒服'
 })
 
 const lockComposer = computed(() => (
-  store.missingSlot === MISSING_SLOT.GENDER || store.missingSlot === MISSING_SLOT.AGE
+  store.missingSlot === MISSING_SLOT.GENDER
+  || store.missingSlot === MISSING_SLOT.AGE
+  || matching.value
+  || store.paying
 ))
 
 const canSend = computed(() => !lockComposer.value && !!draft.value.trim() && !store.sending)
 
-const showHumanShortcuts = computed(() => store.humanOnline && !store.sending)
+const showHumanShortcuts = computed(() => store.humanOnline && !store.sending && !store.doctorOnline)
+
+const showDescriptionExamples = computed(() => (
+  store.status === STATUS.NEED_DESCRIPTION
+  && !store.sending
+  && !store.inClinic
+  && store.messages.some((item) => item.role === 'user')
+))
+
+const consultStart = computed(() => store.messages.findIndex((item) => item.role === 'system' || item.role === 'doctor'))
+const triageMessages = computed(() => {
+  const start = consultStart.value
+  return start < 0 ? store.messages : store.messages.slice(0, start)
+})
+const consultMessages = computed(() => {
+  const start = consultStart.value
+  return start < 0 ? [] : store.messages.slice(start)
+})
+
+const lastUserIndex = computed(() => {
+  let last = -1
+  triageMessages.value.forEach((item, index) => {
+    if (item.role === 'user') {
+      last = index
+    }
+  })
+  return last
+})
+
+const typingText = computed(() => {
+  if (store.doctorOnline) {
+    return '医生正在输入'
+  }
+  if (store.humanOnline) {
+    return '客服正在输入'
+  }
+  return '正在帮您分析'
+})
 
 watch(draft, async () => {
   await nextTick()
@@ -76,7 +144,16 @@ watch(draft, async () => {
 })
 
 watch(
-  () => [store.messages.length, store.showCard, store.missingSlot, store.status, store.payOrder, store.sending],
+  () => [
+    store.messages.length,
+    store.showCard,
+    store.missingSlot,
+    store.status,
+    store.payOrder,
+    store.sending,
+    store.matchPhase,
+    store.doctorOnline,
+  ],
   async () => {
     await nextTick()
     requestAnimationFrame(() => {
@@ -84,7 +161,7 @@ watch(
         return
       }
       const cardRow = feed.value.querySelector('.after-card-row')
-      if (cardRow) {
+      if (cardRow && !store.doctorOnline) {
         cardRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
         return
       }
@@ -116,6 +193,15 @@ function useShortcut(text) {
   store.send(text)
 }
 
+function editLastUser() {
+  const item = triageMessages.value[lastUserIndex.value]
+  if (!item || store.sending) {
+    return
+  }
+  draft.value = item.text
+  nextTick(() => composer.value?.focus())
+}
+
 function goHome() {
   store.startNew()
   showRecords.value = false
@@ -128,15 +214,8 @@ function onAttach() {
   }, 2600)
 }
 
-function focusComposer() {
-  nextTick(() => composer.value?.focus())
-}
-
-function askHuman() {
-  if (store.sending) {
-    return
-  }
-  store.send('转人工')
+function initialOf(name) {
+  return name ? name.slice(0, 1) : '医'
 }
 </script>
 
@@ -148,7 +227,7 @@ function askHuman() {
           <path fill="currentColor" d="M15.4 5.4 9.8 12l5.6 6.6-1.5 1.3L6.8 12l7.1-8z" />
         </svg>
       </button>
-      <h1>智能导诊 | 挂号咨询助手</h1>
+      <h1>{{ pageTitle }}</h1>
       <div class="top-right">
         <button class="nav-link" type="button" @click="showRecords = true">咨询记录</button>
         <button class="user-btn" type="button" aria-label="咨询记录" @click="showRecords = true">
@@ -162,45 +241,115 @@ function askHuman() {
       </div>
     </header>
 
-    <section class="hero" :class="{ human: store.humanOnline }">
-      <div v-if="store.humanOnline" class="avatar cs hero-face">慧</div>
-      <ZhiAvatar v-else :size="88" />
-      <div class="hero-copy">
-        <h2>{{ store.humanOnline ? '小慧为您服务' : '小智为您服务' }}</h2>
-        <p>{{ store.humanOnline ? '人工客服已接入，协助整理挂号信息' : '描述症状，我帮您推荐科室、完成挂号分诊' }}</p>
-        <small>本服务仅作分诊参考，不能替代医师诊断，信息严格保密</small>
-      </div>
-    </section>
-
     <SafetyBanner :status="store.status" :prompt="store.prompt" />
 
     <div ref="feed" class="feed">
+      <UserInfoCard v-if="store.inClinic" />
+      <section v-if="store.doctorOnline && store.doctor" class="hero doctor">
+        <div class="avatar md hero-face">{{ initialOf(store.doctor.name) }}</div>
+        <div class="hero-copy">
+          <h2>{{ store.doctor.name }}医生为您服务</h2>
+          <p>{{ store.doctor.hospital }} · {{ store.doctor.dept }} · {{ store.doctor.title }}</p>
+          <small>在线咨询不能替代面诊，信息严格保密</small>
+        </div>
+      </section>
+      <section v-else-if="!store.inClinic" class="hero" :class="{ human: store.humanOnline }">
+        <div v-if="store.humanOnline" class="avatar cs hero-face">慧</div>
+        <ZhiAvatar v-else :size="88" />
+        <div class="hero-copy">
+          <h2>{{ store.humanOnline ? '小慧为您服务' : '小智为您服务' }}</h2>
+          <p>{{ store.humanOnline ? '人工客服已接入，协助整理挂号信息' : '描述症状，我帮您推荐科室、完成挂号分诊' }}</p>
+          <small>本服务仅作分诊参考，不能替代医师诊断，信息严格保密</small>
+        </div>
+      </section>
+
       <div v-if="!store.messages.length" class="bubble-row bot">
         <ZhiAvatar :size="40" />
         <div class="bubble bot">您好，我是小智，请问您有什么症状？</div>
       </div>
 
-      <div
-        v-for="(item, index) in store.messages"
-        :key="index"
-        class="bubble-row"
-        :class="item.role"
-      >
-        <div v-if="item.role === 'user'" class="avatar me">我</div>
-        <div v-else-if="item.role === 'human'" class="avatar cs">慧</div>
-        <ZhiAvatar v-else :size="40" />
-        <div class="bubble" :class="item.role === 'user' ? 'me' : 'bot'">
-          {{ item.text }}
+      <template v-for="(item, index) in triageMessages" :key="`t-${index}`">
+        <div class="bubble-row" :class="item.role">
+          <div v-if="item.role === 'user'" class="avatar me">我</div>
+          <div v-else-if="item.role === 'human'" class="avatar cs">慧</div>
+          <ZhiAvatar v-else :size="40" />
+          <div class="bubble-col">
+            <div class="bubble" :class="item.role === 'user' ? 'me' : 'bot'">
+              {{ item.text }}
+            </div>
+            <button
+              v-if="item.role === 'user' && index === lastUserIndex && store.status === STATUS.NEED_DESCRIPTION"
+              class="bubble-edit"
+              type="button"
+              @click="editLastUser"
+            >
+              点击修改
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <div v-if="store.missingSlot" class="bubble-row bot">
+        <ZhiAvatar :size="40" />
+        <SlotAsk />
+      </div>
+
+      <div v-if="store.showCard" class="bubble-row bot after-card-row">
+        <ZhiAvatar v-if="!store.inClinic" :size="40" />
+        <div class="after-card">
+          <CardPanel />
+          <PayPanel />
         </div>
       </div>
 
+      <template v-for="(item, index) in consultMessages" :key="`c-${index}`">
+        <article v-if="item.kind === 'match'" class="match-inline">
+          <div v-if="item.phase === 'matching'" class="match-spin" />
+          <div v-else-if="item.phase === 'served' && store.doctor" class="avatar md match-face">{{ initialOf(store.doctor.name) }}</div>
+          <h2>{{ item.phase === 'timeout' ? '匹配超时' : item.phase === 'served' ? `${store.doctor?.name || ''}医生为您服务` : '正在为您匹配医生' }}</h2>
+          <p>{{ item.text }}</p>
+          <div v-if="item.phase === 'timeout'" class="match-actions">
+            <button class="match-retry" type="button" @click="store.retryMatch()">重试匹配</button>
+            <button class="match-human" type="button" @click="useShortcut('转人工')">转人工</button>
+          </div>
+        </article>
+        <div v-else-if="item.role === 'system'" class="sys-line">{{ item.text }}</div>
+        <div
+          v-else
+          class="bubble-row"
+          :class="item.role"
+        >
+          <div v-if="item.role === 'user'" class="avatar me">我</div>
+          <div v-else-if="item.role === 'human'" class="avatar cs">慧</div>
+          <div v-else-if="item.role === 'doctor'" class="avatar md">{{ initialOf(store.doctor?.name) }}</div>
+          <ZhiAvatar v-else :size="40" />
+          <div class="bubble" :class="item.role === 'user' ? 'me' : 'bot'">
+            {{ item.text }}
+          </div>
+        </div>
+      </template>
+
       <div v-if="store.sending" class="bubble-row bot">
-        <div v-if="store.humanOnline" class="avatar cs">慧</div>
+        <div v-if="store.doctorOnline" class="avatar md">{{ initialOf(store.doctor?.name) }}</div>
+        <div v-else-if="store.humanOnline" class="avatar cs">慧</div>
         <ZhiAvatar v-else :size="40" />
         <div class="bubble bot typing">
-          <span>{{ store.humanOnline ? '客服正在输入' : '正在帮您分析' }}</span>
+          <span>{{ typingText }}</span>
           <i /><i /><i />
         </div>
+      </div>
+
+      <div v-if="showDescriptionExamples" class="example-wrap">
+        <span class="example-label">示例</span>
+        <button
+          v-for="item in DESCRIPTION_EXAMPLES"
+          :key="item"
+          class="example-chip"
+          type="button"
+          @click="useShortcut(item)"
+        >
+          {{ item }}
+        </button>
       </div>
 
       <div v-if="showHumanShortcuts" class="shortcut-wrap">
@@ -213,19 +362,6 @@ function askHuman() {
         >
           {{ item }}
         </button>
-      </div>
-
-      <div v-if="store.missingSlot" class="bubble-row bot">
-        <ZhiAvatar :size="40" />
-        <SlotAsk />
-      </div>
-
-      <div v-if="store.showCard" class="bubble-row bot after-card-row">
-        <ZhiAvatar :size="40" />
-        <div class="after-card">
-          <CardPanel @supplement="focusComposer" @human="askHuman" />
-          <PayPanel />
-        </div>
       </div>
     </div>
 

@@ -16,6 +16,11 @@ logs/
 application-local.yml
 application-local.yaml
 
+# Externalized secrets (Spring Boot file:./config/). Never commit real keys.
+config/application-local.yml
+config/secrets.yml
+config/application.yml
+
 # Implementation and product plans stay local. 合规说明进入公开仓库。
 docs/产品/
 docs/工程/

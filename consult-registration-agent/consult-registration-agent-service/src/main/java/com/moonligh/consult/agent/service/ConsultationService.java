@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.moonligh.consult.agent.api.enums.ConsultationStatus;
@@ -14,10 +15,14 @@ import com.moonligh.consult.agent.api.req.CardPatchReq;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.api.res.PayPackageRes;
+import com.moonligh.consult.agent.config.InquiryProperties;
+import com.moonligh.consult.agent.domain.CardFacts;
+import com.moonligh.consult.agent.domain.ComplaintClarity;
 import com.moonligh.consult.agent.domain.ConsultOrder;
 import com.moonligh.consult.agent.domain.ConsultationRepository;
 import com.moonligh.consult.agent.domain.ConsultationSession;
 import com.moonligh.consult.agent.domain.DepartmentRouter;
+import com.moonligh.consult.agent.domain.RegistrationAgent;
 import com.moonligh.consult.agent.domain.PayCatalog;
 import com.moonligh.consult.agent.domain.SlotParser;
 import com.moonligh.consult.agent.domain.Slots;
@@ -51,10 +56,14 @@ public class ConsultationService {
     private final SlotParser slotParser;
     /** 从病情描述里抽症状标签。 */
     private final SymptomExtractor symptomExtractor;
-    /** 按关键词推荐科室。 */
-    private final DepartmentRouter departmentRouter;
+    /** 工具型挂号 Agent：纠错+关键词快路径，对不上才允许模型补科室。 */
+    private final RegistrationAgent registrationAgent;
     /** 安全状态计数，给监测用，不含病情原文。 */
     private final SafetyMetrics metrics;
+    /** 判断病情描述是否太含糊。 */
+    private final ComplaintClarity complaintClarity;
+    /** 问诊通道关闭时不能确认、不能下单。 */
+    private final InquiryProperties inquiry;
 
     public ConsultationService(
             ConsultationRepository repository,
@@ -63,12 +72,37 @@ public class ConsultationService {
             SymptomExtractor symptomExtractor,
             DepartmentRouter departmentRouter,
             SafetyMetrics metrics) {
+        this(repository, safetyGate, slotParser, symptomExtractor, new RegistrationAgent(departmentRouter), metrics, new InquiryProperties());
+    }
+
+    public ConsultationService(
+            ConsultationRepository repository,
+            SafetyGate safetyGate,
+            SlotParser slotParser,
+            SymptomExtractor symptomExtractor,
+            DepartmentRouter departmentRouter,
+            SafetyMetrics metrics,
+            InquiryProperties inquiry) {
+        this(repository, safetyGate, slotParser, symptomExtractor, new RegistrationAgent(departmentRouter), metrics, inquiry);
+    }
+
+    @Autowired
+    public ConsultationService(
+            ConsultationRepository repository,
+            SafetyGate safetyGate,
+            SlotParser slotParser,
+            SymptomExtractor symptomExtractor,
+            RegistrationAgent registrationAgent,
+            SafetyMetrics metrics,
+            InquiryProperties inquiry) {
         this.repository = repository;
         this.safetyGate = safetyGate;
         this.slotParser = slotParser;
         this.symptomExtractor = symptomExtractor;
-        this.departmentRouter = departmentRouter;
+        this.registrationAgent = registrationAgent;
         this.metrics = metrics;
+        this.complaintClarity = new ComplaintClarity(symptomExtractor, slotParser);
+        this.inquiry = inquiry == null ? new InquiryProperties() : inquiry;
     }
 
     /** 简写入口：不传 messageId、不传服务类型。 */
@@ -127,9 +161,9 @@ public class ConsultationService {
             String messageId,
             ServiceType requestedType,
             String text) {
-        // 同一个 messageId 再来一次：不重复入库，直接返回当前画面。
+        // 同一个 messageId 再来一次：不重复入库，直接返回当前画面（含档位和订单）。
         if (messageId != null && session.hasMessage(messageId)) {
-            return SafetyPolicy.view(session, catalog());
+            return buildResponse(session);
         }
         // 去掉首尾空格。全是空格就当成没说话。
         String sentence = text == null ? "" : text.trim();
@@ -163,6 +197,12 @@ public class ConsultationService {
         if (session.getBusinessStatus() == ConsultationStatus.CARD_READY) {
             throw new BusinessException(ErrorCode.CARD_PENDING_CONFIRMATION);
         }
+        // 第一句只说「有点不舒服」：先追问具体病情，不进入选就诊人。
+        if (shouldAskForDetail(session, sentence)) {
+            session.setBusinessStatus(ConsultationStatus.NEED_DESCRIPTION);
+            session.setCard(null);
+            return buildResponse(session);
+        }
         // 空着的槽位才从这句里抽，已经有的不覆盖。
         fillEmptySlots(session, sentence);
         // 卡片展示用的描述另存一份，和原话分开。
@@ -194,7 +234,6 @@ public class ConsultationService {
         Integer age = current.age();
         String duration = current.duration();
         String description = current.description();
-        Department department = current.department();
         List<String> symptoms = current.symptoms();
         boolean descriptionChanged = false;
         if (patch.gender() != null) {
@@ -219,9 +258,6 @@ public class ConsultationService {
             description = patch.description().trim();
             descriptionChanged = true;
         }
-        if (patch.department() != null) {
-            department = patch.department();
-        }
         session.setGender(gender);
         session.setAge(age);
         session.setDuration(duration);
@@ -236,12 +272,9 @@ public class ConsultationService {
                 return buildResponse(session);
             }
             symptoms = symptomExtractor.extract(description);
-            // 调用方没指定科室时，按新描述重新推荐。
-            if (patch.department() == null) {
-                department = departmentRouter.recommend(description);
-            }
         }
-        ConsultationCardRes card = new ConsultationCardRes(gender, age, duration, description, symptoms, department);
+        DepartmentRouter.Advice advice = departmentAdvice(patch.department(), descriptionChanged, description, current);
+        ConsultationCardRes card = CardFacts.compose(gender, age, duration, description, symptoms, advice);
         session.setCard(card);
         session.setBusinessStatus(ConsultationStatus.CARD_READY);
         return buildResponse(session);
@@ -256,6 +289,7 @@ public class ConsultationService {
             assess(session, AuditTrigger.CONFIRM_RECHECK);
         }
         SafetyPolicy.rejectIfSafetyStop(session);
+        rejectIfInquiryClosed();
         if (session.getBusinessStatus() == ConsultationStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.ALREADY_CONFIRMED);
         }
@@ -271,6 +305,7 @@ public class ConsultationService {
      */
     private ConsultationRes placeOrderLocked(ConsultationSession session, Integer packageCode) {
         SafetyPolicy.rejectIfSafetyStop(session);
+        rejectIfInquiryClosed();
         if (session.getBusinessStatus() != ConsultationStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.ORDER_NOT_ALLOWED);
         }
@@ -415,6 +450,25 @@ public class ConsultationService {
         session.setDescription(session.getDescription() + "\n" + sentence);
     }
 
+    /**
+     * 还在待描述、这句话又太含糊：只追问一次。第二次即使仍含糊也进入补槽，避免死循环。
+     */
+    private boolean shouldAskForDetail(ConsultationSession session, String sentence) {
+        if (session.getBusinessStatus() != ConsultationStatus.NEED_DESCRIPTION) {
+            return false;
+        }
+        if (!complaintClarity.isVague(sentence)) {
+            return false;
+        }
+        int patientTurns = 0;
+        for (var message : session.messages()) {
+            if (message.source() == MessageSource.MESSAGE) {
+                patientTurns++;
+            }
+        }
+        return patientTurns <= 1;
+    }
+
     /** 缺槽位就追问，齐了就生成卡片。 */
     private ConsultationRes nextView(ConsultationSession session) {
         if (Slots.nextMissing(session) != null) {
@@ -422,13 +476,13 @@ public class ConsultationService {
             session.setCard(null);
             return buildResponse(session);
         }
-        ConsultationCardRes card = new ConsultationCardRes(
+        ConsultationCardRes card = CardFacts.compose(
                 session.getGender(),
                 session.getAge(),
                 session.getDuration(),
                 session.getDescription(),
                 symptomExtractor.extract(session.getDescription()),
-                departmentRouter.recommend(session.getDescription()));
+                registrationAgent.advise(session.getDescription(), session.getAge(), session.getGender()));
         session.setCard(card);
         session.setBusinessStatus(ConsultationStatus.CARD_READY);
         return buildResponse(session);
@@ -467,6 +521,31 @@ public class ConsultationService {
                 || patch.duration() != null
                 || patch.description() != null
                 || patch.department() != null;
+    }
+
+    /** 问诊关闭时确认和下单都挡住。 */
+    private void rejectIfInquiryClosed() {
+        if (inquiry.isClosed()) {
+            throw new BusinessException(ErrorCode.INQUIRY_CLOSED);
+        }
+    }
+
+    /** 改科室用患者确认；改描述则重新推荐；其它改动沿用原依据。 */
+    private DepartmentRouter.Advice departmentAdvice(
+            Department patched,
+            boolean descriptionChanged,
+            String description,
+            ConsultationCardRes current) {
+        if (patched != null) {
+            registrationAgent.requireEnabled(patched);
+            return new DepartmentRouter.Advice(patched, "患者确认科室");
+        }
+        if (descriptionChanged) {
+            Integer age = current == null ? null : current.age();
+            Gender gender = current == null ? null : current.gender();
+            return registrationAgent.advise(description, age, gender);
+        }
+        return new DepartmentRouter.Advice(current.department(), current.departmentEvidence());
     }
 
     /** 当前生效的急症目录，用来取提示文案。 */

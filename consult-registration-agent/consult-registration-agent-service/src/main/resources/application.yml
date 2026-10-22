@@ -1,11 +1,31 @@
 spring:
   application:
     name: consult-registration-agent-service
+  config:
+    import:
+      - optional:file:./config/application-local.yml
+      - optional:file:./consult-registration-agent/consult-registration-agent-service/config/application-local.yml
+      - optional:file:../../config/application-local.yml
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai
-    username: root
-    password: your_password
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:your_password}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+department:
+  cache:
+    redis-key: consult:dept:catalog
+    ttl-seconds: 600
+    local-ttl-ms: 30000
+    double-delete-delay-ms: 1000
 server:
   port: 18081
 safety:
@@ -13,10 +33,13 @@ safety:
     location: classpath:safety/urgent-catalog.json
     draft-mode: SHADOW
   model:
-    enabled: false
+    enabled: ${SAFETY_MODEL_ENABLED:false}
     timeout-ms: 3000
     invalid-output-retries: 1
     max-concurrency: 20
     api-key: ${DEEPSEEK_API_KEY:}
     base-url: https://api.deepseek.com
     model-name: deepseek-chat
+inquiry:
+  closed: false
+  advisor-enabled: ${INQUIRY_ADVISOR_ENABLED:false}

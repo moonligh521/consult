@@ -4,15 +4,19 @@ import { STATUS, money } from '../constants/catalog'
 import { useConsultationStore } from '../stores/consultation'
 
 const store = useConsultationStore()
+const sheet = ref(null)
 const activeCode = ref(null)
+const checkoutPkg = ref(null)
+const channel = ref('wechat')
 
 const visible = computed(() => store.status === STATUS.CONFIRMED && store.showCard)
 const packages = computed(() => store.packages)
 const active = computed(() => packages.value.find((item) => item.code === activeCode.value) || null)
 const paid = computed(() => store.order)
+const catalogOpen = computed(() => visible.value && !paid.value)
 
 watch(
-  visible,
+  catalogOpen,
   async (show) => {
     if (show && !store.packages.length) {
       await store.loadPackages()
@@ -21,43 +25,60 @@ watch(
   { immediate: true },
 )
 
-function open(item) {
+function openDetail(item) {
   if (paid.value) {
     return
   }
+  checkoutPkg.value = item
   activeCode.value = item.code
+  sheet.value = 'detail'
+}
+
+function openCheckout(item) {
+  if (paid.value || store.paying) {
+    return
+  }
+  checkoutPkg.value = item
+  activeCode.value = item.code
+  channel.value = 'wechat'
+  sheet.value = 'checkout'
+}
+
+function openOrder() {
+  if (!paid.value) {
+    return
+  }
+  sheet.value = 'order'
 }
 
 function close() {
-  activeCode.value = null
-}
-
-async function pay() {
-  if (!active.value || store.sending) {
+  if (store.paying) {
     return
   }
-  await store.pay(active.value)
-  close()
+  sheet.value = null
+  activeCode.value = null
+  checkoutPkg.value = null
+}
+
+async function confirmPay() {
+  if (!checkoutPkg.value) {
+    return
+  }
+  const ok = await store.pay(checkoutPkg.value, channel.value)
+  if (ok) {
+    sheet.value = null
+  }
 }
 </script>
 
 <template>
-  <section v-if="visible" class="pay-wrap">
+  <section v-if="catalogOpen" class="pay-wrap">
     <p class="pay-legal">
       请您仔细阅读用户服务相关声明。如非复诊，仅提供就医信息整理，不能替代医师诊查。继续咨询代表您已知悉并同意相关条款。
     </p>
 
     <article class="pay-board">
-      <header class="pay-board-head">
-        <span class="pay-flag">咨询档位</span>
-        <span>价格与档位来自服务端 · 不真实扣款</span>
-      </header>
-
-      <p v-if="!packages.length" class="pay-done">{{ store.error || '正在从服务端拉取档位…' }}</p>
-
-      <div v-if="paid" class="pay-done">
-        已选择「{{ paid.packageName }}」，应付 ¥{{ money(paid.payAmount) }}。演示环境未扣款。
-      </div>
+      <p v-if="!packages.length" class="pay-done">{{ store.error || '正在加载咨询服务…' }}</p>
 
       <div
         v-for="item in packages"
@@ -65,10 +86,14 @@ async function pay() {
         class="pay-row"
       >
         <div class="pay-row-main">
-          <div class="pay-name">
+          <button
+            class="pay-name"
+            type="button"
+            @click="openDetail(item)"
+          >
             {{ item.name }}
             <em v-if="item.badge">{{ item.badge }}</em>
-          </div>
+          </button>
           <div class="pay-summary">{{ item.summary }}</div>
         </div>
         <div class="pay-row-side">
@@ -79,18 +104,31 @@ async function pay() {
           <button
             class="pay-go"
             type="button"
-            :disabled="!!paid"
-            @click="open(item)"
+            :disabled="store.paying"
+            @click="openCheckout(item)"
           >
-            {{ paid?.packageCode === item.code ? '已选择' : '去咨询' }}
+            去咨询
           </button>
         </div>
       </div>
     </article>
   </section>
 
+  <button
+    v-else-if="visible && paid"
+    class="im-fold"
+    type="button"
+    @click="openOrder"
+  >
+    <div>
+      <strong>{{ paid.packageName }} · 已支付 ¥{{ money(paid.payAmount) }}</strong>
+      <p>订单已完成，点击查看明细</p>
+    </div>
+    <span>展开查看</span>
+  </button>
+
   <Teleport to="body">
-    <div v-if="active" class="pay-mask" @click.self="close">
+    <div v-if="sheet === 'detail' && active" class="pay-mask" @click.self="close">
       <div class="pay-sheet" role="dialog" aria-labelledby="pay-sheet-title">
         <header class="pay-sheet-head">
           <h2 id="pay-sheet-title">服务详情</h2>
@@ -121,7 +159,88 @@ async function pay() {
             <div class="pay-total">合计：<em>¥{{ money(active.payPrice) }}</em></div>
             <div class="pay-off">已优惠 ¥{{ money(active.discount) }}</div>
           </div>
-          <button class="pay-now" type="button" :disabled="store.sending" @click="pay">立即咨询</button>
+          <button class="pay-now" type="button" @click="openCheckout(active)">去支付</button>
+        </footer>
+      </div>
+    </div>
+
+    <div v-if="sheet === 'checkout' && checkoutPkg" class="pay-mask" @click.self="close">
+      <div class="pay-sheet" role="dialog" aria-labelledby="pay-checkout-title">
+        <header class="pay-sheet-head">
+          <h2 id="pay-checkout-title">收银台</h2>
+          <button class="pay-sheet-close" type="button" aria-label="关闭" :disabled="store.paying" @click="close">×</button>
+        </header>
+        <div class="pay-sheet-body">
+          <div class="checkout-amount">
+            <span>应付金额</span>
+            <strong>¥{{ money(checkoutPkg.payPrice) }}</strong>
+          </div>
+          <p class="checkout-item">{{ checkoutPkg.name }}</p>
+          <h4>支付方式</h4>
+          <div class="pay-channels">
+            <button
+              class="pay-channel"
+              type="button"
+              :class="{ on: channel === 'wechat' }"
+              :disabled="store.paying"
+              @click="channel = 'wechat'"
+            >
+              微信支付
+            </button>
+            <button
+              class="pay-channel"
+              type="button"
+              :class="{ on: channel === 'alipay' }"
+              :disabled="store.paying"
+              @click="channel = 'alipay'"
+            >
+              支付宝
+            </button>
+          </div>
+          <p v-if="store.error" class="checkout-error">{{ store.error }}</p>
+        </div>
+        <footer class="pay-sheet-foot">
+          <div class="pay-total">合计：<em>¥{{ money(checkoutPkg.payPrice) }}</em></div>
+          <button class="pay-now" type="button" :disabled="store.paying" @click="confirmPay">
+            {{ store.paying ? '支付中…' : '确认支付' }}
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <div v-if="sheet === 'order' && paid" class="pay-mask" @click.self="close">
+      <div class="pay-sheet" role="dialog" aria-labelledby="pay-order-title">
+        <header class="pay-sheet-head">
+          <h2 id="pay-order-title">订单详情</h2>
+          <button class="pay-sheet-close" type="button" aria-label="关闭" @click="close">×</button>
+        </header>
+        <div class="pay-sheet-body">
+          <h3>{{ paid.packageName }}</h3>
+          <div class="pay-bill">
+            <div class="pay-bill-row">
+              <span>订单号</span>
+              <span>{{ paid.orderId }}</span>
+            </div>
+            <div class="pay-bill-row">
+              <span>划线价</span>
+              <span>¥{{ money(paid.originAmount) }}</span>
+            </div>
+            <div class="pay-bill-row off">
+              <span>优惠</span>
+              <span>- ¥{{ money(paid.discountAmount) }}</span>
+            </div>
+            <div class="pay-bill-row">
+              <span>实付</span>
+              <span>¥{{ money(paid.payAmount) }}</span>
+            </div>
+            <div class="pay-bill-row">
+              <span>状态</span>
+              <span>已支付</span>
+            </div>
+          </div>
+        </div>
+        <footer class="pay-sheet-foot">
+          <button class="pay-now" type="button" @click="close">收起</button>
         </footer>
       </div>
     </div>

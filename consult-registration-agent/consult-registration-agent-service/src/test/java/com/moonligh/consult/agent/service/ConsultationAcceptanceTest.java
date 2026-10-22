@@ -1,6 +1,7 @@
 package com.moonligh.consult.agent.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -40,7 +41,7 @@ class ConsultationAcceptanceTest {
         assertEquals(32, view.card().age());
         assertEquals("半年", view.card().duration());
         assertEquals(List.of("干咳"), view.card().symptoms());
-        assertEquals(Department.RESPIRATORY, view.card().department());
+        assertEquals(Department.INTERNAL, view.card().department());
         assertEquals("女，32岁，干咳半年，运动后加重", view.card().description());
     }
 
@@ -58,7 +59,7 @@ class ConsultationAcceptanceTest {
         assertEquals(32, second.card().age());
         assertEquals("三天", second.card().duration());
         assertEquals(List.of("干咳"), second.card().symptoms());
-        assertEquals(Department.RESPIRATORY, second.card().department());
+        assertEquals(Department.INTERNAL, second.card().department());
         assertEquals("男，干咳三天\n32岁", second.card().description());
     }
 
@@ -170,10 +171,31 @@ class ConsultationAcceptanceTest {
         assertEquals(ConsultationStatus.CARD_READY, patched.status());
         assertEquals("腹痛两天", patched.card().description());
         assertEquals(List.of("腹痛"), patched.card().symptoms());
-        assertEquals(Department.DIGESTIVE, patched.card().department());
+        assertEquals(Department.INTERNAL, patched.card().department());
         assertEquals(Gender.FEMALE, patched.card().gender());
         assertEquals(32, patched.card().age());
         assertEquals("半年", patched.card().duration());
+    }
+
+    @Test
+    void vagueComplaintAsksForDetailBeforeSlots() {
+        ConsultationRes first = service.acceptMessage(null, "有点不舒服");
+        assertEquals(ConsultationStatus.NEED_DESCRIPTION, first.status());
+        assertEquals("请您描述病情或者需要解决的健康相关问题", first.prompt());
+        assertNull(first.missingSlot());
+        assertNull(first.card());
+
+        ConsultationRes clearer = service.acceptMessage(first.consultationId(), "干咳半年，运动后加重");
+        assertEquals(ConsultationStatus.NEED_SLOT, clearer.status());
+        assertEquals(MissingSlot.GENDER, clearer.missingSlot());
+    }
+
+    @Test
+    void secondVagueComplaintStillGoesToSlots() {
+        String id = service.acceptMessage(null, "有点不舒服").consultationId();
+        ConsultationRes second = service.acceptMessage(id, "身体有点不舒服");
+        assertEquals(ConsultationStatus.NEED_SLOT, second.status());
+        assertEquals(MissingSlot.GENDER, second.missingSlot());
     }
 
     @Test
@@ -203,11 +225,11 @@ class ConsultationAcceptanceTest {
         assertEquals(Gender.FEMALE, view.card().gender());
         assertEquals(32, view.card().age());
         assertEquals("两天", view.card().duration());
-        assertEquals(Department.GENERAL, view.card().department());
+        assertEquals(Department.ORTHOPEDICS, view.card().department());
 
         ConsultationRes confirmed = service.confirm(view.consultationId());
         assertEquals(ConsultationStatus.CONFIRMED, confirmed.status());
-        assertEquals(Department.GENERAL, confirmed.card().department());
+        assertEquals(Department.ORTHOPEDICS, confirmed.card().department());
     }
 
     @Test
@@ -245,6 +267,43 @@ class ConsultationAcceptanceTest {
         ConsultationRes view = service.acceptMessage(null, "找人工");
         assertEquals(ConsultationStatus.NEED_HUMAN, view.status());
         assertNull(view.card());
+    }
+
+    @Test
+    void humanCustomerServicePhrasesStop() {
+        for (String text : List.of(
+                "人工客服", "转人工客服", "接人工客服", "转接人工", "找客服",
+                "客服在哪", "有人工吗", "人工呢", "找个人问问")) {
+            ConsultationRes view = service.acceptMessage(null, text);
+            assertEquals(ConsultationStatus.NEED_HUMAN, view.status(), text);
+            assertNull(view.card());
+        }
+        ConsultationRes ignored = service.acceptMessage(null, "人工智能导诊，干咳半年");
+        assertFalse(ignored.status() == ConsultationStatus.NEED_HUMAN);
+    }
+
+    @Test
+    void highRiskShortPhraseStopsForHuman() {
+        for (String text : List.of("快不行了", "疼得受不了", "感觉要死了", "快没气了")) {
+            ConsultationRes view = service.acceptMessage(null, text);
+            assertEquals(ConsultationStatus.NEED_HUMAN, view.status(), text);
+            assertNull(view.card());
+        }
+    }
+
+    @Test
+    void bloatingLeavesVagueGateAndAsksGender() {
+        ConsultationRes view = service.acceptMessage(null, "胃胀");
+        assertEquals(ConsultationStatus.NEED_SLOT, view.status());
+        assertEquals(MissingSlot.GENDER, view.missingSlot());
+        assertNull(view.card());
+    }
+
+    @Test
+    void oralDiarrheaLeavesVagueGate() {
+        ConsultationRes view = service.acceptMessage(null, "拉肚子");
+        assertEquals(ConsultationStatus.NEED_SLOT, view.status());
+        assertEquals(MissingSlot.GENDER, view.missingSlot());
     }
 
     @Test

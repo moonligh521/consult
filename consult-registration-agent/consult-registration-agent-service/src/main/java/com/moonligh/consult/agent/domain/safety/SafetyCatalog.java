@@ -1,6 +1,7 @@
 package com.moonligh.consult.agent.domain.safety;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -69,6 +70,17 @@ public final class SafetyCatalog {
             }
         }
         return false;
+    }
+
+    /** 生产会生效的信号名，给模型转义补漏用。DRAFT 不列入。 */
+    public List<String> decisionSignalTypes() {
+        LinkedHashSet<String> types = new LinkedHashSet<>();
+        for (SafetyRule rule : rules) {
+            if (rule.status() == RuleStatus.BASELINE || rule.status() == RuleStatus.APPROVED) {
+                types.add(rule.signal());
+            }
+        }
+        return List.copyOf(types);
     }
 
     /** 给规则引擎用的规则。已下线的不参与。 */

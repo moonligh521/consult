@@ -371,6 +371,58 @@ class SafetyFlowTest {
     }
 
     @Test
+    void unknownModelTypeDoesNotStopOrdinaryTriage() {
+        SignalExtractor extractor = (transcript, demographics) -> new SignalExtraction(
+                ModelStatus.SUCCESS,
+                "test",
+                List.of(new ExtractedSignal("not_a_catalog_signal", 1, "干咳", "current", "positive", "patient", "low")),
+                false);
+        ConsultationsFixture fixture = ConsultationsFixture.of(CatalogLoader.loadDefault(DraftMode.SHADOW), extractor);
+        ConsultationRes view = fixture.service.acceptMessage(null, COMPLETE);
+        assertFalse(view.status() == ConsultationStatus.SAFE_FALLBACK);
+        assertFalse(view.status() == ConsultationStatus.URGENT);
+    }
+
+    @Test
+    void modelParaphraseMapsToBaselineChestPain() {
+        String text = "心口像压了块大石头";
+        SignalExtractor extractor = (transcript, demographics) -> new SignalExtraction(
+                ModelStatus.SUCCESS,
+                "test",
+                List.of(new ExtractedSignal("chest_pain", 1, "心口像压了块大石头", "current", "positive", "patient", "low")),
+                false);
+        ConsultationsFixture fixture = ConsultationsFixture.of(CatalogLoader.loadDefault(DraftMode.SHADOW), extractor);
+        ConsultationRes view = fixture.service.acceptMessage(null, text);
+        assertEquals(ConsultationStatus.URGENT, view.status());
+    }
+
+    @Test
+    void modelCannotPromoteDraftStrokeInShadow() {
+        SignalExtractor extractor = (transcript, demographics) -> new SignalExtraction(
+                ModelStatus.SUCCESS,
+                "test",
+                List.of(new ExtractedSignal("altered_consciousness", 1, "口角歪斜", "current", "positive", "patient", "low")),
+                false);
+        ConsultationsFixture fixture = ConsultationsFixture.of(CatalogLoader.loadDefault(DraftMode.SHADOW), extractor);
+        ConsultationRes view = fixture.service.acceptMessage(null, "女，32岁，口角歪斜两小时");
+        assertFalse(view.status() == ConsultationStatus.URGENT);
+        assertFalse(view.status() == ConsultationStatus.SAFE_FALLBACK);
+    }
+
+    @Test
+    void modelBadEvidenceIsSkippedNotFallback() {
+        SignalExtractor extractor = (transcript, demographics) -> new SignalExtraction(
+                ModelStatus.SUCCESS,
+                "test",
+                List.of(new ExtractedSignal("chest_pain", 1, "胸痛", "current", "positive", "patient", "low")),
+                false);
+        ConsultationsFixture fixture = ConsultationsFixture.of(CatalogLoader.loadDefault(DraftMode.SHADOW), extractor);
+        ConsultationRes view = fixture.service.acceptMessage(null, COMPLETE);
+        assertFalse(view.status() == ConsultationStatus.SAFE_FALLBACK);
+        assertFalse(view.status() == ConsultationStatus.URGENT);
+    }
+
+    @Test
     void sf29ModelChestPainWithoutRuleTextIsUrgentWhenEnforced() {
         SignalExtractor extractor = (transcript, demographics) -> new SignalExtraction(
                 ModelStatus.SUCCESS,
@@ -407,7 +459,7 @@ class SafetyFlowTest {
         ConsultationsFixture fixture = ConsultationsFixture.shadow();
         ConsultationRes view = fixture.service.acceptMessage(null, "胸痛");
         SafetyDecisionAudit audit = fixture.audits.list(view.consultationId()).get(0);
-        assertEquals("2026.10.0", audit.catalogVersion());
+        assertEquals("2026.10.1", audit.catalogVersion());
         assertNotNull(audit.decisionId());
         assertFalse(audit.matchedRuleIds().isEmpty());
         assertEquals("URGENT-DEFAULT", audit.templateId());

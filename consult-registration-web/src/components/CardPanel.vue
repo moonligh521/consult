@@ -12,9 +12,9 @@ import {
 } from '../constants/catalog'
 import { useConsultationStore } from '../stores/consultation'
 
-const emit = defineEmits(['supplement', 'human'])
 const store = useConsultationStore()
 const editing = ref(false)
+const openFold = ref(false)
 
 const form = reactive({
   gender: null,
@@ -23,6 +23,15 @@ const form = reactive({
   description: '',
   department: null,
 })
+
+watch(
+  () => store.order,
+  (order) => {
+    if (order) {
+      openFold.value = false
+    }
+  },
+)
 
 watch(
   () => store.card,
@@ -40,6 +49,7 @@ watch(
 )
 
 const readonly = computed(() => store.status === STATUS.CONFIRMED)
+const folded = computed(() => !!store.order && !editing.value && !openFold.value)
 const personText = computed(() => {
   const gender = genderLabel(store.card?.gender)
   const age = store.card?.age
@@ -55,13 +65,6 @@ const personText = computed(() => {
     parts.push(duration)
   }
   return parts.join(' ')
-})
-const hint = computed(() => {
-  if (store.safetyNotice) {
-    return store.safetyNotice
-  }
-  const dept = departmentLabel(store.card?.department)
-  return `建议挂${dept}，具体诊治请以医师面诊为准。`
 })
 
 function startEdit() {
@@ -91,23 +94,37 @@ async function confirm() {
 </script>
 
 <template>
-  <article v-if="store.showCard" class="consult-card">
+  <button
+    v-if="store.showCard && folded"
+    class="im-fold"
+    type="button"
+    @click="openFold = true"
+  >
+    <div>
+      <strong>咨询信息</strong>
+      <p>{{ personText }} · {{ departmentLabel(store.card?.department) }}</p>
+    </div>
+    <span>展开查看</span>
+  </button>
+
+  <article v-else-if="store.showCard" class="consult-card">
     <header class="consult-head">
       <div>
-        <div class="consult-title">🩺 分诊建议</div>
-        <div class="consult-sub">{{ readonly ? '已确认，可继续选择咨询档位' : '请核对后去挂号，或以医师面诊为准' }}</div>
+        <div class="consult-title">咨询信息</div>
+        <div class="consult-sub">{{ readonly ? '已确认，后续以卡片信息为准' : '发起咨询以修改后信息为准' }}</div>
       </div>
-      <button v-if="!readonly" class="consult-edit" type="button" @click="startEdit">修改</button>
+      <button v-if="store.order" class="consult-edit" type="button" @click="openFold = false">收起</button>
+      <button v-else-if="!readonly" class="consult-edit" type="button" @click="startEdit">修改</button>
       <span v-else class="consult-done">已确认</span>
     </header>
 
     <div v-if="!editing" class="consult-body">
-      <p>✅ 推荐科室：{{ departmentLabel(store.card?.department) }}</p>
       <p><span class="k">咨询人：</span>{{ personText }}</p>
-      <p>⚠️ 温馨提示：{{ hint }}</p>
-      <p>
-        <span class="k">问题描述：</span>{{ store.card?.description }}
-      </p>
+      <p><span class="k">咨询科室：</span>{{ departmentLabel(store.card?.department) }}</p>
+      <p v-if="store.card?.departmentEvidence"><span class="k">分诊依据：</span>{{ store.card.departmentEvidence }}</p>
+      <p><span class="k">问题描述：</span>{{ store.card?.description }}</p>
+      <p v-if="store.card?.allergy"><span class="k">过敏：</span>{{ store.card.allergy }}</p>
+      <p v-if="store.card?.medications"><span class="k">用药：</span>{{ store.card.medications }}</p>
     </div>
 
     <div v-else class="consult-form">
@@ -137,18 +154,16 @@ async function confirm() {
       </div>
     </div>
 
-    <div v-if="!editing" class="triage-actions">
-      <button
-        v-if="!readonly"
-        class="triage-btn primary"
-        type="button"
-        :disabled="store.sending"
-        @click="confirm"
-      >
-        去挂号
-      </button>
-      <button class="triage-btn" type="button" @click="emit('supplement')">补充症状</button>
-      <button class="triage-btn" type="button" :disabled="store.sending" @click="emit('human')">转人工</button>
-    </div>
+    <button
+      v-if="!readonly && !editing"
+      class="consult-go"
+      type="button"
+      :disabled="store.sending"
+      @click="confirm"
+    >
+      去挂号
+    </button>
+
+    <footer class="consult-foot">平台保障您的咨询隐私安全</footer>
   </article>
 </template>

@@ -1,0 +1,19 @@
+# 复制本文件为同目录 application-local.yml 后填密钥。
+# application-local.yml 已在 .gitignore，不要 git add。
+#
+# 生产不要用文件放密钥，用环境变量或密钥服务：
+#   SAFETY_MODEL_ENABLED=true
+#   DEEPSEEK_API_KEY=...
+#   REDIS_PASSWORD=...
+spring:
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password: "replace-with-redis-password"
+safety:
+  model:
+    enabled: true
+    api-key: "replace-with-deepseek-key"
+    timeout-ms: 3000
+    max-concurrency: 20

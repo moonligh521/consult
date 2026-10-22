@@ -26,7 +26,9 @@ public enum ErrorCode {
     INVALID_SERVICE_TYPE(1114, "服务类型须为 1、2 或 3。"),
     ORDER_NOT_ALLOWED(1115, "请先确认咨询卡片。"),
     INVALID_PACKAGE(1116, "咨询档位须为 1、2、3 或 4。"),
-    ALREADY_ORDERED(1117, "这轮咨询已经下过单。");
+    ALREADY_ORDERED(1117, "这轮咨询已经下过单。"),
+    INQUIRY_CLOSED(1118, "当前问诊通道正在维护，请稍后再试。"),
+    INVALID_DEPARTMENT(1119, "该科室当前未开通。");
 
     /** 放进 Result.code 的数字。 */
     private final int code;

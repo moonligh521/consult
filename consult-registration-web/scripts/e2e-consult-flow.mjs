@@ -32,7 +32,7 @@ const created = await call('POST', '/api/consultations/messages', {
 })
 assert(created.code === 200, `发消息失败: ${created.message}`)
 assert(created.data.status === 4, `期望卡片待确认，实际 ${created.data.status}`)
-assert(created.data.card?.department === 1, '科室应为呼吸内科')
+assert(created.data.card?.department === 1, '科室应为内科')
 const consultationId = created.data.consultationId
 
 const confirmed = await call('POST', '/api/consultations/confirmation', { consultationId })

@@ -5,6 +5,7 @@ import com.moonligh.consult.agent.api.enums.Handoff;
 import com.moonligh.consult.agent.api.enums.MissingSlot;
 import com.moonligh.consult.agent.api.enums.ServiceType;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
+import com.moonligh.consult.agent.domain.ComplaintClarity;
 import com.moonligh.consult.agent.domain.ConsultationSession;
 import com.moonligh.consult.agent.domain.Slots;
 import com.moonligh.consult.framework.BusinessException;
@@ -18,6 +19,8 @@ public final class SafetyPolicy {
 
     /** 空描述时请对方重新说一遍。 */
     public static final String REDESCRIBE_PROMPT = "请重新描述病情。";
+    /** 说了话但不够具体，先补病情再选就诊人。 */
+    public static final String DETAIL_PROMPT = ComplaintClarity.DETAIL_PROMPT;
 
     private SafetyPolicy() {
     }
@@ -102,7 +105,15 @@ public final class SafetyPolicy {
                 : null;
         ConsultationStatus business = session.getBusinessStatus();
         if (business == ConsultationStatus.NEED_DESCRIPTION) {
-            return new ConsultationRes(session.getId(), business, REDESCRIBE_PROMPT, null, null, notice, null);
+            boolean hasSpoken = false;
+            for (ConsultationMessage message : session.messages()) {
+                if (message.text() != null && !message.text().isBlank()) {
+                    hasSpoken = true;
+                    break;
+                }
+            }
+            String prompt = hasSpoken ? DETAIL_PROMPT : REDESCRIBE_PROMPT;
+            return new ConsultationRes(session.getId(), business, prompt, null, null, notice, null);
         }
         if (business == ConsultationStatus.NEED_SLOT) {
             MissingSlot missing = Slots.nextMissing(session);

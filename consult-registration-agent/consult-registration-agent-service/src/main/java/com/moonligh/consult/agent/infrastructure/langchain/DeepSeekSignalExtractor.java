@@ -19,6 +19,7 @@ import com.moonligh.consult.agent.config.SafetyProperties;
 import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
 import com.moonligh.consult.agent.domain.safety.Demographics;
 import com.moonligh.consult.agent.domain.safety.ExtractedSignal;
+import com.moonligh.consult.agent.domain.safety.SafetyCatalog;
 import com.moonligh.consult.agent.domain.safety.SignalExtraction;
 import com.moonligh.consult.agent.domain.safety.SignalExtractor;
 
@@ -31,11 +32,13 @@ public class DeepSeekSignalExtractor implements SignalExtractor {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final SafetyProperties.Model settings;
+    private final SafetyCatalog catalog;
     private final HttpClient http;
     private final Semaphore limiter;
 
-    public DeepSeekSignalExtractor(SafetyProperties properties) {
+    public DeepSeekSignalExtractor(SafetyProperties properties, SafetyCatalog catalog) {
         this.settings = properties.getModel();
+        this.catalog = catalog;
         this.http = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(settings.getTimeoutMs()))
                 .build();
@@ -120,8 +123,12 @@ public class DeepSeekSignalExtractor implements SignalExtractor {
             if (!node.hasNonNull("type") || !node.has("messageSeq") || !node.hasNonNull("evidence")) {
                 return SignalExtraction.invalid();
             }
+            String type = node.get("type").asText();
+            if (!catalog.hasSignal(type)) {
+                continue;
+            }
             signals.add(new ExtractedSignal(
-                    node.get("type").asText(),
+                    type,
                     node.get("messageSeq").asInt(),
                     node.get("evidence").asText(),
                     node.path("temporal_status").asText("current"),
@@ -143,8 +150,15 @@ public class DeepSeekSignalExtractor implements SignalExtractor {
         for (ConsultationMessage message : transcript) {
             numbered.append(message.seq()).append(':').append(message.text()).append('\n');
         }
-        String system = "只抽取急症信号 JSON。不得编造未出现的急症。不得因不严重或好转删除当前阳性红旗。"
-                + "evidence 必须是对应 seq 原话的子串。type 必须是目录 signal。不要输出原文之外的文字。";
+        String allowed = String.join(",", catalog.decisionSignalTypes());
+        String system = "只输出 JSON：{\"signals\":[{\"type\":\"\",\"messageSeq\":1,\"evidence\":\"\",\"polarity\":\"positive\",\"temporal_status\":\"current\",\"uncertainty\":\"low\"}],\"unresolved_ambiguity\":false}。"
+                + "允许的 type：" + allowed + "。对不上这些 type 就 signals=[]，unresolved_ambiguity=false。"
+                + "只转义目录别名对不上、但明显等于这些 type 的说法。"
+                + "例如「心口像压了块大石头」type=chest_pain，evidence 用原句中的那几个字。"
+                + "口角歪斜、口唇发子、胸口痛、压着痛、胸口闷已在影子目录，不要输出。"
+                + "不得把普通咳嗽、胃痛、拉肚子、胃胀映射成 chest_pain 或 dyspnea。"
+                + "不得编造未出现的急症。不得因不严重或好转删除当前阳性红旗。"
+                + "evidence 必须是对应 seq 原话的子串。不要输出 JSON 之外的文字。";
         var root = MAPPER.createObjectNode();
         root.put("model", settings.getModelName());
         var messages = MAPPER.createArrayNode();

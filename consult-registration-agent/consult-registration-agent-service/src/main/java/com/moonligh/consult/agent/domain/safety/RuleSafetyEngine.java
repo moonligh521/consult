@@ -14,23 +14,39 @@ import java.util.Set;
  */
 public class RuleSafetyEngine {
 
-    /** 规则引擎版本，写入审计表。 */
+    /**
+     * 规则引擎版本，写入审计表。
+     */
     public static final String VERSION = "1.0.0";
 
-    /** 用来把长句切开，避免前后半句互相干扰。 */
+    /**
+     * 用来把长句切开，避免前后半句互相干扰。
+     */
     private static final String[] SPLITTERS = {"但是", "不过", "可是", "然而", "，", "。", "；", "！", "？", ",", ".", ";", "!", "?", "\n"};
-    /** 双重否定，当成不确定。 */
+    /**
+     * 双重否定，当成不确定。
+     */
     private static final String[] DOUBLE_NEGATIONS = {"不是没有", "没有不", "并非没有"};
-    /** 患者自己也不确定。 */
+    /**
+     * 患者自己也不确定。
+     */
     private static final String[] UNCERTAIN_WORDS = {"是不是", "会不会", "好像", "可能", "不确定", "说不清"};
-    /** 否定词。只看别名前面几字，避免后半句把前面的急症否掉。 */
+    /**
+     * 否定词。只看别名前面几字，避免后半句把前面的急症否掉。
+     */
     private static final String[] NEGATIONS = {"没有", "并非", "不是", "否认", "没", "无", "不", "未"};
-    /** 已经缓解的说法。 */
+    /**
+     * 已经缓解的说法。
+     */
     private static final String[] RESOLVED_WORDS = {"已经好了", "缓解了", "不疼了", "消失了", "现在没事"};
-    /** 后面这句把前面说过的症状又拉回当前。 */
+    /**
+     * 后面这句把前面说过的症状又拉回当前。
+     */
     private static final String[] CURRENT_ANAPHORA = {"现在开始痛了", "现在开始疼了", "又痛了", "又疼了"};
 
-    /** 评估全部原话，返回急症、转人工等结论。 */
+    /**
+     * 评估全部原话，返回急症、转人工等结论。
+     */
     public SafetyAssessment evaluate(
             List<ConsultationMessage> transcript,
             Demographics demographics,
@@ -49,7 +65,9 @@ public class RuleSafetyEngine {
         return toAssessment(hits, demographics);
     }
 
-    /** 在一段文字里找规则别名，命中就记一条 Hit。 */
+    /**
+     * 在一段文字里找规则别名，命中就记一条 Hit。
+     */
     private void collectHits(
             int evidenceSeq,
             String original,
@@ -70,14 +88,18 @@ public class RuleSafetyEngine {
         }
     }
 
-    /** DRAFT 命中只做影子记录。 */
+    /**
+     * DRAFT 命中只做影子记录。
+     */
     private void collectDraftShadows(SafetyRule rule, List<Sentence> sentences, int evidenceSeq, List<Hit> hits) {
         for (Sentence sentence : sentences) {
             hits.addAll(hitsInSentence(rule, sentence, evidenceSeq, true));
         }
     }
 
-    /** 一句里所有别名命中。每个命中带上否定/不确定后的处置。 */
+    /**
+     * 一句里所有别名命中。每个命中带上否定/不确定后的处置。
+     */
     private List<Hit> hitsInSentence(SafetyRule rule, Sentence sentence, int evidenceSeq, boolean shadow) {
         List<Match> matches = aliasMatches(rule, sentence);
         List<Hit> hits = new ArrayList<>();
@@ -88,7 +110,9 @@ public class RuleSafetyEngine {
         return hits;
     }
 
-    /** 在一句里找别名。长别名优先，同一段字只算一次。 */
+    /**
+     * 在一句里找别名。长别名优先，同一段字只算一次。
+     */
     private List<Match> aliasMatches(SafetyRule rule, Sentence sentence) {
         List<Match> matches = new ArrayList<>();
         String sentenceText = sentence.normalized();
@@ -116,7 +140,9 @@ public class RuleSafetyEngine {
         return matches;
     }
 
-    /** 看这句是不确定、否定、已缓解，还是当前阳性。 */
+    /**
+     * 看这句是不确定、否定、已缓解，还是当前阳性。
+     */
     private PolicyAction actionOf(SafetyRule rule, Sentence sentence, Match match) {
         String sentenceText = sentence.normalized();
         // 否定只看别名前面 6 个字，避免「没有发烧，但胸痛」把胸痛否掉。
@@ -137,7 +163,9 @@ public class RuleSafetyEngine {
         return hitAction;
     }
 
-    /** 后一句说「又痛了」，把前面原话里的症状按当前阳性再记一次。 */
+    /**
+     * 后一句说「又痛了」，把前面原话里的症状按当前阳性再记一次。
+     */
     private void applyAnaphora(
             List<ConsultationMessage> transcript,
             SafetyCatalog catalog,
@@ -165,7 +193,9 @@ public class RuleSafetyEngine {
         }
     }
 
-    /** 把命中汇总成一次评估结果。影子命中不改患者状态。 */
+    /**
+     * 把命中汇总成一次评估结果。影子命中不改患者状态。
+     */
     private SafetyAssessment toAssessment(List<Hit> hits, Demographics demographics) {
         Set<String> matched = new LinkedHashSet<>();
         Set<String> shadows = new LinkedHashSet<>();
@@ -245,7 +275,9 @@ public class RuleSafetyEngine {
                 ModelStatus.DISABLED);
     }
 
-    /** 规则要求年龄或性别，但还没抽到时，改走缺上下文策略。 */
+    /**
+     * 规则要求年龄或性别，但还没抽到时，改走缺上下文策略。
+     */
     private PolicyAction applyMissingContext(SafetyRule rule, PolicyAction hitAction, Demographics demographics) {
         if (rule.requiredContext().isEmpty()) {
             return hitAction;
@@ -265,7 +297,9 @@ public class RuleSafetyEngine {
         return rule.missingContextPolicy();
     }
 
-    /** 把全部原话用换行拼成一段，证据序号用最后一句。 */
+    /**
+     * 把全部原话用换行拼成一段，证据序号用最后一句。
+     */
     private static Concatenation concatenate(List<ConsultationMessage> transcript) {
         StringBuilder text = new StringBuilder();
         for (int i = 0; i < transcript.size(); i++) {
@@ -278,7 +312,9 @@ public class RuleSafetyEngine {
         return new Concatenation(text.toString(), seq);
     }
 
-    /** 按逗号、句号、「但是」等把文字切开。 */
+    /**
+     * 按逗号、句号、「但是」等把文字切开。
+     */
     private static List<Sentence> split(Normalized normalized) {
         String text = normalized.text;
         List<Sentence> sentences = new ArrayList<>();
@@ -304,7 +340,9 @@ public class RuleSafetyEngine {
         return sentences;
     }
 
-    /** 这段位置是不是已经被更长的别名占过。 */
+    /**
+     * 这段位置是不是已经被更长的别名占过。
+     */
     private static boolean occupied(boolean[] taken, int start, int end) {
         for (int i = start; i < end; i++) {
             if (taken[i]) {
@@ -314,14 +352,18 @@ public class RuleSafetyEngine {
         return false;
     }
 
-    /** 把这段位置标成已占用。 */
+    /**
+     * 把这段位置标成已占用。
+     */
     private static void mark(boolean[] taken, int start, int end) {
         for (int i = start; i < end; i++) {
             taken[i] = true;
         }
     }
 
-    /** 取出别名前面若干个字，用来看有没有否定。 */
+    /**
+     * 取出别名前面若干个字，用来看有没有否定。
+     */
     private static String preceding(String text, int start, int chars) {
         int from = start;
         int counted = 0;
@@ -332,7 +374,9 @@ public class RuleSafetyEngine {
         return text.substring(from, start);
     }
 
-    /** 文字里有没有出现这组词中的任何一个。 */
+    /**
+     * 文字里有没有出现这组词中的任何一个。
+     */
     private static boolean containsAny(String text, String[] needles) {
         for (String needle : needles) {
             if (text.contains(needle)) {
@@ -342,19 +386,27 @@ public class RuleSafetyEngine {
         return false;
     }
 
-    /** 一次别名命中：哪条规则、怎么处置、证据在哪、是不是影子。 */
+    /**
+     * 一次别名命中：哪条规则、怎么处置、证据在哪、是不是影子。
+     */
     private record Hit(SafetyRule rule, PolicyAction action, EvidenceRef evidence, boolean shadow) {
     }
 
-    /** 别名在归一化文字和原始文字里的起止位置。 */
+    /**
+     * 别名在归一化文字和原始文字里的起止位置。
+     */
     private record Match(int normalizedStart, int normalizedEnd, int originalStart, int originalEnd) {
     }
 
-    /** 拼起来的全部原话。 */
+    /**
+     * 拼起来的全部原话。
+     */
     private record Concatenation(String text, int joinedSeq) {
     }
 
-    /** 去掉空白、转小写后的文字，并记下每个字对应原文位置。 */
+    /**
+     * 去掉空白、转小写后的文字，并记下每个字对应原文位置。
+     */
     private static final class Normalized {
         private final String text;
         private final int[] originalIndexes;
@@ -364,7 +416,9 @@ public class RuleSafetyEngine {
             this.originalIndexes = originalIndexes;
         }
 
-        /** 把原话归一化，方便匹配别名。 */
+        /**
+         * 把原话归一化，方便匹配别名。
+         */
         static Normalized of(String original) {
             String nfkc = Normalizer.normalize(original == null ? "" : original, Normalizer.Form.NFKC);
             StringBuilder builder = new StringBuilder();
@@ -402,7 +456,9 @@ public class RuleSafetyEngine {
         }
     }
 
-    /** 切开后的一句，仍能映射回原文位置。 */
+    /**
+     * 切开后的一句，仍能映射回原文位置。
+     */
     private static final class Sentence {
         private final Normalized source;
         private final int start;

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { confirmCard, listPackages, patchCard, placeOrder, sendMessage } from '../api/consultations'
-import { canShowCard, isSafetyStop, money, STATUS } from '../constants/catalog'
+import { canShowCard, INQUIRY, isSafetyStop, STATUS } from '../constants/catalog'
+import { assignDoctor, firstAskAsDoctor, greetAsDoctor, MATCH_ASSIST, replyAsDoctor, waitForDoctor, waitForDoctorAssign, waitForDoctorServe, waitMs } from '../domain/doctorAgent'
 import { HUMAN_JOIN, replyAsHuman, waitForHuman } from '../domain/humanAgent'
 
 const STORAGE_KEY = 'consult-sessions-v1'
@@ -38,7 +39,12 @@ export const useConsultationStore = defineStore('consultation', {
     latest: null,
     payOrder: null,
     humanOnline: false,
+    doctorOnline: false,
+    doctor: null,
     sending: false,
+    paying: false,
+    assigningDoctor: false,
+    matchPhase: null,
     error: '',
   }),
   getters: {
@@ -51,6 +57,8 @@ export const useConsultationStore = defineStore('consultation', {
     missingSlot: (state) => (state.latest?.status === STATUS.NEED_SLOT ? state.latest?.missingSlot ?? null : null),
     packages: (state) => state.latest?.packages ?? [],
     order: (state) => state.latest?.order ?? state.payOrder,
+    inConsult: (state) => state.doctorOnline || state.matchPhase === 'consulting',
+    inClinic: (state) => !!state.payOrder || !!state.latest?.order || state.matchPhase != null,
     stopped: (state) => state.latest != null && isSafetyStop(state.latest.status),
   },
   actions: {
@@ -59,6 +67,11 @@ export const useConsultationStore = defineStore('consultation', {
       this.latest = null
       this.payOrder = null
       this.humanOnline = false
+      this.doctorOnline = false
+      this.doctor = null
+      this.paying = false
+      this.assigningDoctor = false
+      this.matchPhase = null
       this.messages = []
       this.error = ''
     },
@@ -73,7 +86,14 @@ export const useConsultationStore = defineStore('consultation', {
       this.payOrder = found.payOrder || null
       this.messages = found.messages || []
       this.humanOnline = this.status === STATUS.NEED_HUMAN
+      this.doctor = found.doctor || null
+      this.doctorOnline = !!found.doctorOnline
+      this.matchPhase = found.doctorOnline ? 'consulting' : null
+      this.assigningDoctor = false
       this.error = ''
+      if (this.payOrder && !this.doctorOnline) {
+        this.joinDoctor()
+      }
     },
     remember(text) {
       if (!this.activeId) {
@@ -87,6 +107,9 @@ export const useConsultationStore = defineStore('consultation', {
         updatedAt: Date.now(),
         snapshot: this.latest,
         payOrder: this.payOrder,
+        doctor: this.doctor,
+        doctorOnline: this.doctorOnline,
+        matchPhase: this.doctorOnline ? 'consulting' : this.matchPhase,
         messages: this.messages,
       }
       if (index >= 0) {
@@ -105,12 +128,21 @@ export const useConsultationStore = defineStore('consultation', {
       if (data.status === STATUS.NEED_HUMAN) {
         return
       }
-      if (data.prompt) {
-        this.messages.push({ role: 'assistant', text: data.prompt, status: data.status })
-      }
+      this.pushPrompt(data)
       if (data.safetyNotice) {
         this.messages.push({ role: 'assistant', text: data.safetyNotice, notice: true })
       }
+    },
+    pushPrompt(data) {
+      if (!data?.prompt) {
+        return
+      }
+      const duplicateUrgent = data.status === STATUS.URGENT
+        && this.messages.some((item) => item.status === STATUS.URGENT)
+      if (duplicateUrgent) {
+        return
+      }
+      this.messages.push({ role: 'assistant', text: data.prompt, status: data.status })
     },
     async send(text) {
       const sentence = text.trim()
@@ -129,8 +161,18 @@ export const useConsultationStore = defineStore('consultation', {
         })
         if (result.code === 200) {
           const joined = this.humanOnline
-          this.applyResult(result.data, { silent: result.data.status === STATUS.NEED_HUMAN })
-          if (result.data.status === STATUS.NEED_HUMAN) {
+          const inConsult = this.doctorOnline
+          const stopped = isSafetyStop(result.data.status)
+          this.applyResult(result.data, {
+            silent: result.data.status === STATUS.NEED_HUMAN || (inConsult && !stopped),
+          })
+          if (stopped) {
+            this.doctorOnline = false
+            this.assigningDoctor = false
+            this.matchPhase = null
+          } else if (result.data.status === STATUS.NEED_HUMAN) {
+            this.doctorOnline = false
+            this.matchPhase = null
             await waitForHuman()
             if (!joined) {
               this.humanOnline = true
@@ -138,6 +180,12 @@ export const useConsultationStore = defineStore('consultation', {
             } else {
               this.messages.push({ role: 'human', text: replyAsHuman(sentence, this.card) })
             }
+          } else if (inConsult) {
+            await waitForDoctor()
+            this.messages.push({
+              role: 'doctor',
+              text: replyAsDoctor(sentence, this.card, this.doctor),
+            })
           }
         } else {
           this.messages.push({ role: 'assistant', text: result.message || '请求失败' })
@@ -159,9 +207,10 @@ export const useConsultationStore = defineStore('consultation', {
       try {
         const result = await patchCard({ consultationId: this.activeId, ...patch })
         if (result.code === 200) {
-          this.applyResult(result.data, { silent: true })
+          const stopped = isSafetyStop(result.data.status)
+          this.applyResult(result.data, { silent: !stopped })
           this.remember()
-          return true
+          return !stopped
         }
         this.messages.push({ role: 'assistant', text: result.message || '改卡失败' })
         return false
@@ -200,8 +249,8 @@ export const useConsultationStore = defineStore('consultation', {
           this.applyResult(result.data, { silent: true })
           if (this.latest?.status === STATUS.CONFIRMED) {
             this.payOrder = null
-          } else if (this.latest?.prompt) {
-            this.messages.push({ role: 'assistant', text: this.latest.prompt, status: this.latest.status })
+          } else {
+            this.pushPrompt(this.latest)
           }
         } else {
           this.messages.push({ role: 'assistant', text: result.message || '确认失败' })
@@ -214,33 +263,105 @@ export const useConsultationStore = defineStore('consultation', {
         this.sending = false
       }
     },
-    async pay(pkg) {
-      if (!pkg || !this.activeId || this.sending || this.order) {
-        return
+    async pay(pkg, channel) {
+      if (!pkg || !this.activeId || this.paying || this.order) {
+        return false
       }
-      this.sending = true
+      if (INQUIRY.closed) {
+        this.error = '当前问诊通道正在维护，请稍后再试。'
+        return false
+      }
+      this.paying = true
       this.error = ''
       try {
-        const result = await placeOrder(this.activeId, pkg.code)
+        const result = await placeOrder(this.activeId, pkg.code, channel)
         if (result.code === 200) {
           this.applyResult(result.data, { silent: true })
           this.payOrder = result.data.order
-          const name = result.data.order?.packageName || pkg.name
-          const amount = result.data.order?.payAmount ?? pkg.payPrice
-          this.messages.push({
-            role: 'assistant',
-            text: `已选择「${name}」，应付 ¥${money(amount)}。当前是演示环境，不会真实扣款，也不会派给真实医生。`,
-          })
+          this.matchPhase = 'matching'
           this.remember()
-        } else {
-          this.messages.push({ role: 'assistant', text: result.message || '下单失败' })
+          this.joinDoctor()
+          return true
         }
+        this.error = result.message || '支付失败'
+        return false
       } catch (error) {
         this.error = error.message
-        this.messages.push({ role: 'assistant', text: error.message })
+        return false
       } finally {
-        this.sending = false
+        this.paying = false
       }
+    },
+    lastMatchCard() {
+      return [...this.messages].reverse().find((item) => item.kind === 'match') || null
+    },
+    async joinDoctor() {
+      if (this.doctorOnline || this.assigningDoctor || !this.order) {
+        return
+      }
+      this.assigningDoctor = true
+      this.matchPhase = 'matching'
+      this.doctor = assignDoctor(this.card)
+      if (!this.lastMatchCard()) {
+        this.messages.push({
+          role: 'system',
+          kind: 'match',
+          phase: 'matching',
+          text: MATCH_ASSIST,
+        })
+      } else {
+        const match = this.lastMatchCard()
+        match.phase = 'matching'
+        match.text = MATCH_ASSIST
+      }
+      this.remember()
+      try {
+        const result = await Promise.race([
+          waitForDoctorAssign().then(() => 'ok'),
+          waitMs(INQUIRY.matchTimeoutMs).then(() => 'timeout'),
+        ])
+        const match = this.lastMatchCard()
+        if (result === 'timeout') {
+          this.matchPhase = 'timeout'
+          if (match) {
+            match.phase = 'timeout'
+            match.text = '匹配超时，您可以重试或转人工。'
+          }
+          this.remember()
+          return
+        }
+        if (!this.order || this.doctorOnline) {
+          return
+        }
+        this.doctorOnline = true
+        this.matchPhase = 'consulting'
+        if (match) {
+          match.phase = 'served'
+          match.text = `${this.doctor.name}医生为您服务`
+        }
+        this.messages.push({
+          role: 'doctor',
+          text: greetAsDoctor(this.doctor),
+        })
+        this.remember()
+        await waitForDoctorServe()
+        if (!this.order) {
+          return
+        }
+        this.messages.push({
+          role: 'doctor',
+          text: firstAskAsDoctor(),
+        })
+        this.remember()
+      } finally {
+        this.assigningDoctor = false
+      }
+    },
+    retryMatch() {
+      if (this.matchPhase !== 'timeout' || this.doctorOnline || !this.order) {
+        return
+      }
+      this.joinDoctor()
     },
   },
 })
