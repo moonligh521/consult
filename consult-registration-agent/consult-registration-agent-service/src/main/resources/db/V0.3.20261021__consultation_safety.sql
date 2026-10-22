@@ -1,9 +1,10 @@
 -- V0.3.20261021 咨询急症与安全分流建表。
 -- 人工在目标库执行。服务启动不自动建表。所有枚举列存数字码。
+-- 已建过库的不要重跑本文件，改跑 V0.3.20261022__base_fields.sql。
 
 CREATE TABLE consultation_session (
-    id                          VARCHAR(64)  NOT NULL COMMENT '本轮咨询编号',
-    business_status             TINYINT      NOT NULL COMMENT '业务状态。1待描述 2待补槽 4卡片待确认 5已确认。急症等对外状态不写这里',
+    id                          VARCHAR(64)  NOT NULL COMMENT '挂号咨询ID',
+    business_status             TINYINT      NOT NULL COMMENT '业务状态。1待描述 2待补槽 4卡片待确认 5已确认',
     service_type                TINYINT      NULL     COMMENT '服务类型。1线下门诊挂号 2互联网复诊 3远程会诊。空表示未指定',
     gender                      TINYINT      NULL     COMMENT '性别。1男 2女。空表示还没抽到',
     age                         INT          NULL     COMMENT '年龄，1到120。空表示还没抽到',
@@ -20,8 +21,12 @@ CREATE TABLE consultation_session (
     notice_template_id          VARCHAR(64)  NULL     COMMENT '尽快评估提示模板编号',
     last_message_seq            INT          NOT NULL DEFAULT 0 COMMENT '最后一条原话序号',
     last_evaluated_seq          INT          NOT NULL DEFAULT 0 COMMENT '已经评估到的原话序号。小于 last_message_seq 就要补评',
-    created_at                  DATETIME(3)  NOT NULL COMMENT '创建时间',
-    updated_at                  DATETIME(3)  NOT NULL COMMENT '最近更新时间',
+    remark                      VARCHAR(400) NULL     COMMENT '备注',
+    created_by                  VARCHAR(100) NULL     COMMENT '创建人',
+    updated_by                  VARCHAR(100) NULL     COMMENT '修改人',
+    created_at                  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    updated_at                  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    is_deleted                  BIGINT       NOT NULL DEFAULT 0 COMMENT '删除标记。0未删除；删除后写入非0唯一值，保证业务唯一键能再用',
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='咨询会话。一行一轮，FOR UPDATE 锁这一行';
 
@@ -30,11 +35,17 @@ CREATE TABLE consultation_message (
     seq              INT          NOT NULL COMMENT '本轮原话序号，从1递增',
     message_id       VARCHAR(64)  NOT NULL COMMENT '幂等键。客户端传入或服务端生成',
     source           TINYINT      NOT NULL COMMENT '来源。1患者消息 2改卡描述',
-    text             TEXT         NOT NULL COMMENT '原话正文。只追加，不修改、不删除',
+    text             TEXT         NOT NULL COMMENT '原话正文。只追加，不修改',
     received_at      DATETIME(3)  NOT NULL COMMENT '收到这条原话的时间',
+    remark           VARCHAR(400) NULL     COMMENT '备注',
+    created_by       VARCHAR(100) NULL     COMMENT '创建人',
+    updated_by       VARCHAR(100) NULL     COMMENT '修改人',
+    created_at       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    updated_at       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    is_deleted       BIGINT       NOT NULL DEFAULT 0 COMMENT '删除标记。0未删除；删除后写入非0唯一值，保证业务唯一键能再用',
     PRIMARY KEY (consultation_id, seq),
-    UNIQUE KEY uk_consultation_message (consultation_id, message_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='患者原话。只追加，不更新、不删除';
+    UNIQUE KEY uk_consultation_message (consultation_id, message_id, is_deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='患者原话。只追加。删除走逻辑删除';
 
 CREATE TABLE safety_decision_audit (
     decision_id           VARCHAR(64)  NOT NULL COMMENT '本条审计编号',
@@ -56,6 +67,12 @@ CREATE TABLE safety_decision_audit (
     business_after        TINYINT      NOT NULL COMMENT '评估后业务状态码',
     template_id           VARCHAR(64)  NULL     COMMENT '给患者看的提示模板编号',
     decision_time         DATETIME(3)  NOT NULL COMMENT '决策时间',
+    remark                VARCHAR(400) NULL     COMMENT '备注',
+    created_by            VARCHAR(100) NULL     COMMENT '创建人',
+    updated_by            VARCHAR(100) NULL     COMMENT '修改人',
+    created_at            DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    updated_at            DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    is_deleted            BIGINT       NOT NULL DEFAULT 0 COMMENT '删除标记。0未删除；删除后写入非0唯一值，保证业务唯一键能再用',
     PRIMARY KEY (decision_id),
     KEY idx_audit_consultation (consultation_id, message_seq)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='安全决策审计。不含病情原文。只追加';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='安全决策审计。不含病情原文。删除走逻辑删除';

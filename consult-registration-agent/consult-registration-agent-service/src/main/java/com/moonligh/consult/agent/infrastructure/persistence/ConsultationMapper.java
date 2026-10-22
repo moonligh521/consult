@@ -45,8 +45,8 @@ public class ConsultationMapper {
                 INSERT INTO consultation_session
                 (id, business_status, description, urgent_latched, prompt_evaluation_latched,
                  human_requested_latched, unsuitable_latched, undetermined, last_message_seq,
-                 last_evaluated_seq, created_at, updated_at)
-                VALUES (?, 1, '', false, false, false, false, false, 0, 0, ?, ?)
+                 last_evaluated_seq, created_at, updated_at, is_deleted)
+                VALUES (?, 1, '', false, false, false, false, false, 0, 0, ?, ?, 0)
                 """,
                 id, Timestamp.from(now), Timestamp.from(now));
     }
@@ -54,7 +54,7 @@ public class ConsultationMapper {
     /** 按编号查出会话，并加上行锁。找不到返回 null。 */
     public ConsultationSession selectByIdForUpdate(String id) {
         List<ConsultationSession> rows = jdbc.query(
-                "SELECT * FROM consultation_session WHERE id = ? FOR UPDATE",
+                "SELECT * FROM consultation_session WHERE id = ? AND is_deleted = 0 FOR UPDATE",
                 this::mapSession,
                 id);
         return rows.isEmpty() ? null : rows.get(0);
@@ -66,7 +66,7 @@ public class ConsultationMapper {
                 """
                 SELECT seq, message_id, source, text, received_at
                 FROM consultation_message
-                WHERE consultation_id = ?
+                WHERE consultation_id = ? AND is_deleted = 0
                 ORDER BY seq
                 """,
                 (rs, rowNum) -> new ConsultationMessage(
@@ -87,7 +87,7 @@ public class ConsultationMapper {
                   urgent_latched=?, prompt_evaluation_latched=?, human_requested_latched=?, unsuitable_latched=?,
                   undetermined=?, fallback_reason=?, urgent_template_id=?, notice_template_id=?,
                   last_message_seq=?, last_evaluated_seq=?, updated_at=?
-                WHERE id=?
+                WHERE id=? AND is_deleted=0
                 """,
                 session.getBusinessStatus().getCode(),
                 session.getServiceType() == null ? null : session.getServiceType().getCode(),
@@ -114,14 +114,17 @@ public class ConsultationMapper {
     public void insertMessage(String consultationId, ConsultationMessage message) {
         jdbc.update(
                 """
-                INSERT INTO consultation_message (consultation_id, seq, message_id, source, text, received_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO consultation_message
+                (consultation_id, seq, message_id, source, text, received_at, created_at, updated_at, is_deleted)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
                 """,
                 consultationId,
                 message.seq(),
                 message.messageId(),
                 message.source().getCode(),
                 message.text(),
+                Timestamp.from(message.receivedAt()),
+                Timestamp.from(message.receivedAt()),
                 Timestamp.from(message.receivedAt()));
     }
 
@@ -134,8 +137,8 @@ public class ConsultationMapper {
                     (decision_id, consultation_id, message_seq, trigger_type, evaluation, matched_rule_ids,
                      shadow_rule_ids, evidence_refs, catalog_version, rule_engine_version, model_status,
                      model_version, fallback_reason, previous_status, resulting_status, business_before,
-                     business_after, template_id, decision_time)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     business_after, template_id, decision_time, created_at, updated_at, is_deleted)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                     """,
                     audit.decisionId(),
                     audit.consultationId(),
@@ -155,6 +158,8 @@ public class ConsultationMapper {
                     audit.businessBefore(),
                     audit.businessAfter(),
                     audit.templateId(),
+                    Timestamp.from(audit.decisionTime()),
+                    Timestamp.from(audit.decisionTime()),
                     Timestamp.from(audit.decisionTime()));
         } catch (JsonProcessingException error) {
             throw new IllegalStateException("audit_json");
