@@ -97,10 +97,26 @@ public class ComplaintCanon {
         if (ambiguous) {
             return result(terms, history, symptoms, shadows, Certainty.UNCERTAIN, AMBIGUOUS_ONLY);
         }
-        if (text.length() >= MIN_MODEL_LENGTH) {
+        // 拼音/拉丁字母可能是短主诉（kesou、头tong），仍交模型，不因字数不够直接全科
+        if (text.length() >= MIN_MODEL_LENGTH || hasLatinLetter(text)) {
             return result(terms, history, symptoms, shadows, Certainty.UNCERTAIN, NO_HIT);
         }
         return result(terms, history, symptoms, shadows, Certainty.CERTAIN, TOO_SHORT);
+    }
+
+    /** 紧凑串里是否含拉丁字母。用于放行拼音短句进模型。 */
+    static boolean hasLatinLetter(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < text.length(); ) {
+            int code = text.codePointAt(i);
+            if ((code >= 'a' && code <= 'z') || (code >= 'A' && code <= 'Z')) {
+                return true;
+            }
+            i += Character.charCount(code);
+        }
+        return false;
     }
 
     /** 从左到右最长匹配、不重叠：病名、目录症状、歧义症状一起扫。 */

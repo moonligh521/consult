@@ -119,6 +119,17 @@ class ComplaintCanonTest {
     }
 
     @Test
+    void shortPinyinNeedsModel() {
+        CanonResult kesou = canon.rule("kesou", seed);
+        assertEquals(ComplaintCanon.NO_HIT, kesou.reason());
+        assertFalse(kesou.certain());
+
+        CanonResult mixed = canon.rule("头tong", seed);
+        assertEquals(ComplaintCanon.NO_HIT, mixed.reason());
+        assertFalse(mixed.certain());
+    }
+
+    @Test
     void longMissNeedsModel() {
         CanonResult result = canon.rule("体检报告看不懂", seed);
         assertEquals(ComplaintCanon.NO_HIT, result.reason());

@@ -589,7 +589,8 @@ def canon_rule(description: str) -> dict:
         reason, certain = "SYMPTOM_ONLY", True
     elif ambiguous:
         reason, certain = "AMBIGUOUS_ONLY", False
-    elif len(text) >= MIN_MODEL_LENGTH:
+    elif len(text) >= MIN_MODEL_LENGTH or any(("a" <= ch <= "z") or ("A" <= ch <= "Z") for ch in text):
+        # 拼音短句（kesou、头tong）仍交模型，与 ComplaintCanon.hasLatinLetter 一致
         reason, certain = "NO_HIT", False
     else:
         reason, certain = "TOO_SHORT", True

@@ -126,6 +126,20 @@ class TriageEngineTest {
     }
 
     @Test
+    void shortPinyinCallsModelWithOriginalEvidence() {
+        AtomicInteger calls = new AtomicInteger();
+        TriageRun run = engine((d, a, g, t, c) -> {
+            calls.incrementAndGet();
+            assertEquals("kesou", d);
+            return reply(List.of(new ComplaintReply.ModelTerm("哮喘", "kesou")), "呼吸内科");
+        }).run(in("kesou"));
+        assertEquals(1, calls.get());
+        assertEquals(List.of("哮喘"), run.result().canonicalTerms());
+        assertEquals(DecisionSource.MODEL, run.result().canon().source());
+        assertEquals("呼吸内科", run.result().route().advice().specialty());
+    }
+
+    @Test
     void fingerprintIgnoresSpacing() {
         assertEquals(TriageEngine.fingerprint("头晕 乏力", 45, Gender.MALE),
                 TriageEngine.fingerprint("头晕乏力", 50, Gender.MALE));

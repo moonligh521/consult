@@ -23,7 +23,7 @@ import com.moonligh.consult.agent.domain.triage.TriageEngine;
  */
 public class DeepSeekComplaintModel implements ComplaintModel {
 
-    public static final String PROMPT_VERSION = "complaint-v1";
+    public static final String PROMPT_VERSION = "complaint-v2";
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int MAX_TOKENS = 300;
 
@@ -107,9 +107,10 @@ public class DeepSeekComplaintModel implements ComplaintModel {
                 + "{\"terms\":[{\"term\":\"\",\"evidence\":\"\"}],\"specialty\":\"\",\"specialtyEvidence\":\"\"}。"
                 + "terms：患者当前这次想看的病，最多 2 个，term 只能从允许病名中原样选；"
                 + "只凭症状推测、没有足够把握时 terms=[]，不要猜。既往史、家人的病不算。"
-                + "evidence 必须是主诉原文中的连续子串。"
+                + "主诉里的拼音、口误、同音字、乱标点当噪声理解，不要要求患者改写；"
+                + "evidence 与 specialtyEvidence 必须是主诉原文里连续出现的那一截（可含拼音或错字），不要改写成通顺汉字。"
                 + "specialty：从候选科室中原样选一个最合适的；拿不准就选全科。"
-                + "specialtyEvidence 是支撑它的原文子串，可为空。不要输出 JSON 之外的文字。"
+                + "不要输出 JSON 之外的文字。"
                 + "\n允许病名：" + String.join("、", allowTerms)
                 + "\n候选科室：" + String.join("、", candidates);
     }
