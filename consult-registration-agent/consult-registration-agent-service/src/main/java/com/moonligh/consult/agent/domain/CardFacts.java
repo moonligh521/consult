@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 
 import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
+import com.moonligh.consult.agent.domain.triage.DecisionSource;
 
 /**
  * 从描述里抽出卡片可选字段：过敏、用药、伴随症状。
@@ -27,6 +28,33 @@ public final class CardFacts {
             String description,
             List<String> symptoms,
             DepartmentRouter.Advice advice) {
+        return compose(gender, age, duration, description, symptoms, advice, null, null, null);
+    }
+
+    /** 组一张卡片，带上本轮选用的就诊人。 */
+    public static ConsultationCardRes compose(
+            Gender gender,
+            Integer age,
+            String duration,
+            String description,
+            List<String> symptoms,
+            DepartmentRouter.Advice advice,
+            String patientId,
+            String patientName) {
+        return compose(gender, age, duration, description, symptoms, advice, null, patientId, patientName);
+    }
+
+    /** 组一张卡片，带上科室推荐来源。 */
+    public static ConsultationCardRes compose(
+            Gender gender,
+            Integer age,
+            String duration,
+            String description,
+            List<String> symptoms,
+            DepartmentRouter.Advice advice,
+            DecisionSource departmentSource,
+            String patientId,
+            String patientName) {
         List<String> tags = symptoms == null ? List.of() : symptoms;
         String allergy = first(ALLERGY, description);
         List<String> associated = new ArrayList<>();
@@ -49,7 +77,10 @@ public final class CardFacts {
                 associated,
                 allergy,
                 first(MEDICATION, description),
-                advice.evidence());
+                advice.evidence(),
+                patientId,
+                patientName,
+                departmentSource == null ? null : departmentSource.name());
     }
 
     private static String first(Pattern pattern, String text) {

@@ -17,5 +17,6 @@
 
     <modules>
         <module>consult-framework-common</module>
+        <module>consult-framework-security</module>
     </modules>
 </project>

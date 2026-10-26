@@ -510,6 +510,67 @@ input {
   margin-top: 8px;
 }
 
+.user-info-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 8px 0 4px;
+}
+
+.user-info-minutes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--zhi-muted);
+}
+
+.user-info-minutes select,
+.checkout-minutes select {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--zhi-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--zhi-text);
+}
+
+.user-info-remain {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.user-info-ended {
+  margin: 0;
+  color: var(--zhi-muted);
+}
+
+.user-info-end {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #d94841;
+  border-radius: 8px;
+  background: #fff;
+  color: #d94841;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.user-info-end:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.checkout-minutes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0;
+  font-size: 14px;
+  color: var(--zhi-text);
+}
+
 .user-info footer {
   margin-top: 8px;
   font-size: 12px;
@@ -794,6 +855,37 @@ input {
   cursor: not-allowed;
 }
 
+.patient-add {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 10px;
+  border: 1px dashed var(--zhi-line, #c9d4ea);
+  background: #fff;
+  color: var(--zhi-lilac-text);
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.patient-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.patient-form-error {
+  margin: 0;
+  font-size: 12px;
+  color: #d03050;
+}
+
+.slot-chip.on {
+  background: var(--zhi-lilac-hover);
+  font-weight: 600;
+}
+
 .slot-divider {
   margin: 4px 0 12px;
   font-size: 12px;
@@ -889,6 +981,23 @@ input {
   background: #f0fdf4;
   color: #15803d;
   cursor: default;
+}
+
+.source-tag {
+  margin-left: 8px;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 20px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  flex-shrink: 0;
+}
+
+.consult-body p.source-note {
+  font-size: 12px;
+  color: #b45309;
 }
 
 .consult-body p {
@@ -1346,4 +1455,47 @@ input {
   .send {
     padding: 0 14px;
   }
+}
+
+.login-page {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #e8f3ff 0%, var(--zhi-bg) 48%);
+}
+
+.login-card {
+  width: min(420px, 100%);
+  background: var(--zhi-white);
+  border-radius: 16px;
+  padding: 28px 24px 24px;
+  box-shadow: 0 12px 32px rgba(36, 136, 245, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.login-card p {
+  margin: 0 0 8px;
+  color: var(--zhi-muted);
+}
+
+.login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--zhi-muted);
+}
+
+.captcha-fields {
+  display: flex;
+  gap: 8px;
 }

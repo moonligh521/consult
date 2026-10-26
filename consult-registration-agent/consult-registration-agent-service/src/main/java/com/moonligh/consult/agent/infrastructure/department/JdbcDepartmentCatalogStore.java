@@ -12,7 +12,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.moonligh.consult.agent.domain.department.CanonSynonym;
 import com.moonligh.consult.agent.domain.department.DepartmentCatalogStore;
+import com.moonligh.consult.agent.domain.department.SynonymStatus;
 import com.moonligh.consult.agent.domain.department.DepartmentRecord;
 import com.moonligh.consult.agent.domain.department.DepartmentSeed;
 import com.moonligh.consult.agent.domain.department.DepartmentSnapshot;
@@ -26,6 +30,7 @@ import com.moonligh.consult.agent.domain.department.MatchTypo;
 public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
 
     private static final Logger log = LoggerFactory.getLogger(JdbcDepartmentCatalogStore.class);
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final JdbcTemplate jdbc;
 
@@ -155,7 +160,125 @@ public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
         for (MutableDept dept : depts.values()) {
             records.add(dept.toRecord());
         }
-        return new DepartmentSnapshot("mysql", records, loadTypos(seed), loadUncertain(seed));
+        return new DepartmentSnapshot(
+                "mysql", records, loadTypos(seed), loadUncertain(seed), loadAmbiguous(seed), loadSynonyms(seed));
+    }
+
+    @Override
+    public void upsertAmbiguous(String phrase) {
+        int updated = jdbc.update(
+                "UPDATE consult_ambiguous_symptom SET is_deleted = 0 WHERE phrase = ? AND is_deleted = 0",
+                phrase);
+        if (updated == 0) {
+            jdbc.update("INSERT INTO consult_ambiguous_symptom (phrase) VALUES (?)", phrase);
+        }
+    }
+
+    @Override
+    public void saveSynonym(CanonSynonym rule) {
+        String groups = writeJson(rule.allGroups());
+        String none = writeJson(rule.noneTerms());
+        int updated = jdbc.update(
+                """
+                UPDATE consult_canon_synonym
+                SET target_term = ?, all_groups = ?, none_terms = ?, pattern = ?
+                WHERE rule_id = ? AND is_deleted = 0 AND status = 1
+                """,
+                rule.targetTerm(), groups, none, rule.pattern(), rule.ruleId());
+        if (updated == 0) {
+            Integer exists = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM consult_canon_synonym WHERE rule_id = ? AND is_deleted = 0",
+                    Integer.class, rule.ruleId());
+            if (exists != null && exists > 0) {
+                throw new IllegalStateException("只有 DRAFT 规则能改: " + rule.ruleId());
+            }
+            jdbc.update(
+                    """
+                    INSERT INTO consult_canon_synonym (rule_id, target_term, all_groups, none_terms, pattern, status)
+                    VALUES (?, ?, ?, ?, ?, 1)
+                    """,
+                    rule.ruleId(), rule.targetTerm(), groups, none, rule.pattern());
+        }
+    }
+
+    @Override
+    public void setSynonymStatus(String ruleId, SynonymStatus from, SynonymStatus to, String reviewer) {
+        int updated = jdbc.update(
+                """
+                UPDATE consult_canon_synonym
+                SET status = ?, reviewer = COALESCE(?, reviewer),
+                    reviewed_at = CASE WHEN ? = 2 THEN CURRENT_TIMESTAMP(3) ELSE reviewed_at END
+                WHERE rule_id = ? AND status = ? AND is_deleted = 0
+                """,
+                to.getCode(), reviewer, to.getCode(), ruleId, from.getCode());
+        if (updated == 0) {
+            throw new IllegalStateException("规则不存在或状态不是 " + from + ": " + ruleId);
+        }
+    }
+
+    private List<String> loadAmbiguous(DepartmentSnapshot seed) {
+        try {
+            List<String> rows = jdbc.query(
+                    "SELECT phrase FROM consult_ambiguous_symptom WHERE is_deleted = 0",
+                    (rs, rowNum) -> rs.getString("phrase"));
+            if (rows.isEmpty()) {
+                log.warn("consult_ambiguous_symptom 为空，暂用种子歧义症状");
+                return seed.ambiguousSymptoms();
+            }
+            return rows;
+        } catch (DataAccessException error) {
+            log.warn("歧义症状表不可用，暂用种子: {}", error.getMessage());
+            return seed.ambiguousSymptoms();
+        }
+    }
+
+    private List<CanonSynonym> loadSynonyms(DepartmentSnapshot seed) {
+        try {
+            return jdbc.query(
+                    """
+                    SELECT rule_id, target_term, all_groups, none_terms, pattern, status
+                    FROM consult_canon_synonym
+                    WHERE is_deleted = 0 AND status IN (1, 2)
+                    ORDER BY rule_id
+                    """,
+                    (rs, rowNum) -> new CanonSynonym(
+                            rs.getString("rule_id"),
+                            rs.getString("target_term"),
+                            readGroups(rs.getString("all_groups")),
+                            readList(rs.getString("none_terms")),
+                            rs.getString("pattern"),
+                            SynonymStatus.fromCode(rs.getInt("status"))));
+        } catch (DataAccessException error) {
+            log.warn("同义规则表不可用，暂用种子: {}", error.getMessage());
+            return seed.synonyms();
+        }
+    }
+
+    private static String writeJson(Object value) {
+        try {
+            return JSON.writeValueAsString(value);
+        } catch (Exception error) {
+            throw new IllegalStateException("同义规则序列化失败", error);
+        }
+    }
+
+    private static List<List<String>> readGroups(String json) {
+        try {
+            return JSON.readValue(json, new TypeReference<List<List<String>>>() { });
+        } catch (Exception error) {
+            throw new IllegalStateException("all_groups 不是二维数组", error);
+        }
+    }
+
+    private static List<String> readList(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            return JSON.readValue(json, new TypeReference<List<String>>() { });
+        } catch (Exception error) {
+            throw new IllegalStateException("none_terms 不是数组", error);
+        }
     }
 
     private List<MatchTypo> loadTypos(DepartmentSnapshot seed) {
@@ -191,6 +314,23 @@ public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
     }
 
     private void loadKeywords(Map<Integer, MutableDept> depts) {
+        try {
+            jdbc.query(
+                    """
+                    SELECT department_code, keyword, kind, specialty_name, term_type
+                    FROM consult_department_keyword
+                    WHERE is_deleted = 0
+                    """,
+                    rs -> {
+                        bindKeyword(depts, rs, true);
+                        if (rs.getInt("term_type") == 2) {
+                            bindDisease(depts, rs);
+                        }
+                    });
+            return;
+        } catch (DataAccessException error) {
+            log.warn("关键词未带词型列，病名归约暂不可用。请执行 db/migrate-triage.sql: {}", error.getMessage());
+        }
         try {
             jdbc.query(
                     """
@@ -234,6 +374,18 @@ public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
             }
         }
         dept.routing.add(keyword);
+    }
+
+    private static void bindDisease(Map<Integer, MutableDept> depts, ResultSet rs) throws SQLException {
+        MutableDept dept = depts.get(rs.getInt("department_code"));
+        String specialty = rs.getString("specialty_name");
+        if (dept == null || specialty == null) {
+            return;
+        }
+        MutableSpec spec = dept.specNamed(specialty);
+        if (spec != null) {
+            spec.diseases.add(rs.getString("keyword"));
+        }
     }
 
     private void loadSpecialties(Map<Integer, MutableDept> depts) {
@@ -306,7 +458,7 @@ public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
         private DepartmentRecord toRecord() {
             List<DepartmentSpecialty> specs = new ArrayList<>();
             for (MutableSpec spec : specialties) {
-                specs.add(new DepartmentSpecialty(spec.name, spec.treatDesc, spec.keywords));
+                specs.add(new DepartmentSpecialty(spec.name, spec.treatDesc, spec.keywords, spec.diseases));
             }
             return new DepartmentRecord(
                     code, name, enabled, sort, fallback, genderScope, childAgeLt,
@@ -318,6 +470,7 @@ public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
         private final String name;
         private final String treatDesc;
         private final List<String> keywords = new ArrayList<>();
+        private final List<String> diseases = new ArrayList<>();
 
         private MutableSpec(String name, String treatDesc) {
             this.name = name;

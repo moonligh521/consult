@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { STATUS, money } from '../constants/catalog'
+import { CONSULT_MINUTES, STATUS, money } from '../constants/catalog'
 import { useConsultationStore } from '../stores/consultation'
 
 const store = useConsultationStore()
@@ -185,6 +185,22 @@ async function confirmPay() {
             <strong>¥{{ money(checkoutPkg.payPrice) }}</strong>
           </div>
           <p class="checkout-item">{{ checkoutPkg.name }}</p>
+          <label class="checkout-minutes">
+            <span>问诊时长</span>
+            <select
+              :value="store.consultMinutes"
+              :disabled="store.paying"
+              @change="store.changeConsultMinutes(Number($event.target.value))"
+            >
+              <option
+                v-for="item in CONSULT_MINUTES.options"
+                :key="item.value"
+                :value="item.value"
+              >
+                {{ item.label }}
+              </option>
+            </select>
+          </label>
           <h4>支付方式</h4>
           <div class="pay-channels">
             <button

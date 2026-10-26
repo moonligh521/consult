@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: consult-gateway
+  main:
+    web-application-type: reactive
+  config:
+    import:
+      - optional:file:./config/application-local.yml
+      - optional:file:../../config/application-local.yml
+server:
+  port: 8080
+consult:
+  gateway:
+    identity-uri: http://127.0.0.1:18082
+    agent-uri: http://127.0.0.1:18081
+    jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
+    jwt-ttl-hours: 168

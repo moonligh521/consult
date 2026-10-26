@@ -32,14 +32,32 @@ safety:
   catalog:
     location: classpath:safety/urgent-catalog.json
     draft-mode: SHADOW
-  model:
-    enabled: ${SAFETY_MODEL_ENABLED:false}
-    timeout-ms: 3000
+model:
+  api-key: ${DEEPSEEK_API_KEY:}
+  base-url: https://api.deepseek.com
+  model-name: deepseek-chat
+  cache-ttl-hours: 168
+  safety:
+    timeout-ms: 2500
+    max-concurrency: 32
+    acquire-wait-ms: 50
     invalid-output-retries: 1
-    max-concurrency: 20
-    api-key: ${DEEPSEEK_API_KEY:}
-    base-url: https://api.deepseek.com
-    model-name: deepseek-chat
+  complaint:
+    timeout-ms: 2000
+    max-concurrency: 32
+    acquire-wait-ms: 50
+    invalid-output-retries: 0
 inquiry:
   closed: false
-  advisor-enabled: ${INQUIRY_ADVISOR_ENABLED:false}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+consult:
+  auth:
+    jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
+    jwt-ttl-hours: 168
+  identity:
+    base-url: http://127.0.0.1:18082
+    internal-token: ${AUTH_INTERNAL_TOKEN:consult-internal}

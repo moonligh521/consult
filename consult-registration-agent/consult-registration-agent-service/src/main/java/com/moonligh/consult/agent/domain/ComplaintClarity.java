@@ -2,6 +2,8 @@ package com.moonligh.consult.agent.domain;
 
 import java.util.regex.Pattern;
 
+import com.moonligh.consult.agent.domain.triage.ComplaintCanon;
+
 /**
  * 判断这句话够不够当病情描述。太含糊时先追问，不进入选就诊人。
  */
@@ -16,10 +18,12 @@ public class ComplaintClarity {
 
     private final SymptomExtractor symptomExtractor;
     private final SlotParser slotParser;
+    private final ComplaintCanon canon;
 
     public ComplaintClarity(SymptomExtractor symptomExtractor, SlotParser slotParser) {
         this.symptomExtractor = symptomExtractor;
         this.slotParser = slotParser;
+        this.canon = new ComplaintCanon(symptomExtractor.catalog());
     }
 
     /** 没有可识别症状、病程或人口学信息，并且像笼统不适。 */
@@ -32,6 +36,9 @@ public class ComplaintClarity {
             return true;
         }
         if (!symptomExtractor.extract(text).isEmpty()) {
+            return false;
+        }
+        if (!canon.rule(text).terms().isEmpty()) {
             return false;
         }
         if (slotParser.duration(text) != null) {

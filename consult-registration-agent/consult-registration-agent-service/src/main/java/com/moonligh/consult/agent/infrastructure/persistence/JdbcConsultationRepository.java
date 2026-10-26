@@ -116,5 +116,6 @@ public class JdbcConsultationRepository implements ConsultationRepository {
             mapper.insertOrder(session.getId(), session.getOrder());
             session.markOrderPersisted();
         }
+        mapper.insertDecisions(session.drainPendingDecisions());
     }
 }

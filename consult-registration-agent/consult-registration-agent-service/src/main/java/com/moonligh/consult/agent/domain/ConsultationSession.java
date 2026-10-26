@@ -13,6 +13,8 @@ import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
 import com.moonligh.consult.agent.domain.safety.FallbackReason;
 import com.moonligh.consult.agent.domain.safety.MessageSource;
 import com.moonligh.consult.agent.domain.safety.SafetyDecisionAudit;
+import com.moonligh.consult.agent.domain.triage.MatchDecision;
+import com.moonligh.consult.agent.domain.triage.TriageResult;
 
 /**
  * 一轮咨询的聚合。业务状态与安全锁存位分存；原话只追加。
@@ -29,6 +31,10 @@ public class ConsultationSession {
     private Gender gender;
     /** 已抽出的年龄。空着表示还没抽到。 */
     private Integer age;
+    /** 本轮选用的就诊人编号。空着表示还没选。 */
+    private String patientId;
+    /** 就诊人姓名快照，展示用。 */
+    private String patientName;
     /** 已抽出的病程，例如「半年」。 */
     private String duration;
     /** 卡片展示描述，可编辑；不是原话记录。 */
@@ -63,6 +69,10 @@ public class ConsultationSession {
     private final List<SafetyDecisionAudit> pendingAudits = new ArrayList<>();
     /** 已经落库的原话条数。后面只插入新增的。 */
     private int persistedMessageCount;
+    /** 最近一次分诊结论。派医生只读这里，不再调模型。老会话为 null。 */
+    private TriageResult triage;
+    /** 本轮产生、还没写入数据库的逐节点决策。 */
+    private final List<MatchDecision> pendingDecisions = new ArrayList<>();
     /** 本轮订单。还没下单为 null。 */
     private ConsultOrder order;
     /** 这次请求新写下单，保存时要插入。 */
@@ -108,6 +118,22 @@ public class ConsultationSession {
 
     public void setAge(Integer age) {
         this.age = age;
+    }
+
+    public String getPatientId() {
+        return patientId;
+    }
+
+    public void setPatientId(String patientId) {
+        this.patientId = patientId;
+    }
+
+    public String getPatientName() {
+        return patientName;
+    }
+
+    public void setPatientName(String patientName) {
+        this.patientName = patientName;
     }
 
     public String getDuration() {
@@ -286,6 +312,27 @@ public class ConsultationSession {
     public List<SafetyDecisionAudit> drainPendingAudits() {
         List<SafetyDecisionAudit> drained = List.copyOf(pendingAudits);
         pendingAudits.clear();
+        return drained;
+    }
+
+    public TriageResult getTriage() {
+        return triage;
+    }
+
+    public void setTriage(TriageResult triage) {
+        this.triage = triage;
+    }
+
+    /** 决策补上会话上下文后排队，保存时批量写入。 */
+    public void addPendingDecisions(List<MatchDecision> decisions, String orderId, int triggerType) {
+        for (MatchDecision decision : decisions) {
+            pendingDecisions.add(decision.withContext(id, orderId, lastMessageSeq, triggerType));
+        }
+    }
+
+    public List<MatchDecision> drainPendingDecisions() {
+        List<MatchDecision> drained = List.copyOf(pendingDecisions);
+        pendingDecisions.clear();
         return drained;
     }
 

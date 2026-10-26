@@ -21,11 +21,17 @@ public class SafetyGate {
     private final SafetyCatalog catalog;
     private final RuleSafetyEngine engine;
     private final SignalExtractor extractor;
+    private final ModelTriggerScan triggers;
 
     public SafetyGate(SafetyCatalog catalog, RuleSafetyEngine engine, SignalExtractor extractor) {
+        this(catalog, engine, extractor, ModelTriggerScan.load());
+    }
+
+    public SafetyGate(SafetyCatalog catalog, RuleSafetyEngine engine, SignalExtractor extractor, ModelTriggerScan triggers) {
         this.catalog = catalog;
         this.engine = engine;
         this.extractor = extractor;
+        this.triggers = triggers;
     }
 
     /** 当前生效的急症目录。 */
@@ -47,20 +53,25 @@ public class SafetyGate {
         if (rules.urgent()) {
             return withModelStatus(rules, ModelStatus.SKIPPED);
         }
+        List<String> hits = triggers.scan(transcript);
+        // 没碰到触发组合、没有影子命中、规则也没说拿不准：规则已能定「无风险」。
+        if (hits.isEmpty() && rules.shadowRuleIds().isEmpty() && !rules.undetermined()) {
+            return withModelStatus(rules, ModelStatus.SKIPPED);
+        }
         SignalExtraction extraction = extractor.extract(transcript, demographics);
         if (extraction.status() == ModelStatus.DISABLED || extraction.status() == ModelStatus.SKIPPED) {
-            return withModelStatus(rules, extraction.status());
+            return rules.withModel(extraction.status(), hits, false);
         }
         if (extraction.status() != ModelStatus.SUCCESS) {
-            // 模型超时或不可用：保留规则结论，并标成不确定。
-            return fallbackFromModel(rules, extraction);
+            // 已触发但模型拿不到结果：保留规则结论，标成不确定，走安全降级。
+            return fallbackFromModel(rules, extraction).withModel(extraction.status(), hits, false);
         }
         SafetyAssessment fromModel = fromModel(transcript, extraction);
         if (fromModel.undetermined() && fromModel.fallbackReason() == FallbackReason.MODEL_INVALID_OUTPUT) {
-            return fallbackFromModel(rules, SignalExtraction.invalid());
+            return fallbackFromModel(rules, SignalExtraction.invalid()).withModel(ModelStatus.INVALID_OUTPUT, hits, false);
         }
         // 规则和模型两边的阳性结论取并集，急症不会被模型否掉。
-        return union(rules, fromModel, extraction.status());
+        return union(rules, fromModel, extraction.status()).withModel(extraction.status(), hits, false);
     }
 
     /** 把模型抽出的信号对回目录规则。证据必须是原话子串。 */
@@ -196,20 +207,9 @@ public class SafetyGate {
         return null;
     }
 
-    /** 保留规则结论，只改模型状态。 */
+    /** 保留规则结论，只改模型状态。规则自己定了。 */
     private static SafetyAssessment withModelStatus(SafetyAssessment assessment, ModelStatus status) {
-        return new SafetyAssessment(
-                assessment.urgent(),
-                assessment.promptEvaluation(),
-                assessment.humanRequested(),
-                assessment.unsuitableForOnline(),
-                assessment.undetermined(),
-                assessment.fallbackReason(),
-                assessment.templateId(),
-                assessment.matchedRuleIds(),
-                assessment.shadowRuleIds(),
-                assessment.evidence(),
-                status);
+        return assessment.withModel(status, List.of(), true);
     }
 
     /** 模型失败时保留规则结论，并标成不确定。 */

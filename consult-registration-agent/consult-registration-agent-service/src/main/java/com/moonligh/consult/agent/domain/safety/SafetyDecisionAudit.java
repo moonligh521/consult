@@ -44,5 +44,38 @@ public record SafetyDecisionAudit(
         /** 给患者看的模板编号。 */
         String templateId,
         /** 决策时间。 */
-        Instant decisionTime) {
+        Instant decisionTime,
+        /** 规则能否自己定。 */
+        boolean ruleCertain,
+        /** 命中的模型触发编号。 */
+        List<String> modelTriggerIds) {
+
+    public SafetyDecisionAudit {
+        modelTriggerIds = modelTriggerIds == null ? List.of() : List.copyOf(modelTriggerIds);
+    }
+
+    public SafetyDecisionAudit(
+            String decisionId,
+            String consultationId,
+            int messageSeq,
+            AuditTrigger trigger,
+            EvaluationKind evaluation,
+            List<String> matchedRuleIds,
+            List<String> shadowRuleIds,
+            List<EvidenceRef> evidence,
+            String catalogVersion,
+            String ruleEngineVersion,
+            ModelStatus modelStatus,
+            String modelVersion,
+            FallbackReason fallbackReason,
+            int previousStatus,
+            int resultingStatus,
+            int businessBefore,
+            int businessAfter,
+            String templateId,
+            Instant decisionTime) {
+        this(decisionId, consultationId, messageSeq, trigger, evaluation, matchedRuleIds, shadowRuleIds, evidence,
+                catalogVersion, ruleEngineVersion, modelStatus, modelVersion, fallbackReason, previousStatus,
+                resultingStatus, businessBefore, businessAfter, templateId, decisionTime, true, List.of());
+    }
 }

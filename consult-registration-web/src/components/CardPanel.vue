@@ -9,6 +9,7 @@ import {
   STATUS,
   consultDepartmentLabel,
   genderLabel,
+  maskPatientName,
   parentDepartmentCode,
   resolveConsultSpecialty,
 } from '../constants/catalog'
@@ -63,7 +64,7 @@ const personText = computed(() => {
   const gender = genderLabel(store.card?.gender)
   const age = store.card?.age
   const duration = store.card?.duration
-  const parts = ['匿名']
+  const parts = [maskPatientName(store.card?.patientName)]
   if (gender !== '—') {
     parts.push(gender)
   }
@@ -134,9 +135,13 @@ async function save() {
 
     <div v-if="!editing" class="consult-body">
       <p><span class="k">咨询人：</span>{{ personText }}</p>
-      <p><span class="k">咨询科室：</span>{{ consultDepartmentLabel(store.card) }}</p>
+      <p>
+        <span class="k">咨询科室：</span>{{ consultDepartmentLabel(store.card) }}
+        <span v-if="store.card?.departmentSource === 'MODEL'" class="source-tag">AI 辅助推荐</span>
+      </p>
+      <p v-if="store.card?.departmentSource === 'FALLBACK'" class="source-note">建议先由全科医生评估</p>
       <p v-if="store.card?.departmentEvidence"><span class="k">分诊依据：</span>{{ store.card.departmentEvidence }}</p>
-      <p><span class="k">问题描述：</span>{{ store.card?.description }}</p>
+      <p><span class="k">主诉：</span>{{ store.card?.description }}</p>
       <p v-if="store.card?.allergy"><span class="k">过敏：</span>{{ store.card.allergy }}</p>
       <p v-if="store.card?.medications"><span class="k">用药：</span>{{ store.card.medications }}</p>
     </div>
@@ -166,7 +171,7 @@ async function save() {
         />
       </div>
       <div class="field">
-        <label>问题描述</label>
+        <label>主诉</label>
         <n-input v-model:value="form.description" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" />
       </div>
       <div class="card-actions">

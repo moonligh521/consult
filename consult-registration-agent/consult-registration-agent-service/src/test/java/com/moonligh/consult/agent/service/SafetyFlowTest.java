@@ -53,6 +53,8 @@ import ch.qos.logback.core.read.ListAppender;
 class SafetyFlowTest {
 
     private static final String COMPLETE = "女，32岁，干咳半年，运动后加重";
+    /** 规则不判急症、但命中模型触发词（T-CHEST）。 */
+    private static final String TRIGGERED = "女，32岁，心口像压了块大石头，三天";
     private static final String URGENT_PROMPT = "请立即拨打 120，或前往最近的实体医院急诊。";
     private static final String FALLBACK_PROMPT = "系统暂时无法完成安全分流，请转人工协助，或前往医疗机构就诊。";
 
@@ -341,10 +343,24 @@ class SafetyFlowTest {
     }
 
     @Test
+    void noTriggerDoesNotCallModel() {
+        AtomicInteger calls = new AtomicInteger();
+        SignalExtractor extractor = (transcript, demographics) -> {
+            calls.incrementAndGet();
+            return SignalExtraction.timeout();
+        };
+        ConsultationsFixture fixture = ConsultationsFixture.of(CatalogLoader.loadDefault(DraftMode.SHADOW), extractor);
+        ConsultationRes view = fixture.service.acceptMessage(null, COMPLETE);
+        assertEquals(ConsultationStatus.CARD_READY, view.status());
+        assertEquals(0, calls.get());
+        assertEquals(ModelStatus.SKIPPED, fixture.audits.list(view.consultationId()).get(0).modelStatus());
+    }
+
+    @Test
     void sf26ModelTimeoutWithoutRuleHitIsFallback() {
         SignalExtractor extractor = (transcript, demographics) -> SignalExtraction.timeout();
         ConsultationsFixture fixture = ConsultationsFixture.of(CatalogLoader.loadDefault(DraftMode.SHADOW), extractor);
-        ConsultationRes view = fixture.service.acceptMessage(null, COMPLETE);
+        ConsultationRes view = fixture.service.acceptMessage(null, TRIGGERED);
         assertEquals(ConsultationStatus.SAFE_FALLBACK, view.status());
         assertEquals(FallbackReason.MODEL_UNAVAILABLE, fixture.audits.list(view.consultationId()).get(0).fallbackReason());
     }
@@ -365,7 +381,7 @@ class SafetyFlowTest {
     void sf28InvalidModelOutputIsFallback() {
         SignalExtractor extractor = (transcript, demographics) -> SignalExtraction.invalid();
         ConsultationsFixture fixture = ConsultationsFixture.of(CatalogLoader.loadDefault(DraftMode.SHADOW), extractor);
-        ConsultationRes view = fixture.service.acceptMessage(null, COMPLETE);
+        ConsultationRes view = fixture.service.acceptMessage(null, TRIGGERED);
         assertEquals(ConsultationStatus.SAFE_FALLBACK, view.status());
         assertEquals(FallbackReason.MODEL_INVALID_OUTPUT, fixture.audits.list(view.consultationId()).get(0).fallbackReason());
     }
@@ -427,10 +443,10 @@ class SafetyFlowTest {
         SignalExtractor extractor = (transcript, demographics) -> new SignalExtraction(
                 ModelStatus.SUCCESS,
                 "test",
-                List.of(new ExtractedSignal("chest_pain", 1, "干咳", "current", "positive", "patient", "low")),
+                List.of(new ExtractedSignal("chest_pain", 1, "心口像压了块大石头", "current", "positive", "patient", "low")),
                 false);
         ConsultationsFixture fixture = ConsultationsFixture.of(CatalogLoader.loadDefault(DraftMode.ENFORCE), extractor);
-        ConsultationRes view = fixture.service.acceptMessage(null, COMPLETE);
+        ConsultationRes view = fixture.service.acceptMessage(null, TRIGGERED);
         assertEquals(ConsultationStatus.URGENT, view.status());
     }
 

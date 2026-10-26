@@ -22,6 +22,10 @@ public class SymptomExtractor {
         this.catalog = catalog;
     }
 
+    public DepartmentCatalog catalog() {
+        return catalog;
+    }
+
     /** 从描述里抽出不重复的症状标签。 */
     public List<String> extract(String description) {
         DepartmentSnapshot snapshot = catalog.snapshot();

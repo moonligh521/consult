@@ -9,14 +9,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class SafetyProperties {
 
     private final Catalog catalog = new Catalog();
-    private final Model model = new Model();
 
     public Catalog getCatalog() {
         return catalog;
-    }
-
-    public Model getModel() {
-        return model;
     }
 
     /** 急症目录从哪读、DRAFT 规则怎么处理。 */
@@ -52,78 +47,6 @@ public class SafetyProperties {
                 value = "/" + value;
             }
             return value;
-        }
-    }
-
-    /** 模型补漏。默认关闭。 */
-    public static class Model {
-        /** 没开就不调模型。 */
-        private boolean enabled = false;
-        /** 单次调用超时毫秒。 */
-        private int timeoutMs = 3000;
-        /** 输出不合格时再试几次。 */
-        private int invalidOutputRetries = 1;
-        /** 同时最多几路调用。 */
-        private int maxConcurrency = 20;
-        /** 密钥。不要打进日志。 */
-        private String apiKey = "";
-        private String baseUrl = "https://api.deepseek.com";
-        private String modelName = "deepseek-chat";
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public int getTimeoutMs() {
-            return timeoutMs;
-        }
-
-        public void setTimeoutMs(int timeoutMs) {
-            this.timeoutMs = timeoutMs;
-        }
-
-        public int getInvalidOutputRetries() {
-            return invalidOutputRetries;
-        }
-
-        public void setInvalidOutputRetries(int invalidOutputRetries) {
-            this.invalidOutputRetries = invalidOutputRetries;
-        }
-
-        public int getMaxConcurrency() {
-            return maxConcurrency;
-        }
-
-        public void setMaxConcurrency(int maxConcurrency) {
-            this.maxConcurrency = maxConcurrency;
-        }
-
-        public String getApiKey() {
-            return apiKey;
-        }
-
-        public void setApiKey(String apiKey) {
-            this.apiKey = apiKey;
-        }
-
-        public String getBaseUrl() {
-            return baseUrl;
-        }
-
-        public void setBaseUrl(String baseUrl) {
-            this.baseUrl = baseUrl;
-        }
-
-        public String getModelName() {
-            return modelName;
-        }
-
-        public void setModelName(String modelName) {
-            this.modelName = modelName;
         }
     }
 }

@@ -17,3 +17,9 @@ safety:
     api-key: "replace-with-deepseek-key"
     timeout-ms: 3000
     max-concurrency: 20
+# identity 只做 XXL 执行器，没有 @Scheduled。调度中心须能回连本机 19999。
+consult:
+  xxl:
+    enabled: false
+    admin-addresses: http://127.0.0.1:18080
+    access-token: "default_token"

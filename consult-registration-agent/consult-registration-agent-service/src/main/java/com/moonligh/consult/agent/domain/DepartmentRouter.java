@@ -1,6 +1,9 @@
 package com.moonligh.consult.agent.domain;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -12,6 +15,16 @@ import com.moonligh.consult.agent.domain.department.DepartmentRecord;
 import com.moonligh.consult.agent.domain.department.DepartmentSnapshot;
 import com.moonligh.consult.agent.domain.department.DepartmentSpecialty;
 import com.moonligh.consult.agent.domain.department.MemoryDepartmentCatalog;
+import com.moonligh.consult.agent.domain.department.SpecialtyRef;
+import com.moonligh.consult.agent.domain.triage.CanonResult;
+import com.moonligh.consult.agent.domain.triage.CanonTerm;
+import com.moonligh.consult.agent.domain.triage.Certainty;
+import com.moonligh.consult.agent.domain.triage.ComplaintCanon;
+import com.moonligh.consult.agent.domain.triage.DecisionSource;
+import com.moonligh.consult.agent.domain.triage.RouteDecision;
+import com.moonligh.consult.agent.domain.triage.RouteInput;
+import com.moonligh.consult.agent.domain.triage.Span;
+import com.moonligh.consult.agent.domain.triage.SymptomHit;
 
 /**
  * 按目录关键词推荐二级挂号科。一级只是分类。
@@ -54,7 +67,7 @@ public class DepartmentRouter {
         }
         Integer resolvedAge = age != null ? age : parseAge(haystack);
         Gender resolvedGender = gender != null ? gender : parseGender(haystack);
-        Hit pediatric = pediatricHit(haystack, snapshot, resolvedAge, resolvedGender);
+        Hit pediatric = pediatricHit(haystack, snapshot, resolvedAge, resolvedGender, null);
         if (pediatric != null) {
             return clamp(snapshot, pediatric);
         }
@@ -63,6 +76,145 @@ public class DepartmentRouter {
             return fallbackAdvice(snapshot);
         }
         return clamp(snapshot, best);
+    }
+
+    /** N6 挂科：带能否自己定。定不了时给出候选，交模型挑。 */
+    public RouteDecision route(RouteInput in) {
+        return route(in, catalog.snapshot());
+    }
+
+    public RouteDecision route(RouteInput in, DepartmentSnapshot snapshot) {
+        String description = in.description();
+        CanonResult canon = in.canon();
+        if (description == null || description.isBlank() || SpokenNormalizer.uncertainDepartment(description, snapshot)) {
+            return decided(fallbackAdvice(snapshot), RouteDecision.UNCERTAIN_MARKER);
+        }
+        String haystack = SpokenNormalizer.forMatch(description, snapshot);
+        Gender gender = in.gender() != null ? in.gender() : parseGender(haystack);
+        Integer age = in.age() != null ? in.age() : parseAge(haystack);
+        List<CanonTerm> terms = new ArrayList<>();
+        List<SpecialtyRef> termRefs = new ArrayList<>();
+        if (canon != null) {
+            for (CanonTerm term : canon.terms()) {
+                SpecialtyRef ref = snapshot.diseaseIndex().get(term.term());
+                if (ref == null || skipByGender(snapshot.recordOf(ref.departmentCode()), gender)) {
+                    continue;
+                }
+                terms.add(term);
+                termRefs.add(ref);
+            }
+        }
+        Hit override = firstOverride(haystack, snapshot, false);
+        if (override != null) {
+            DepartmentRecord rec = snapshot.recordOf(override.department.getCode());
+            Hit inner = null;
+            for (int i = 0; i < termRefs.size(); i++) {
+                if (termRefs.get(i).departmentCode() == rec.code()) {
+                    inner = new Hit(override.department, termRefs.get(i).specialty(), 0, evidenceOf(haystack, terms.get(i)));
+                    break;
+                }
+            }
+            if (inner == null) {
+                inner = firstRouting(haystack, snapshot, rec, null);
+            }
+            return decided(clamp(snapshot, inner != null ? inner : override), RouteDecision.OVERRIDE);
+        }
+        String adultHint = termRefs.isEmpty() ? null : termRefs.get(0).specialty();
+        Hit pediatric = pediatricHit(haystack, snapshot, age, gender, adultHint);
+        if (pediatric != null) {
+            return decided(clamp(snapshot, pediatric), RouteDecision.PEDIATRIC);
+        }
+        List<SymptomHit> clear = new ArrayList<>();
+        List<SpecialtyRef> clearRefs = new ArrayList<>();
+        if (canon != null) {
+            for (SymptomHit hit : canon.symptoms()) {
+                if (hit.ambiguous()) {
+                    continue;
+                }
+                for (SpecialtyRef ref : hit.refs()) {
+                    if (!skipByGender(snapshot.recordOf(ref.departmentCode()), gender)) {
+                        clear.add(hit);
+                        clearRefs.add(ref);
+                        break;
+                    }
+                }
+            }
+        }
+        if (!termRefs.isEmpty()) {
+            SpecialtyRef primary = termRefs.get(0);
+            Set<String> specs = new LinkedHashSet<>();
+            for (SpecialtyRef ref : termRefs) {
+                specs.add(ref.specialty());
+            }
+            boolean onlyOne = specs.size() == 1;
+            for (SpecialtyRef ref : clearRefs) {
+                if (ref.departmentCode() != primary.departmentCode()) {
+                    specs.add(ref.specialty());
+                    onlyOne = false;
+                }
+            }
+            if (onlyOne) {
+                return decided(adviceOf(snapshot, primary, evidenceOf(haystack, terms.get(0))), RouteDecision.CANON_TERM);
+            }
+            return undecided(snapshot, RouteDecision.CONFLICT, new ArrayList<>(specs));
+        }
+        if (clear.isEmpty()) {
+            if (canon != null && !canon.certain()) {
+                String reason = ComplaintCanon.AMBIGUOUS_ONLY.equals(canon.reason())
+                        ? RouteDecision.AMBIGUOUS_ONLY
+                        : RouteDecision.NO_HIT;
+                return undecided(snapshot, reason, snapshot.enabledSpecialtyNames());
+            }
+            return decided(fallbackAdvice(snapshot), RouteDecision.NO_HIT_SHORT);
+        }
+        Set<String> specs = new LinkedHashSet<>();
+        Set<Integer> levelOne = new LinkedHashSet<>();
+        for (SpecialtyRef ref : clearRefs) {
+            specs.add(ref.specialty());
+            levelOne.add(ref.departmentCode());
+        }
+        if (specs.size() == 1) {
+            return decided(adviceOf(snapshot, clearRefs.get(0), clear.get(0).phrase()), RouteDecision.SINGLE_SPECIALTY);
+        }
+        if (levelOne.size() == 1) {
+            return decided(adviceOf(snapshot, clearRefs.get(0), clear.get(0).phrase()), RouteDecision.SAME_L1_EARLIEST);
+        }
+        return undecided(snapshot, RouteDecision.CONFLICT, new ArrayList<>(specs));
+    }
+
+    /** 按病名重新挂科，用于模型给出病名后的「规则路由模型输出」。 */
+    public static Advice adviceOf(DepartmentSnapshot snapshot, SpecialtyRef ref, String evidence) {
+        if (ref == null || !snapshot.isEnabled(ref.departmentCode())) {
+            return fallbackAdvice(snapshot);
+        }
+        DepartmentRecord rec = snapshot.recordOf(ref.departmentCode());
+        String specialty = rec.hasSpecialty(ref.specialty()) ? ref.specialty() : rec.defaultSpecialty();
+        return new Advice(rec.toDepartment(), specialty, evidence);
+    }
+
+    public static Advice fallbackOf(DepartmentSnapshot snapshot) {
+        return fallbackAdvice(snapshot);
+    }
+
+    private static String evidenceOf(String haystack, CanonTerm term) {
+        Span span = term.evidence();
+        if (span != null && span.start() >= 0 && span.end() <= haystack.length() && span.start() < span.end()) {
+            return haystack.substring(span.start(), span.end());
+        }
+        return term.term();
+    }
+
+    private static RouteDecision decided(Advice advice, String reason) {
+        return new RouteDecision(advice, Certainty.CERTAIN, DecisionSource.RULE, reason, List.of());
+    }
+
+    private static RouteDecision undecided(DepartmentSnapshot snapshot, String reason, List<String> specialties) {
+        List<String> candidates = new ArrayList<>(specialties);
+        String general = snapshot.fallback().defaultSpecialty();
+        if (!candidates.contains(general)) {
+            candidates.add(general);
+        }
+        return new RouteDecision(fallbackAdvice(snapshot), Certainty.UNCERTAIN, DecisionSource.RULE, reason, candidates);
     }
 
     private static Advice fallbackAdvice(DepartmentSnapshot snapshot) {
@@ -100,7 +252,12 @@ public class DepartmentRouter {
         return best;
     }
 
-    private static Hit pediatricHit(String haystack, DepartmentSnapshot snapshot, Integer age, Gender gender) {
+    private static Hit pediatricHit(
+            String haystack,
+            DepartmentSnapshot snapshot,
+            Integer age,
+            Gender gender,
+            String adultHint) {
         DepartmentRecord pediatric = null;
         for (DepartmentRecord dept : snapshot.enabled()) {
             if (dept.pediatricCatch()) {
@@ -125,6 +282,9 @@ public class DepartmentRouter {
         Hit routing = firstRouting(haystack, snapshot, pediatric, gender);
         if (routing != null) {
             return routing;
+        }
+        if (adultHint != null) {
+            return new Hit(pediatric.toDepartment(), mapToPediatric(pediatric, adultHint), 0, adultHint);
         }
         Hit adult = firstRouting(haystack, snapshot, null, gender);
         if (adult != null) {

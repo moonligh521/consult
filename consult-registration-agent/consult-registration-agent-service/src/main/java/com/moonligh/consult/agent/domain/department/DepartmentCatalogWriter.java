@@ -69,6 +69,31 @@ public class DepartmentCatalogWriter {
         mutate(() -> store.upsertKeyword(departmentCode, compact, kind));
     }
 
+    public void upsertAmbiguous(String phrase) {
+        String compact = lexiconRules == null
+                ? CompactText.of(phrase)
+                : lexiconRules.requireKeyword(phrase);
+        mutate(() -> store.upsertAmbiguous(compact));
+    }
+
+    /** 新建或修改 DRAFT 同义规则。目标病名按当前快照校验。 */
+    public CanonSynonym saveSynonym(CanonSynonym rule, DepartmentSnapshot snapshot) {
+        CanonSynonym checked = lexiconRules == null ? rule : lexiconRules.requireSynonym(rule, snapshot);
+        mutate(() -> store.saveSynonym(checked));
+        return checked;
+    }
+
+    /** DRAFT → REVIEWED，记审核人。之后参与挂科。 */
+    public void reviewSynonym(String ruleId, String reviewer) {
+        String who = lexiconRules == null ? reviewer : lexiconRules.requireReviewer(reviewer);
+        mutate(() -> store.setSynonymStatus(ruleId, SynonymStatus.DRAFT, SynonymStatus.REVIEWED, who));
+    }
+
+    /** REVIEWED → RETIRED。 */
+    public void retireSynonym(String ruleId) {
+        mutate(() -> store.setSynonymStatus(ruleId, SynonymStatus.REVIEWED, SynonymStatus.RETIRED, null));
+    }
+
     /**
      * 任意目录变更都走同一条双删。手工改 SQL 之后也可以只调 {@link #invalidateEventually()}。
      * 写库失败也安排第二次删除，避免并发读把旧快照填回 Redis。

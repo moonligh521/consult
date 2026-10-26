@@ -1,6 +1,7 @@
 package com.moonligh.consult.agent.domain.department;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -24,6 +25,10 @@ public final class DepartmentSnapshot {
     private final List<MatchTypo> typos;
     private final List<String> uncertainMarkers;
     private final List<String> symptomPhrases;
+    private final List<String> ambiguousSymptoms;
+    private final List<CanonSynonym> synonyms;
+    private final Map<String, SpecialtyRef> diseaseIndex;
+    private final Map<String, List<SpecialtyRef>> phraseRefs;
 
     public DepartmentSnapshot(String version, List<DepartmentRecord> departments) {
         this(version, departments, List.of(), List.of());
@@ -34,6 +39,16 @@ public final class DepartmentSnapshot {
             List<DepartmentRecord> departments,
             List<MatchTypo> typos,
             List<String> uncertainMarkers) {
+        this(version, departments, typos, uncertainMarkers, List.of(), List.of());
+    }
+
+    public DepartmentSnapshot(
+            String version,
+            List<DepartmentRecord> departments,
+            List<MatchTypo> typos,
+            List<String> uncertainMarkers,
+            List<String> ambiguousSymptoms,
+            List<CanonSynonym> synonyms) {
         this.version = version;
         List<DepartmentRecord> live = new ArrayList<>();
         Map<Integer, DepartmentRecord> byCode = new LinkedHashMap<>();
@@ -66,6 +81,67 @@ public final class DepartmentSnapshot {
         this.typos = copyTypos(typos);
         this.uncertainMarkers = copyMarkers(uncertainMarkers);
         this.symptomPhrases = buildSymptomPhrases(this.enabled);
+        this.ambiguousSymptoms = copyMarkers(ambiguousSymptoms);
+        this.synonyms = synonyms == null ? List.of() : List.copyOf(synonyms);
+        this.diseaseIndex = buildDiseaseIndex(this.enabled);
+        this.phraseRefs = buildPhraseRefs(this.enabled);
+    }
+
+    /** 挂词 → 能挂的二级，口径与关键词路由一致：二级挂词、一级挂词落默认二级、一级名。 */
+    public Map<String, List<SpecialtyRef>> phraseRefs() {
+        return phraseRefs;
+    }
+
+    /** 多系统都可能出现的症状。只有这些词时挂科交给模型。 */
+    public List<String> ambiguousSymptoms() {
+        return ambiguousSymptoms;
+    }
+
+    public boolean isAmbiguous(String phrase) {
+        return ambiguousSymptoms.contains(phrase);
+    }
+
+    /** 全部同义规则，含 DRAFT。 */
+    public List<CanonSynonym> synonyms() {
+        return synonyms;
+    }
+
+    /** 已开通二级的病名 → 所在二级。同名病只认目录里第一次出现的。 */
+    public Map<String, SpecialtyRef> diseaseIndex() {
+        return diseaseIndex;
+    }
+
+    public boolean isDisease(String term) {
+        return diseaseIndex.containsKey(term);
+    }
+
+    /** 模型允许输出的病名，只有目录 DISEASE 词。 */
+    public List<String> allowedDiseaseTerms() {
+        return List.copyOf(diseaseIndex.keySet());
+    }
+
+    /** 已开通的全部二级科名，按目录顺序。 */
+    public List<String> enabledSpecialtyNames() {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        for (DepartmentRecord dept : enabled) {
+            for (DepartmentSpecialty spec : dept.specialties()) {
+                names.add(spec.name());
+            }
+        }
+        return List.copyOf(names);
+    }
+
+    /** 按二级科名找它所在的一级码。重名取第一个。 */
+    public SpecialtyRef refOfSpecialty(String specialty) {
+        if (specialty == null) {
+            return null;
+        }
+        for (DepartmentRecord dept : enabled) {
+            if (dept.hasSpecialty(specialty)) {
+                return new SpecialtyRef(dept.code(), specialty);
+            }
+        }
+        return null;
     }
 
     public String version() {
@@ -144,7 +220,60 @@ public final class DepartmentSnapshot {
                 copy.add(item);
             }
         }
-        return new DepartmentSnapshot(version, copy, typos, uncertainMarkers);
+        return new DepartmentSnapshot(version, copy, typos, uncertainMarkers, ambiguousSymptoms, synonyms);
+    }
+
+    public DepartmentSnapshot withSynonyms(List<CanonSynonym> replaced) {
+        return new DepartmentSnapshot(version, enabled, typos, uncertainMarkers, ambiguousSymptoms, replaced);
+    }
+
+    private static Map<String, List<SpecialtyRef>> buildPhraseRefs(List<DepartmentRecord> departments) {
+        Map<String, List<SpecialtyRef>> refs = new LinkedHashMap<>();
+        for (DepartmentRecord dept : departments) {
+            java.util.Set<String> used = new java.util.HashSet<>();
+            for (DepartmentSpecialty spec : dept.specialties()) {
+                for (String term : spec.matchTerms()) {
+                    used.add(term);
+                    addRef(refs, term, new SpecialtyRef(dept.code(), spec.name()));
+                }
+            }
+            SpecialtyRef fallbackRef = new SpecialtyRef(dept.code(), dept.defaultSpecialty());
+            for (String term : dept.routingKeywords()) {
+                if (!used.contains(term)) {
+                    addRef(refs, term, fallbackRef);
+                }
+            }
+            if (!used.contains(dept.name()) && dept.name().length() >= 2) {
+                addRef(refs, dept.name(), fallbackRef);
+            }
+        }
+        Map<String, List<SpecialtyRef>> frozen = new LinkedHashMap<>();
+        refs.forEach((key, value) -> frozen.put(key, List.copyOf(value)));
+        return Collections.unmodifiableMap(frozen);
+    }
+
+    private static void addRef(Map<String, List<SpecialtyRef>> refs, String term, SpecialtyRef ref) {
+        if (term == null || term.isBlank()) {
+            return;
+        }
+        List<SpecialtyRef> list = refs.computeIfAbsent(term, key -> new ArrayList<>());
+        if (!list.contains(ref)) {
+            list.add(ref);
+        }
+    }
+
+    private static Map<String, SpecialtyRef> buildDiseaseIndex(List<DepartmentRecord> departments) {
+        Map<String, SpecialtyRef> index = new LinkedHashMap<>();
+        for (DepartmentRecord dept : departments) {
+            for (DepartmentSpecialty spec : dept.specialties()) {
+                for (String term : spec.diseaseTerms()) {
+                    if (term != null && !term.isBlank()) {
+                        index.putIfAbsent(term, new SpecialtyRef(dept.code(), spec.name()));
+                    }
+                }
+            }
+        }
+        return Collections.unmodifiableMap(index);
     }
 
     private static List<MatchTypo> copyTypos(List<MatchTypo> source) {

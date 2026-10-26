@@ -5,10 +5,33 @@ export const http = axios.create({
   timeout: 20000,
 })
 
+http.interceptors.request.use((config) => {
+  config.headers = config.headers || {}
+  const token = localStorage.getItem('consult-token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 http.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    const body = response.data
+    if (body && body.code === 1201 && !window.location.pathname.startsWith('/login')) {
+      localStorage.removeItem('consult-token')
+      localStorage.removeItem('consult-account')
+      localStorage.removeItem('consult-mobile')
+      window.location.href = '/login'
+    }
+    return body
+  },
   (error) => {
-    const message = error.response?.data?.message || error.message || '网络异常'
+    const body = error.response?.data
+    if (body && body.code === 1201 && !window.location.pathname.startsWith('/login')) {
+      localStorage.removeItem('consult-token')
+      window.location.href = '/login'
+    }
+    const message = body?.message || error.message || '网络异常'
     return Promise.reject(new Error(message))
   },
 )

@@ -8,6 +8,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -16,8 +19,11 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.jayway.jsonpath.JsonPath;
-import com.moonligh.consult.agent.service.ConsultationService;
+import com.moonligh.consult.agent.api.enums.Gender;
+import com.moonligh.consult.agent.api.req.PatientCreateReq;
+import com.moonligh.consult.agent.api.res.PatientRes;
 import com.moonligh.consult.agent.service.ConsultationsFixture;
+import com.moonligh.consult.agent.service.PatientService;
 import com.moonligh.consult.framework.ErrorCode;
 import com.moonligh.consult.framework.GlobalExceptionHandler;
 import com.moonligh.consult.framework.ResultCode;
@@ -27,11 +33,13 @@ import com.moonligh.consult.framework.TraceIdFilter;
 class ConsultationControllerTest {
 
     private MockMvc mockMvc;
+    private PatientService patients;
 
     @BeforeEach
     void setUp() {
-        ConsultationService service = ConsultationsFixture.shadow().service;
-        mockMvc = MockMvcBuilders.standaloneSetup(new ConsultationController(service))
+        ConsultationsFixture fixture = ConsultationsFixture.shadow();
+        patients = new PatientService(fixture.patients);
+        mockMvc = MockMvcBuilders.standaloneSetup(new ConsultationController(fixture.service))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .addFilters(new TraceIdFilter())
                 .build();
@@ -101,6 +109,34 @@ class ConsultationControllerTest {
                 .andExpect(jsonPath("$.data.order.packageCode").value(3))
                 .andExpect(jsonPath("$.data.order.packageName").value("三甲医生"))
                 .andExpect(jsonPath("$.data.order.payStatus").value(2));
+    }
+
+    @Test
+    void createListAndBindPatient() throws Exception {
+        PatientRes first = patients.create("demo", new PatientCreateReq("张明", Gender.MALE, 32, "本人"));
+        patients.create("demo", new PatientCreateReq("张小童", Gender.MALE, 8, "子女"));
+        assertEquals(2, patients.list("demo").size());
+        assertEquals("张明", patients.list("demo").get(0).name());
+        assertTrue(patients.list("other").isEmpty());
+
+        MvcResult created = mockMvc.perform(post("/api/consultations/messages")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"干咳半年，运动后加重\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value(2))
+                .andReturn();
+        String consultationId = JsonPath.read(created.getResponse().getContentAsString(), "$.data.consultationId");
+        String patientId = first.id();
+
+        mockMvc.perform(post("/api/consultations/patient")
+                        .header("X-Account-Id", "demo")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"consultationId\":\"" + consultationId + "\",\"patientId\":\"" + patientId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value(4))
+                .andExpect(jsonPath("$.data.card.patientName").value("张明"))
+                .andExpect(jsonPath("$.data.card.gender").value(1))
+                .andExpect(jsonPath("$.data.card.age").value(32));
     }
 
     @Test

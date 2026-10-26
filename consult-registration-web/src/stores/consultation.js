@@ -1,8 +1,14 @@
 import { defineStore } from 'pinia'
-import { confirmCard, listPackages, patchCard, placeOrder, sendMessage } from '../api/consultations'
-import { canShowCard, INQUIRY, isSafetyStop, STATUS } from '../constants/catalog'
-import { assignDoctor, firstAskAsDoctor, greetAsDoctor, MATCH_ASSIST, replyAsDoctor, waitForDoctor, waitForDoctorAssign, waitForDoctorServe, waitMs } from '../domain/doctorAgent'
+import { bindPatient, confirmCard, endConsult as endConsultApi, listPackages, patchCard, placeOrder, sendMessage, setConsultMinutes } from '../api/consultations'
+import { createPatient, listPatients } from '../api/patients'
+import { canShowCard, CONSULT_MINUTES, INQUIRY, isSafetyStop, STATUS } from '../constants/catalog'
+import { doctorFromOrder, firstAskAsDoctor, greetAsDoctor, MATCH_ASSIST, replyAsDoctor, waitForDoctor, waitForDoctorAssign, waitForDoctorServe, waitMs } from '../domain/doctorAgent'
 import { HUMAN_JOIN, replyAsHuman, waitForHuman } from '../domain/humanAgent'
+
+function loadConsultMinutes() {
+  const raw = Number(localStorage.getItem(CONSULT_MINUTES.storageKey))
+  return CONSULT_MINUTES.options.some((item) => item.value === raw) ? raw : CONSULT_MINUTES.default
+}
 
 const STORAGE_KEY = 'consult-sessions-v1'
 
@@ -46,6 +52,11 @@ export const useConsultationStore = defineStore('consultation', {
     assigningDoctor: false,
     matchPhase: null,
     error: '',
+    patients: [],
+    consultMinutes: loadConsultMinutes(),
+    ending: false,
+    consultTick: 0,
+    consultTimer: null,
   }),
   getters: {
     status: (state) => state.latest?.status ?? null,
@@ -57,11 +68,28 @@ export const useConsultationStore = defineStore('consultation', {
     packages: (state) => state.latest?.packages ?? [],
     order: (state) => state.latest?.order ?? state.payOrder,
     inConsult: (state) => state.doctorOnline || state.matchPhase === 'consulting',
-    inClinic: (state) => !!state.payOrder || !!state.latest?.order || state.matchPhase != null,
+    inClinic: (state) => {
+      const order = state.latest?.order ?? state.payOrder
+      if (order?.endedAt) {
+        return false
+      }
+      return !!order || state.matchPhase != null
+    },
+    consultEnded: (state) => !!(state.latest?.order ?? state.payOrder)?.endedAt,
+    remainingMs: (state) => {
+      const order = state.latest?.order ?? state.payOrder
+      if (!order?.endsAt || order.endedAt) {
+        return 0
+      }
+      // consultTick 每秒变一次，好让剩余时间刷新。真正扫过期占坑的是 XXL。
+      void state.consultTick
+      return Math.max(0, new Date(order.endsAt).getTime() - Date.now())
+    },
     stopped: (state) => state.latest != null && isSafetyStop(state.latest.status),
   },
   actions: {
     startNew() {
+      this.stopConsultClock()
       this.activeId = null
       this.latest = null
       this.payOrder = null
@@ -73,6 +101,7 @@ export const useConsultationStore = defineStore('consultation', {
       this.matchPhase = null
       this.messages = []
       this.error = ''
+      this.ending = false
     },
     openSession(id) {
       const found = this.sessions.find((item) => item.id === id)
@@ -90,9 +119,10 @@ export const useConsultationStore = defineStore('consultation', {
       this.matchPhase = found.doctorOnline ? 'consulting' : null
       this.assigningDoctor = false
       this.error = ''
-      if (this.payOrder && !this.doctorOnline) {
+      if (this.payOrder && !this.doctorOnline && !this.consultEnded) {
         this.joinDoctor()
       }
+      this.startConsultClock()
     },
     remember(text) {
       if (!this.activeId) {
@@ -145,7 +175,7 @@ export const useConsultationStore = defineStore('consultation', {
     },
     async send(text) {
       const sentence = text.trim()
-      if (!sentence || this.sending) {
+      if (!sentence || this.sending || this.consultEnded) {
         return
       }
       if (this.showCard && !this.doctorOnline && !this.humanOnline) {
@@ -193,6 +223,45 @@ export const useConsultationStore = defineStore('consultation', {
           this.messages.push({ role: 'assistant', text: result.message || '请求失败' })
         }
         this.remember(sentence)
+      } catch (error) {
+        this.error = error.message
+        this.messages.push({ role: 'assistant', text: error.message })
+      } finally {
+        this.sending = false
+      }
+    },
+    async loadPatients() {
+      try {
+        const result = await listPatients()
+        if (result.code === 200) {
+          this.patients = result.data || []
+        }
+      } catch (error) {
+        this.error = error.message
+      }
+    },
+    async createPatient(payload) {
+      const result = await createPatient(payload)
+      if (result.code !== 200) {
+        throw new Error(result.message || '新建就诊人失败')
+      }
+      await this.loadPatients()
+      return result.data
+    },
+    async bindPatient(patientId) {
+      if (!this.activeId || !patientId || this.sending) {
+        return
+      }
+      this.sending = true
+      this.error = ''
+      try {
+        const result = await bindPatient(this.activeId, patientId)
+        if (result.code === 200) {
+          this.applyResult(result.data)
+          this.remember()
+        } else {
+          this.messages.push({ role: 'assistant', text: result.message || '绑定就诊人失败' })
+        }
       } catch (error) {
         this.error = error.message
         this.messages.push({ role: 'assistant', text: error.message })
@@ -276,13 +345,14 @@ export const useConsultationStore = defineStore('consultation', {
       this.paying = true
       this.error = ''
       try {
-        const result = await placeOrder(this.activeId, pkg.code, channel)
+        const result = await placeOrder(this.activeId, pkg.code, channel, this.consultMinutes)
         if (result.code === 200) {
           this.applyResult(result.data, { silent: true })
           this.payOrder = result.data.order
           this.matchPhase = 'matching'
           this.remember()
           this.joinDoctor()
+          this.startConsultClock()
           return true
         }
         this.error = result.message || '支付失败'
@@ -298,12 +368,12 @@ export const useConsultationStore = defineStore('consultation', {
       return [...this.messages].reverse().find((item) => item.kind === 'match') || null
     },
     async joinDoctor() {
-      if (this.doctorOnline || this.assigningDoctor || !this.order) {
+      if (this.doctorOnline || this.assigningDoctor || !this.order || this.consultEnded) {
         return
       }
       this.assigningDoctor = true
       this.matchPhase = 'matching'
-      this.doctor = assignDoctor(this.card)
+      this.doctor = doctorFromOrder(this.order)
       if (!this.lastMatchCard()) {
         this.messages.push({
           role: 'system',
@@ -323,11 +393,11 @@ export const useConsultationStore = defineStore('consultation', {
           waitMs(INQUIRY.matchTimeoutMs).then(() => 'timeout'),
         ])
         const match = this.lastMatchCard()
-        if (result === 'timeout') {
+        if (result === 'timeout' || !this.doctor) {
           this.matchPhase = 'timeout'
           if (match) {
             match.phase = 'timeout'
-            match.text = '匹配超时，您可以重试或转人工。'
+            match.text = this.doctor ? '匹配超时，您可以重试或转人工。' : '当前暂无合适医生，请稍后再试。'
           }
           this.remember()
           return
@@ -360,10 +430,79 @@ export const useConsultationStore = defineStore('consultation', {
       }
     },
     retryMatch() {
-      if (this.matchPhase !== 'timeout' || this.doctorOnline || !this.order) {
+      if (this.matchPhase !== 'timeout' || this.doctorOnline || !this.order || this.consultEnded) {
         return
       }
       this.joinDoctor()
+    },
+    startConsultClock() {
+      this.stopConsultClock()
+      if (this.consultEnded || !this.order?.endsAt) {
+        return
+      }
+      this.consultTick = Date.now()
+      this.consultTimer = window.setInterval(() => {
+        this.consultTick = Date.now()
+        if (this.remainingMs <= 0) {
+          // 用户还在页上时主动结束；关页后靠 XXL 释放占坑
+          this.finishConsult('TIMEOUT')
+        }
+      }, 1000)
+    },
+    stopConsultClock() {
+      if (this.consultTimer) {
+        window.clearInterval(this.consultTimer)
+        this.consultTimer = null
+      }
+    },
+    async finishConsult(reason = 'ENDED') {
+      if (!this.activeId || this.ending || this.consultEnded) {
+        return
+      }
+      this.ending = true
+      this.error = ''
+      try {
+        const result = await endConsultApi(this.activeId, reason)
+        if (result.code === 200) {
+          this.applyResult(result.data, { silent: true })
+          this.payOrder = result.data.order
+          this.doctorOnline = false
+          this.assigningDoctor = false
+          this.matchPhase = null
+          this.stopConsultClock()
+          this.messages.push({
+            role: 'system',
+            text: reason === 'TIMEOUT' ? '问诊时间已到，已自动结束。' : '您已结束问诊。',
+          })
+          this.remember()
+        } else {
+          this.error = result.message || '结束问诊失败'
+        }
+      } catch (error) {
+        this.error = error.message
+      } finally {
+        this.ending = false
+      }
+    },
+    async changeConsultMinutes(minutes) {
+      this.consultMinutes = minutes
+      localStorage.setItem(CONSULT_MINUTES.storageKey, String(minutes))
+      if (!this.activeId || this.consultEnded || !this.order) {
+        return
+      }
+      try {
+        const result = await setConsultMinutes(this.activeId, minutes)
+        if (result.code === 200) {
+          this.applyResult(result.data, { silent: true })
+          this.payOrder = result.data.order
+          this.startConsultClock()
+          this.remember()
+        } else {
+          this.error = result.message || '修改时长失败'
+        }
+      } catch (error) {
+        this.error = error.message
+      }
     },
   },
 })

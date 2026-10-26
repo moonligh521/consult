@@ -83,11 +83,13 @@ public class RedisDepartmentCache implements DepartmentCache {
                 return null;
             }
             CachePayload payload = mapper.readValue(json, CachePayload.class);
-            if (payload.typos() == null || payload.uncertain() == null) {
+            if (payload.typos() == null || payload.uncertain() == null
+                    || payload.ambiguous() == null || payload.synonyms() == null) {
                 return null;
             }
             return new DepartmentSnapshot(
-                    payload.version(), payload.departments(), payload.typos(), payload.uncertain());
+                    payload.version(), payload.departments(), payload.typos(), payload.uncertain(),
+                    payload.ambiguous(), payload.synonyms());
         } catch (Exception error) {
             log.warn("读取科室目录 Redis 缓存失败 key={}", key, error);
             return null;
@@ -97,7 +99,8 @@ public class RedisDepartmentCache implements DepartmentCache {
     private void writeRedis(DepartmentSnapshot snapshot) {
         try {
             CachePayload payload = new CachePayload(
-                    snapshot.version(), snapshot.enabled(), snapshot.typos(), snapshot.uncertainMarkers());
+                    snapshot.version(), snapshot.enabled(), snapshot.typos(), snapshot.uncertainMarkers(),
+                    snapshot.ambiguousSymptoms(), snapshot.synonyms());
             redis.opsForValue().set(key, mapper.writeValueAsString(payload), redisTtl);
         } catch (RuntimeException | JsonProcessingException error) {
             log.warn("写入科室目录 Redis 缓存失败 key={}", key, error);
@@ -111,6 +114,8 @@ public class RedisDepartmentCache implements DepartmentCache {
             String version,
             java.util.List<DepartmentRecord> departments,
             java.util.List<MatchTypo> typos,
-            java.util.List<String> uncertain) {
+            java.util.List<String> uncertain,
+            java.util.List<String> ambiguous,
+            java.util.List<com.moonligh.consult.agent.domain.department.CanonSynonym> synonyms) {
     }
 }

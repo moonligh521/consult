@@ -41,14 +41,31 @@ class JdbcConsultFlowIT {
         try (ConfigurableApplicationContext context = start()) {
             JdbcTemplate jdbc = context.getBean(JdbcTemplate.class);
             ensureOrderTable(jdbc);
+            ensurePatientColumns(jdbc);
+            ensureConsultColumns(jdbc);
             ConsultationService service = context.getBean(ConsultationService.class);
 
             ConsultationRes card = service.acceptMessage(null, ORDINARY);
             assertEquals(ConsultationStatus.CARD_READY, card.status());
             String id = card.consultationId();
 
+            assertEquals("RULE", card.card().departmentSource());
+            String triage = jdbc.queryForObject(
+                    "SELECT triage_json FROM consultation_session WHERE id = ?", String.class, id);
+            assertNotNull(triage);
+            assertTrue(!triage.contains("干咳半年"), "triage_json 不存原话");
+            List<Integer> nodes = jdbc.queryForList(
+                    "SELECT DISTINCT node FROM consult_match_decision WHERE consultation_id = ? ORDER BY node",
+                    Integer.class, id);
+            assertTrue(nodes.containsAll(List.of(2, 3, 4, 5, 6)), "出卡应有 N2–N6 决策: " + nodes);
+            assertNotNull(jdbc.queryForObject(
+                    "SELECT MIN(certainty) FROM safety_decision_audit WHERE consultation_id = ?", Integer.class, id));
+
             ConsultationRes confirmed = service.confirm(id);
             assertEquals(ConsultationStatus.CONFIRMED, confirmed.status());
+            assertEquals(1, jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM consult_match_decision WHERE consultation_id = ? AND node = 7",
+                    Integer.class, id));
             assertEquals(4, confirmed.packages().size());
             assertNull(confirmed.order());
 
@@ -84,6 +101,70 @@ class JdbcConsultFlowIT {
                 .web(WebApplicationType.NONE)
                 .properties("spring.sql.init.mode=never")
                 .run();
+    }
+
+    /** 已有会话表补就诊人列，并确保就诊人表存在。 */
+    private void ensurePatientColumns(JdbcTemplate jdbc) throws IOException {
+        addColumnIfMissing(
+                jdbc,
+                "consultation_session",
+                "patient_id",
+                "ALTER TABLE consultation_session ADD COLUMN patient_id VARCHAR(64) NULL COMMENT '本轮选用的就诊人编号' AFTER age");
+        addColumnIfMissing(
+                jdbc,
+                "consultation_session",
+                "patient_name",
+                "ALTER TABLE consultation_session ADD COLUMN patient_name VARCHAR(32) NULL COMMENT '就诊人姓名快照' AFTER patient_id");
+        Integer exists = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_schema = DATABASE() AND table_name = 'consult_patient'
+                """,
+                Integer.class);
+        if (exists != null && exists > 0) {
+            return;
+        }
+        try (InputStream in = new ClassPathResource("db/schema.sql").getInputStream()) {
+            String sql = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            for (String stmt : stripComments(sql).split(";")) {
+                if (stmt.contains("consult_patient") && stmt.contains("CREATE TABLE")) {
+                    jdbc.execute(stmt);
+                    break;
+                }
+            }
+        }
+    }
+
+    private void ensureConsultColumns(JdbcTemplate jdbc) {
+        addColumnIfMissing(
+                jdbc,
+                "consult_order",
+                "consult_minutes",
+                "ALTER TABLE consult_order ADD COLUMN consult_minutes INT NULL COMMENT '问诊时长分钟' AFTER schedule_id");
+        addColumnIfMissing(
+                jdbc,
+                "consult_order",
+                "ends_at",
+                "ALTER TABLE consult_order ADD COLUMN ends_at DATETIME(3) NULL COMMENT '问诊到期时间' AFTER consult_minutes");
+        addColumnIfMissing(
+                jdbc,
+                "consult_order",
+                "ended_at",
+                "ALTER TABLE consult_order ADD COLUMN ended_at DATETIME(3) NULL COMMENT '实际结束时间' AFTER ends_at");
+    }
+
+    private void addColumnIfMissing(JdbcTemplate jdbc, String table, String column, String ddl) {
+        Integer exists = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM information_schema.columns
+                WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?
+                """,
+                Integer.class,
+                table,
+                column);
+        if (exists == null || exists == 0) {
+            jdbc.execute(ddl);
+        }
     }
 
     /** 按仓库里的脚本建表。已经有表就跳过。 */
@@ -128,6 +209,7 @@ class JdbcConsultFlowIT {
 
     private void deleteConsultation(JdbcTemplate jdbc, String consultationId) {
         jdbc.update("DELETE FROM consult_order WHERE consultation_id = ?", consultationId);
+        jdbc.update("DELETE FROM consult_match_decision WHERE consultation_id = ?", consultationId);
         jdbc.update("DELETE FROM safety_decision_audit WHERE consultation_id = ?", consultationId);
         jdbc.update("DELETE FROM consultation_message WHERE consultation_id = ?", consultationId);
         jdbc.update("DELETE FROM consultation_session WHERE id = ?", consultationId);

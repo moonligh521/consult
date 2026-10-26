@@ -1,13 +1,16 @@
 package com.moonligh.consult.agent.domain;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.domain.safety.InMemorySafetyAuditRecorder;
 import com.moonligh.consult.agent.domain.safety.SafetyDecisionAudit;
+import com.moonligh.consult.agent.domain.triage.MatchDecision;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 
@@ -21,6 +24,7 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
     /** 同一咨询编号排队，模拟生产行锁。 */
     private final ConcurrentMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
     private final InMemorySafetyAuditRecorder auditRecorder;
+    private final List<MatchDecision> decisions = new CopyOnWriteArrayList<>();
     /** 下一次保存故意失败，用来测急症落库保护。 */
     private boolean failNextPersist;
 
@@ -110,5 +114,11 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
         for (SafetyDecisionAudit audit : session.drainPendingAudits()) {
             auditRecorder.record(audit);
         }
+        decisions.addAll(session.drainPendingDecisions());
+    }
+
+    /** 已保存的逐节点决策，按写入顺序。 */
+    public List<MatchDecision> decisions() {
+        return List.copyOf(decisions);
     }
 }

@@ -1,7 +1,9 @@
 package com.moonligh.consult.agent.service;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,17 +12,21 @@ import org.springframework.stereotype.Service;
 import com.moonligh.consult.agent.api.enums.ConsultationStatus;
 import com.moonligh.consult.agent.api.enums.Department;
 import com.moonligh.consult.agent.api.enums.Gender;
+import com.moonligh.consult.agent.api.enums.MissingSlot;
 import com.moonligh.consult.agent.api.enums.ServiceType;
 import com.moonligh.consult.agent.api.req.CardPatchReq;
+import com.moonligh.consult.agent.api.res.AssignedDoctorRes;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.api.res.PayPackageRes;
 import com.moonligh.consult.agent.config.InquiryProperties;
 import com.moonligh.consult.agent.domain.CardFacts;
 import com.moonligh.consult.agent.domain.ComplaintClarity;
+import com.moonligh.consult.agent.domain.ConsultMinutes;
 import com.moonligh.consult.agent.domain.ConsultOrder;
 import com.moonligh.consult.agent.domain.ConsultationRepository;
 import com.moonligh.consult.agent.domain.ConsultationSession;
+import com.moonligh.consult.agent.domain.DoctorAssigner;
 import com.moonligh.consult.agent.domain.DepartmentRouter;
 import com.moonligh.consult.agent.domain.RegistrationAgent;
 import com.moonligh.consult.agent.domain.PayCatalog;
@@ -39,6 +45,17 @@ import com.moonligh.consult.agent.domain.safety.SafetyDecisionAudit;
 import com.moonligh.consult.agent.domain.safety.SafetyGate;
 import com.moonligh.consult.agent.domain.safety.SafetyMetrics;
 import com.moonligh.consult.agent.domain.safety.SafetyPolicy;
+import com.moonligh.consult.agent.domain.patient.MemoryPatientStore;
+import com.moonligh.consult.agent.domain.patient.PatientRecord;
+import com.moonligh.consult.agent.domain.patient.PatientStore;
+import com.moonligh.consult.agent.domain.triage.Certainty;
+import com.moonligh.consult.agent.domain.triage.DecisionSource;
+import com.moonligh.consult.agent.domain.triage.MatchDecision;
+import com.moonligh.consult.agent.domain.triage.RouteDecision;
+import com.moonligh.consult.agent.domain.triage.TriageInput;
+import com.moonligh.consult.agent.domain.triage.TriageNode;
+import com.moonligh.consult.agent.domain.triage.TriageResult;
+import com.moonligh.consult.agent.domain.triage.TriageRun;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 
@@ -64,6 +81,10 @@ public class ConsultationService {
     private final ComplaintClarity complaintClarity;
     /** 问诊通道关闭时不能确认、不能下单。 */
     private final InquiryProperties inquiry;
+    /** 账号下的就诊人档案。绑到本轮咨询时写入性别、年龄和姓名。 */
+    private final PatientStore patients;
+    /** 支付后按二级科和擅长派医生。测试可不接。 */
+    private final DoctorAssigner doctorAssigner;
 
     public ConsultationService(
             ConsultationRepository repository,
@@ -72,7 +93,7 @@ public class ConsultationService {
             SymptomExtractor symptomExtractor,
             DepartmentRouter departmentRouter,
             SafetyMetrics metrics) {
-        this(repository, safetyGate, slotParser, symptomExtractor, new RegistrationAgent(departmentRouter), metrics, new InquiryProperties());
+        this(repository, safetyGate, slotParser, symptomExtractor, new RegistrationAgent(departmentRouter), metrics, new InquiryProperties(), new MemoryPatientStore());
     }
 
     public ConsultationService(
@@ -83,7 +104,42 @@ public class ConsultationService {
             DepartmentRouter departmentRouter,
             SafetyMetrics metrics,
             InquiryProperties inquiry) {
-        this(repository, safetyGate, slotParser, symptomExtractor, new RegistrationAgent(departmentRouter), metrics, inquiry);
+        this(repository, safetyGate, slotParser, symptomExtractor, new RegistrationAgent(departmentRouter), metrics, inquiry, new MemoryPatientStore());
+    }
+
+    public ConsultationService(
+            ConsultationRepository repository,
+            SafetyGate safetyGate,
+            SlotParser slotParser,
+            SymptomExtractor symptomExtractor,
+            DepartmentRouter departmentRouter,
+            SafetyMetrics metrics,
+            InquiryProperties inquiry,
+            PatientStore patients) {
+        this(repository, safetyGate, slotParser, symptomExtractor, new RegistrationAgent(departmentRouter), metrics, inquiry, patients);
+    }
+
+    public ConsultationService(
+            ConsultationRepository repository,
+            SafetyGate safetyGate,
+            SlotParser slotParser,
+            SymptomExtractor symptomExtractor,
+            RegistrationAgent registrationAgent,
+            SafetyMetrics metrics,
+            InquiryProperties inquiry) {
+        this(repository, safetyGate, slotParser, symptomExtractor, registrationAgent, metrics, inquiry, new MemoryPatientStore());
+    }
+
+    public ConsultationService(
+            ConsultationRepository repository,
+            SafetyGate safetyGate,
+            SlotParser slotParser,
+            SymptomExtractor symptomExtractor,
+            RegistrationAgent registrationAgent,
+            SafetyMetrics metrics,
+            InquiryProperties inquiry,
+            PatientStore patients) {
+        this(repository, safetyGate, slotParser, symptomExtractor, registrationAgent, metrics, inquiry, patients, null);
     }
 
     @Autowired
@@ -94,7 +150,9 @@ public class ConsultationService {
             SymptomExtractor symptomExtractor,
             RegistrationAgent registrationAgent,
             SafetyMetrics metrics,
-            InquiryProperties inquiry) {
+            InquiryProperties inquiry,
+            PatientStore patients,
+            DoctorAssigner doctorAssigner) {
         this.repository = repository;
         this.safetyGate = safetyGate;
         this.slotParser = slotParser;
@@ -103,6 +161,8 @@ public class ConsultationService {
         this.metrics = metrics;
         this.complaintClarity = new ComplaintClarity(symptomExtractor, slotParser);
         this.inquiry = inquiry == null ? new InquiryProperties() : inquiry;
+        this.patients = patients == null ? new MemoryPatientStore() : patients;
+        this.doctorAssigner = doctorAssigner;
     }
 
     /** 简写入口：不传 messageId、不传服务类型。 */
@@ -150,7 +210,38 @@ public class ConsultationService {
      * 卡片确认后选择档位。演示环境直接记已支付，不走微信/支付宝。
      */
     public ConsultationRes placeOrder(String consultationId, Integer packageCode) {
-        return repository.runLocked(consultationId, session -> placeOrderLocked(session, packageCode));
+        return placeOrder(consultationId, packageCode, null);
+    }
+
+    public ConsultationRes placeOrder(String consultationId, Integer packageCode, Integer consultMinutes) {
+        return repository.runLocked(consultationId, session -> placeOrderLocked(session, packageCode, consultMinutes));
+    }
+
+    /** 患者结束问诊，释放医生占坑。 */
+    public ConsultationRes endConsult(String consultationId, String reason) {
+        return repository.runLocked(consultationId, session -> endConsultLocked(session, reason));
+    }
+
+    /** 问诊中改时长，从现在起重新计时。 */
+    public ConsultationRes setConsultMinutes(String consultationId, Integer consultMinutes) {
+        return repository.runLocked(consultationId, session -> setConsultMinutesLocked(session, consultMinutes));
+    }
+
+    /**
+     * 把账号下的一位就诊人绑到本轮咨询。性别、年龄以档案为准，病程仍从主诉抽。
+     */
+    public ConsultationRes bindPatient(String consultationId, String patientId, String accountId) {
+        if (consultationId == null || consultationId.isBlank() || patientId == null || patientId.isBlank()) {
+            throw new BusinessException(ErrorCode.PARAM_MISSING);
+        }
+        if (accountId == null || accountId.isBlank()) {
+            throw new BusinessException(ErrorCode.LOGIN_REQUIRED);
+        }
+        PatientRecord patient = patients.find(accountId.trim(), patientId);
+        if (patient == null) {
+            throw new BusinessException(ErrorCode.PATIENT_NOT_FOUND);
+        }
+        return repository.runLocked(consultationId, session -> bindLocked(session, patient));
     }
 
     /**
@@ -208,7 +299,7 @@ public class ConsultationService {
         // 卡片展示用的描述另存一份，和原话分开。
         addDescription(session, sentence);
         // 缺槽位就追问；齐了就出卡片。
-        return nextView(session);
+        return nextView(session, MatchDecision.TRIGGER_CARD);
     }
 
     /**
@@ -273,12 +364,74 @@ public class ConsultationService {
             }
             symptoms = symptomExtractor.extract(description);
         }
-        DepartmentRouter.Advice advice = departmentAdvice(
-                patch.department(), patch.specialty(), descriptionChanged, description, current);
-        ConsultationCardRes card = CardFacts.compose(gender, age, duration, description, symptoms, advice);
+        DepartmentRouter.Advice advice = new DepartmentRouter.Advice(
+                current.department(), current.specialty(), current.departmentEvidence());
+        DecisionSource source = sourceOf(current);
+        boolean patientPicked = source == DecisionSource.PATIENT;
+        if (descriptionChanged || (!patientPicked && crossesRouting(current.age(), current.gender(), age, gender))) {
+            TriageResult triage = runTriage(session, description, age, gender, MatchDecision.TRIGGER_EDIT_DESCRIPTION);
+            if (descriptionChanged) {
+                recordSymptoms(session, triage.runId(), symptoms, MatchDecision.TRIGGER_EDIT_DESCRIPTION);
+            }
+            advice = triage.route().advice();
+            source = triage.route().source();
+        }
+        DepartmentRouter.Advice picked = patientAdvice(patch.department(), patch.specialty());
+        if (picked != null) {
+            advice = picked;
+            source = DecisionSource.PATIENT;
+            recordPatientRoute(session, picked);
+        }
+        ConsultationCardRes card = CardFacts.compose(
+                gender, age, duration, description, symptoms, advice, source,
+                session.getPatientId(), session.getPatientName());
         session.setCard(card);
         session.setBusinessStatus(ConsultationStatus.CARD_READY);
         return buildResponse(session);
+    }
+
+    /** 患者在卡片上改科。没改返回 null。 */
+    private DepartmentRouter.Advice patientAdvice(Department patched, String specialty) {
+        boolean specialtyChanged = specialty != null && !specialty.isBlank();
+        if (patched != null) {
+            return registrationAgent.confirm(patched, specialtyChanged ? specialty : null);
+        }
+        if (specialtyChanged) {
+            return registrationAgent.confirmSpecialty(specialty);
+        }
+        return null;
+    }
+
+    /** 患者改科：归约病名保留给派医生，挂科换成患者选的。 */
+    private void recordPatientRoute(ConsultationSession session, DepartmentRouter.Advice picked) {
+        RouteDecision route = RegistrationAgent.patientRoute(picked);
+        TriageResult previous = session.getTriage();
+        String runId = UUID.randomUUID().toString();
+        if (previous != null) {
+            session.setTriage(previous.withRoute(route));
+        }
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("departmentCode", picked.department().getCode());
+        output.put("specialty", picked.specialty());
+        output.put("previousSpecialty", previous == null ? null : previous.route().advice().specialty());
+        record(session, MatchDecision.of(runId, TriageNode.N6_DEPARTMENT, Certainty.CERTAIN, DecisionSource.PATIENT,
+                RouteDecision.PATIENT_CONFIRM, output, List.of(), 0), MatchDecision.TRIGGER_PATIENT_DEPARTMENT);
+    }
+
+    /** 儿科年龄线和性别科在目录里配置，年龄或性别一变就重跑；规则路径很便宜，模型结果按指纹缓存。 */
+    private static boolean crossesRouting(Integer oldAge, Gender oldGender, Integer newAge, Gender newGender) {
+        return oldGender != newGender || !java.util.Objects.equals(oldAge, newAge);
+    }
+
+    private static DecisionSource sourceOf(ConsultationCardRes card) {
+        if (card == null || card.departmentSource() == null) {
+            return null;
+        }
+        try {
+            return DecisionSource.valueOf(card.departmentSource());
+        } catch (IllegalArgumentException error) {
+            return null;
+        }
     }
 
     /**
@@ -298,13 +451,30 @@ public class ConsultationService {
             throw new BusinessException(ErrorCode.CARD_NOT_READY);
         }
         session.setBusinessStatus(ConsultationStatus.CONFIRMED);
+        recordConfirm(session);
         return buildResponse(session);
+    }
+
+    /** N7：患者确认时是否改过科室或描述。 */
+    private void recordConfirm(ConsultationSession session) {
+        boolean departmentPatched = sourceOf(session.getCard()) == DecisionSource.PATIENT;
+        boolean descriptionPatched = session.messages().stream()
+                .anyMatch(message -> message.source() == MessageSource.CARD_EDIT);
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("departmentPatched", departmentPatched);
+        output.put("descriptionPatched", descriptionPatched);
+        output.put("specialty", session.getCard() == null ? null : session.getCard().specialty());
+        boolean patched = departmentPatched || descriptionPatched;
+        String runId = session.getTriage() == null ? UUID.randomUUID().toString() : session.getTriage().runId();
+        record(session, MatchDecision.of(runId, TriageNode.N7_CARD, Certainty.CERTAIN,
+                patched ? DecisionSource.PATIENT : DecisionSource.RULE, patched ? "PATCHED" : "AS_IS",
+                output, List.of(), 0), MatchDecision.TRIGGER_CONFIRM);
     }
 
     /**
      * 已经拿到会话锁之后下单。急症和未确认都不能买。
      */
-    private ConsultationRes placeOrderLocked(ConsultationSession session, Integer packageCode) {
+    private ConsultationRes placeOrderLocked(ConsultationSession session, Integer packageCode, Integer consultMinutes) {
         SafetyPolicy.rejectIfSafetyStop(session);
         rejectIfInquiryClosed();
         if (session.getBusinessStatus() != ConsultationStatus.CONFIRMED) {
@@ -324,8 +494,130 @@ public class ConsultationService {
             }
             throw new BusinessException(ErrorCode.ALREADY_ORDERED);
         }
-        session.setOrder(ConsultOrder.paidOf(pkg));
+        int minutes = ConsultMinutes.of(consultMinutes);
+        ConsultOrder order = ConsultOrder.paidOf(pkg, minutes);
+        if (doctorAssigner != null) {
+            List<String> terms = canonicalTerms(session);
+            AssignedDoctorRes doctor = doctorAssigner.assign(
+                    session.getId(), order.orderId(), session.getCard(), terms, minutes);
+            order = order.withDoctor(doctor);
+            recordAssign(session, order.orderId(), doctor, terms);
+        }
+        session.setOrder(order);
         return buildResponse(session);
+    }
+
+    private ConsultationRes endConsultLocked(ConsultationSession session, String reason) {
+        ConsultOrder order = session.getOrder();
+        if (order == null) {
+            throw new BusinessException(ErrorCode.ORDER_NOT_ALLOWED);
+        }
+        if (order.endedAt() != null) {
+            return buildResponse(session);
+        }
+        String code = reason == null || reason.isBlank() ? "ENDED" : reason.trim();
+        // 页面倒计时和 XXL 都可能走到这里，过期一律记 TIMEOUT
+        if (order.endsAt() != null && Instant.now().isAfter(order.endsAt())) {
+            code = "TIMEOUT";
+        }
+        if (doctorAssigner != null) {
+            doctorAssigner.release(order.orderId(), code);
+        }
+        session.setOrder(order.ended(Instant.now()));
+        recordRelease(session, code);
+        return buildResponse(session);
+    }
+
+    private ConsultationRes setConsultMinutesLocked(ConsultationSession session, Integer consultMinutes) {
+        ConsultOrder order = session.getOrder();
+        if (order == null) {
+            throw new BusinessException(ErrorCode.ORDER_NOT_ALLOWED);
+        }
+        if (order.endedAt() != null) {
+            throw new BusinessException(ErrorCode.CONSULT_ENDED);
+        }
+        int minutes = ConsultMinutes.of(consultMinutes);
+        if (doctorAssigner != null) {
+            doctorAssigner.extend(order.orderId(), minutes);
+        }
+        session.setOrder(order.withMinutes(minutes));
+        return buildResponse(session);
+    }
+
+    /** 派单用的归约病名。只读已存结论；老会话没有时纯规则现算，支付路径不调模型。 */
+    private List<String> canonicalTerms(ConsultationSession session) {
+        if (session.getTriage() != null) {
+            return session.getTriage().canonicalTerms();
+        }
+        ConsultationCardRes card = session.getCard();
+        if (card == null || card.description() == null) {
+            return List.of();
+        }
+        return registrationAgent.engine().canon().rule(card.description()).termNames();
+    }
+
+    /** N8 派医生 + N9 占坑。 */
+    private void recordAssign(ConsultationSession session, String orderId, AssignedDoctorRes doctor, List<String> terms) {
+        String runId = session.getTriage() == null ? UUID.randomUUID().toString() : session.getTriage().runId();
+        String matchSource = doctor == null || doctor.matchSource() == null ? "UNKNOWN" : doctor.matchSource();
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("doctorId", doctor == null ? null : doctor.id());
+        output.put("specialty", doctor == null ? null : doctor.specialty());
+        output.put("canonicalTerms", terms);
+        output.put("skillHit", doctor == null ? null : doctor.evidence());
+        boolean skill = matchSource.startsWith("SKILL_");
+        record(session, MatchDecision.of(runId, TriageNode.N8_DOCTOR, skill ? Certainty.CERTAIN : Certainty.UNCERTAIN,
+                skill ? DecisionSource.RULE : DecisionSource.FALLBACK, matchSource, output, List.of(), 0),
+                orderId, MatchDecision.TRIGGER_ASSIGN);
+        record(session, MatchDecision.of(runId, TriageNode.N9_OCCUPY, Certainty.CERTAIN, DecisionSource.RULE,
+                doctor == null ? "NO_DOCTOR" : "OCCUPIED",
+                Map.of("scheduleId", doctor == null || doctor.scheduleId() == null ? "" : doctor.scheduleId()),
+                List.of(), 0), orderId, MatchDecision.TRIGGER_ASSIGN);
+    }
+
+    private void recordRelease(ConsultationSession session, String reason) {
+        ConsultOrder order = session.getOrder();
+        String runId = session.getTriage() == null ? UUID.randomUUID().toString() : session.getTriage().runId();
+        record(session, MatchDecision.of(runId, TriageNode.N9_OCCUPY, Certainty.CERTAIN, DecisionSource.RULE,
+                reason, Map.of("orderId", order == null ? "" : order.orderId()), List.of(), 0),
+                order == null ? null : order.orderId(), MatchDecision.TRIGGER_ASSIGN);
+    }
+
+    /** 已经拿到会话锁之后写入就诊人。 */
+    private ConsultationRes bindLocked(ConsultationSession session, PatientRecord patient) {
+        SafetyPolicy.rejectIfSafetyStop(session);
+        if (session.getBusinessStatus() == ConsultationStatus.CONFIRMED) {
+            throw new BusinessException(ErrorCode.ALREADY_CONFIRMED);
+        }
+        session.setPatientId(patient.id());
+        session.setPatientName(patient.name());
+        session.setGender(patient.gender());
+        session.setAge(patient.age());
+        if (session.getBusinessStatus() == ConsultationStatus.CARD_READY && session.getCard() != null) {
+            ConsultationCardRes current = session.getCard();
+            DepartmentRouter.Advice advice = new DepartmentRouter.Advice(
+                    current.department(), current.specialty(), current.departmentEvidence());
+            DecisionSource source = sourceOf(current);
+            if (source != DecisionSource.PATIENT
+                    && crossesRouting(current.age(), current.gender(), session.getAge(), session.getGender())) {
+                TriageResult triage = runTriage(session, current.description(), session.getAge(), session.getGender(),
+                        MatchDecision.TRIGGER_BIND_PATIENT);
+                advice = triage.route().advice();
+                source = triage.route().source();
+            }
+            session.setCard(CardFacts.compose(
+                    session.getGender(),
+                    session.getAge(),
+                    current.duration(),
+                    current.description(),
+                    current.symptoms(),
+                    advice,
+                    source,
+                    session.getPatientId(),
+                    session.getPatientName()));
+            return buildResponse(session);
+        }
+        return nextView(session, MatchDecision.TRIGGER_BIND_PATIENT);
     }
 
     /**
@@ -369,7 +661,9 @@ public class ConsultationService {
                 businessBefore,
                 session.getBusinessStatus().getCode(),
                 view.prompt() == null ? null : templateIdOf(view.status()),
-                Instant.now()));
+                Instant.now(),
+                assessment.ruleCertain(),
+                assessment.modelTriggerIds()));
         metrics.increment("status." + view.status().getCode());
         // DRAFT 规则命中只进影子计数，不影响患者决策。
         if (!assessment.shadowRuleIds().isEmpty()) {
@@ -458,35 +752,87 @@ public class ConsultationService {
         if (session.getBusinessStatus() != ConsultationStatus.NEED_DESCRIPTION) {
             return false;
         }
+        boolean ask;
+        String reason;
         if (!complaintClarity.isVague(sentence)) {
-            return false;
-        }
-        int patientTurns = 0;
-        for (var message : session.messages()) {
-            if (message.source() == MessageSource.MESSAGE) {
-                patientTurns++;
+            ask = false;
+            reason = "CLEAR";
+        } else {
+            int patientTurns = 0;
+            for (var message : session.messages()) {
+                if (message.source() == MessageSource.MESSAGE) {
+                    patientTurns++;
+                }
             }
+            ask = patientTurns <= 1;
+            reason = ask ? "VAGUE_ASK" : "VAGUE_PASS_SECOND";
         }
-        return patientTurns <= 1;
+        record(session, MatchDecision.of(UUID.randomUUID().toString(), TriageNode.N2_VAGUE, Certainty.CERTAIN,
+                DecisionSource.RULE, reason, Map.of("ask", ask), List.of(), 0),
+                ask ? MatchDecision.TRIGGER_VAGUE : MatchDecision.TRIGGER_CARD);
+        return ask;
     }
 
     /** 缺槽位就追问，齐了就生成卡片。 */
-    private ConsultationRes nextView(ConsultationSession session) {
-        if (Slots.nextMissing(session) != null) {
+    private ConsultationRes nextView(ConsultationSession session, int trigger) {
+        MissingSlot missing = Slots.nextMissing(session);
+        recordSlot(session, missing, trigger);
+        if (missing != null) {
             session.setBusinessStatus(ConsultationStatus.NEED_SLOT);
             session.setCard(null);
             return buildResponse(session);
         }
-        ConsultationCardRes card = CardFacts.compose(
+        List<String> symptoms = symptomExtractor.extract(session.getDescription());
+        TriageResult triage = runTriage(session, session.getDescription(), session.getAge(), session.getGender(), trigger);
+        recordSymptoms(session, triage.runId(), symptoms, trigger);
+        session.setCard(CardFacts.compose(
                 session.getGender(),
                 session.getAge(),
                 session.getDuration(),
                 session.getDescription(),
-                symptomExtractor.extract(session.getDescription()),
-                registrationAgent.advise(session.getDescription(), session.getAge(), session.getGender()));
-        session.setCard(card);
+                symptoms,
+                triage.route().advice(),
+                triage.route().source(),
+                session.getPatientId(),
+                session.getPatientName()));
         session.setBusinessStatus(ConsultationStatus.CARD_READY);
         return buildResponse(session);
+    }
+
+    /** 跑一次 N4+N6，结论存进会话，决策排队落库。 */
+    private TriageResult runTriage(ConsultationSession session, String description, Integer age, Gender gender, int trigger) {
+        TriageRun run = registrationAgent.triage(new TriageInput(description, age, gender));
+        session.setTriage(run.result());
+        session.addPendingDecisions(run.decisions(), null, trigger);
+        return run.result();
+    }
+
+    /** N3：槽位是否齐。 */
+    private void recordSlot(ConsultationSession session, MissingSlot missing, int trigger) {
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("missing", missing == null ? null : missing.name());
+        output.put("hasGender", session.getGender() != null);
+        output.put("hasAge", session.getAge() != null);
+        output.put("hasDuration", session.getDuration() != null);
+        record(session, MatchDecision.of(UUID.randomUUID().toString(), TriageNode.N3_SLOT, Certainty.CERTAIN,
+                DecisionSource.RULE, missing == null ? "SLOTS_COMPLETE" : "ASK_" + missing.name(), output, List.of(), 0), trigger);
+    }
+
+    /** N5：卡片上的症状标签。 */
+    private void recordSymptoms(ConsultationSession session, String runId, List<String> symptoms, int trigger) {
+        record(session, MatchDecision.of(runId, TriageNode.N5_SYMPTOM, Certainty.CERTAIN, DecisionSource.RULE,
+                symptoms.isEmpty() ? "NO_SYMPTOM" : "SYMPTOM_HIT", Map.of("symptoms", symptoms), List.of(), 0), trigger);
+    }
+
+    private void record(ConsultationSession session, MatchDecision decision, int trigger) {
+        record(session, decision, null, trigger);
+    }
+
+    private void record(ConsultationSession session, MatchDecision decision, String orderId, int trigger) {
+        String catalogVersion = session.getTriage() == null ? null : session.getTriage().catalogVersion();
+        String fingerprint = session.getTriage() == null ? null : session.getTriage().fingerprint();
+        session.addPendingDecisions(
+                List.of(decision.withVersion(catalogVersion, fingerprint, decision.shadowIds())), orderId, trigger);
     }
 
     /** 空文本：请重新描述；如果正在补槽，状态仍是待补槽。 */
@@ -530,28 +876,6 @@ public class ConsultationService {
         if (inquiry.isClosed()) {
             throw new BusinessException(ErrorCode.INQUIRY_CLOSED);
         }
-    }
-
-    /** 改科室用患者确认；改描述则重新推荐；其它改动沿用原依据。 */
-    private DepartmentRouter.Advice departmentAdvice(
-            Department patched,
-            String specialty,
-            boolean descriptionChanged,
-            String description,
-            ConsultationCardRes current) {
-        boolean specialtyChanged = specialty != null && !specialty.isBlank();
-        if (patched != null) {
-            return registrationAgent.confirm(patched, specialtyChanged ? specialty : null);
-        }
-        if (specialtyChanged) {
-            return registrationAgent.confirmSpecialty(specialty);
-        }
-        if (descriptionChanged) {
-            Integer age = current == null ? null : current.age();
-            Gender gender = current == null ? null : current.gender();
-            return registrationAgent.advise(description, age, gender);
-        }
-        return new DepartmentRouter.Advice(current.department(), current.specialty(), current.departmentEvidence());
     }
 
     /** 当前生效的急症目录，用来取提示文案。 */

@@ -50,7 +50,7 @@ class ConsultationAcceptanceTest {
         ConsultationRes first = service.acceptMessage(null, "男，干咳三天");
         assertEquals(ConsultationStatus.NEED_SLOT, first.status());
         assertEquals(MissingSlot.AGE, first.missingSlot());
-        assertEquals("请补充年龄。", first.prompt());
+        assertEquals("请问您想为以下哪位患者咨询?", first.prompt());
         assertNull(first.card());
 
         ConsultationRes second = service.acceptMessage(first.consultationId(), "32岁");
@@ -312,7 +312,7 @@ class ConsultationAcceptanceTest {
         ConsultationRes view = service.acceptMessage(null, "孕妇，干咳半年");
         assertEquals(ConsultationStatus.NEED_SLOT, view.status());
         assertEquals(MissingSlot.GENDER, view.missingSlot());
-        assertEquals("请补充性别。", view.prompt());
+        assertEquals("请问您想为以下哪位患者咨询?", view.prompt());
         assertNull(view.card());
     }
 

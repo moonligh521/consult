@@ -9,7 +9,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.moonligh.consult.agent.domain.DepartmentAdvisor;
 import com.moonligh.consult.agent.domain.DepartmentRouter;
 import com.moonligh.consult.agent.domain.RegistrationAgent;
 import com.moonligh.consult.agent.domain.department.DepartmentCatalog;
@@ -17,10 +16,11 @@ import com.moonligh.consult.agent.domain.department.DepartmentCatalogWriter;
 import com.moonligh.consult.agent.domain.department.LexiconWriteRules;
 import com.moonligh.consult.agent.domain.department.ScheduledDelayScheduler;
 import com.moonligh.consult.agent.domain.safety.SafetyCatalog;
+import com.moonligh.consult.agent.domain.triage.ComplaintModel;
+import com.moonligh.consult.agent.domain.triage.TriageEngine;
 import com.moonligh.consult.agent.infrastructure.department.CachedDepartmentCatalog;
 import com.moonligh.consult.agent.infrastructure.department.JdbcDepartmentCatalogStore;
 import com.moonligh.consult.agent.infrastructure.department.RedisDepartmentCache;
-import com.moonligh.consult.agent.infrastructure.langchain.DeepSeekDepartmentAdvisor;
 
 /**
  * 科室目录：MySQL 为源，Redis 做校验快照，变更走延时双删。
@@ -80,23 +80,16 @@ public class DepartmentConfiguration {
         return new DepartmentRouter(catalog);
     }
 
-    /** 默认关闭。打开后只在快路径没有关键词时建议科室。 */
     @Bean
-    public DepartmentAdvisor departmentAdvisor(
-            InquiryProperties inquiry,
-            SafetyProperties safety,
-            DepartmentCatalog catalog) {
-        if (!inquiry.isAdvisorEnabled()) {
-            return DepartmentAdvisor.disabled();
-        }
-        return new DeepSeekDepartmentAdvisor(safety, catalog);
+    public TriageEngine triageEngine(
+            DepartmentCatalog catalog,
+            DepartmentRouter router,
+            ComplaintModel complaintModel) {
+        return new TriageEngine(catalog, router, complaintModel);
     }
 
     @Bean
-    public RegistrationAgent registrationAgent(
-            DepartmentRouter router,
-            DepartmentAdvisor advisor,
-            DepartmentCatalog catalog) {
-        return new RegistrationAgent(router, advisor, catalog);
+    public RegistrationAgent registrationAgent(TriageEngine engine, DepartmentCatalog catalog) {
+        return new RegistrationAgent(engine, catalog);
     }
 }

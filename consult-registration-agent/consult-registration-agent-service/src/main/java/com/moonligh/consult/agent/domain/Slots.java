@@ -25,13 +25,10 @@ public final class Slots {
         return null;
     }
 
-    /** 追问这句话怎么说。 */
+    /** 追问这句话怎么说。缺性别或年龄时先选账号下的就诊人。 */
     public static String promptFor(MissingSlot slot) {
-        if (slot == MissingSlot.GENDER) {
-            return "请补充性别。";
-        }
-        if (slot == MissingSlot.AGE) {
-            return "请补充年龄。";
+        if (slot == MissingSlot.GENDER || slot == MissingSlot.AGE) {
+            return "请问您想为以下哪位患者咨询?";
         }
         return "请补充病程。";
     }

@@ -11,22 +11,11 @@ public class InquiryProperties {
     /** true 时整条支付链路关闭。默认开放。 */
     private boolean closed = false;
 
-    /** 关键词对不上时才允许模型建议科室。默认关闭。 */
-    private boolean advisorEnabled = false;
-
     public boolean isClosed() {
         return closed;
     }
 
     public void setClosed(boolean closed) {
         this.closed = closed;
-    }
-
-    public boolean isAdvisorEnabled() {
-        return advisorEnabled;
-    }
-
-    public void setAdvisorEnabled(boolean advisorEnabled) {
-        this.advisorEnabled = advisorEnabled;
     }
 }

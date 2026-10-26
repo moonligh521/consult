@@ -1,58 +1,60 @@
 package com.moonligh.consult.agent.domain;
 
+import java.util.List;
+
 import com.moonligh.consult.agent.api.enums.Department;
 import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.domain.department.DepartmentCatalog;
 import com.moonligh.consult.agent.domain.department.DepartmentRecord;
 import com.moonligh.consult.agent.domain.department.DepartmentSnapshot;
 import com.moonligh.consult.agent.domain.department.MemoryDepartmentCatalog;
+import com.moonligh.consult.agent.domain.triage.Certainty;
+import com.moonligh.consult.agent.domain.triage.ComplaintModel;
+import com.moonligh.consult.agent.domain.triage.DecisionSource;
+import com.moonligh.consult.agent.domain.triage.RouteDecision;
+import com.moonligh.consult.agent.domain.triage.TriageEngine;
+import com.moonligh.consult.agent.domain.triage.TriageInput;
+import com.moonligh.consult.agent.domain.triage.TriageRun;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 
 /**
- * 工具型挂号 Agent：先走纠错+关键词快路径，对不上词才允许模型建议科室。
+ * 挂号 Agent：归约与挂科交给 {@link TriageEngine}（规则 → 模型 → 兜底），患者改科在这里落成 PATIENT。
  * 急症仍由 SafetyGate 先判；这里不能升 120、不能超出已开通科室。
  */
 public class RegistrationAgent {
 
-    private final DepartmentRouter router;
-    private final DepartmentAdvisor advisor;
+    private final TriageEngine engine;
     private final DepartmentCatalog catalog;
 
     public RegistrationAgent(DepartmentRouter router) {
-        this(router, DepartmentAdvisor.disabled(), MemoryDepartmentCatalog.seed());
+        this(MemoryDepartmentCatalog.seed(), router, ComplaintModel.unavailable());
     }
 
-    public RegistrationAgent(DepartmentRouter router, DepartmentAdvisor advisor, DepartmentCatalog catalog) {
-        this.router = router;
-        this.advisor = advisor == null ? DepartmentAdvisor.disabled() : advisor;
+    public RegistrationAgent(DepartmentCatalog catalog, DepartmentRouter router, ComplaintModel model) {
+        this(new TriageEngine(catalog, router, model), catalog);
+    }
+
+    public RegistrationAgent(TriageEngine engine, DepartmentCatalog catalog) {
+        this.engine = engine;
         this.catalog = catalog;
     }
 
-    /** 推荐科室。有关键词或不确定话术时不调模型。 */
+    public TriageEngine engine() {
+        return engine;
+    }
+
+    public TriageRun triage(TriageInput in) {
+        return engine.run(in);
+    }
+
+    /** 只要挂科结论时的简写。 */
     public DepartmentRouter.Advice advise(String description, Integer age, Gender gender) {
-        DepartmentSnapshot snapshot = catalog.snapshot();
-        DepartmentRouter.Advice fast = router.advise(description, age, gender);
-        if (!needsAdvisor(description, fast, snapshot)) {
-            return fast;
-        }
-        return advisor.suggest(description, age, gender)
-                .map(slow -> clamp(slow, snapshot))
-                .orElse(fast);
+        return triage(new TriageInput(description, age, gender)).result().route().advice();
     }
 
     public DepartmentRouter.Advice advise(String description) {
         return advise(description, null, null);
-    }
-
-    static boolean needsAdvisor(String description, DepartmentRouter.Advice fast, DepartmentSnapshot snapshot) {
-        if (description == null || description.isBlank()) {
-            return false;
-        }
-        if (SpokenNormalizer.uncertainDepartment(description, snapshot)) {
-            return false;
-        }
-        return fast.evidence() == null;
     }
 
     /** 患者在卡片上确认的二级科。specialty 对不上时落到该一级类的默认二级。 */
@@ -72,16 +74,8 @@ public class RegistrationAgent {
         return confirm(parent.toDepartment(), specialty);
     }
 
-    private static DepartmentRouter.Advice clamp(DepartmentRouter.Advice advice, DepartmentSnapshot snapshot) {
-        if (advice == null || advice.department() == null) {
-            var fallback = snapshot.fallback();
-            return new DepartmentRouter.Advice(fallback.toDepartment(), fallback.defaultSpecialty(), null);
-        }
-        if (!snapshot.isEnabled(advice.department().getCode())) {
-            var fallback = snapshot.fallback();
-            return new DepartmentRouter.Advice(fallback.toDepartment(), fallback.defaultSpecialty(), null);
-        }
-        String specialty = snapshot.resolveSpecialty(advice.department(), advice.specialty());
-        return new DepartmentRouter.Advice(advice.department(), specialty, advice.evidence());
+    /** 患者改科后的挂科结论。 */
+    public static RouteDecision patientRoute(DepartmentRouter.Advice advice) {
+        return new RouteDecision(advice, Certainty.CERTAIN, DecisionSource.PATIENT, RouteDecision.PATIENT_CONFIRM, List.of());
     }
 }

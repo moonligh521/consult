@@ -22,4 +22,19 @@ public interface DepartmentCatalogStore {
     default void upsertKeyword(int departmentCode, String keyword, KeywordKind kind) {
         throw new UnsupportedOperationException("upsertKeyword");
     }
+
+    /** 写入一条歧义症状。 */
+    default void upsertAmbiguous(String phrase) {
+        throw new UnsupportedOperationException("upsertAmbiguous");
+    }
+
+    /** 新建或修改一条 DRAFT 同义规则。非 DRAFT 不能改。 */
+    default void saveSynonym(CanonSynonym rule) {
+        throw new UnsupportedOperationException("saveSynonym");
+    }
+
+    /** 同义规则状态迁移。from 对不上就失败。 */
+    default void setSynonymStatus(String ruleId, SynonymStatus from, SynonymStatus to, String reviewer) {
+        throw new UnsupportedOperationException("setSynonymStatus");
+    }
 }

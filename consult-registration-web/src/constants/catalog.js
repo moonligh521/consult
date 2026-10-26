@@ -28,16 +28,25 @@ export const GENDER_OPTIONS = [
   { label: '女', value: 2 },
 ]
 
-/**
- * 当前账号绑定的就诊人。演示数据，以后换成登录账号的档案接口。
- * 没有绑定就诊人时返回空数组，这一步整段不展示。
- * gender：1 男 2 女。
- */
-export const BOUND_PATIENTS = [
-  { id: 'p-self', name: '张明', gender: 1, age: 32, relation: '本人', isDefault: true },
-  { id: 'p-spouse', name: '李芳', gender: 2, age: 28, relation: '配偶', isDefault: false },
-  { id: 'p-child', name: '张小童', gender: 1, age: 8, relation: '子女', isDefault: false },
+export const RELATION_OPTIONS = [
+  { label: '本人', value: '本人' },
+  { label: '配偶', value: '配偶' },
+  { label: '子女', value: '子女' },
+  { label: '父母', value: '父母' },
+  { label: '其他', value: '其他' },
 ]
+
+/** 姓名脱敏：张明 → *明。没有姓名时显示匿名。 */
+export function maskPatientName(name) {
+  const value = (name || '').trim()
+  if (!value) {
+    return '匿名'
+  }
+  if (value.length === 1) {
+    return '*'
+  }
+  return `*${value.slice(1)}`
+}
 
 /** 问诊通道。closed 与后端 inquiry.closed 对齐，演示默认开放。 */
 export const INQUIRY = {
@@ -45,9 +54,17 @@ export const INQUIRY = {
   matchTimeoutMs: 20000,
 }
 
-/** 当前账号下的就诊人。没有档案就空列表。 */
-export function patientsOfAccount() {
-  return BOUND_PATIENTS
+/** 问诊时长。默认 15 分钟，用户可改。 */
+export const CONSULT_MINUTES = {
+  default: 15,
+  storageKey: 'consult-minutes',
+  options: [
+    { label: '5 分钟', value: 5 },
+    { label: '10 分钟', value: 10 },
+    { label: '15 分钟', value: 15 },
+    { label: '20 分钟', value: 20 },
+    { label: '30 分钟', value: 30 },
+  ],
 }
 
 /** 选择器默认落在成年，不从 0 起。列表仍含 1～120 岁。 */

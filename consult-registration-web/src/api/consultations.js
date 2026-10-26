@@ -21,6 +21,21 @@ export function listPackages() {
 }
 
 /** 选择档位并支付。后端直接返回支付成功。 */
-export function placeOrder(consultationId, packageCode, payChannel) {
-  return http.post('/api/consultations/orders', { consultationId, packageCode, payChannel })
+export function placeOrder(consultationId, packageCode, payChannel, consultMinutes) {
+  return http.post('/api/consultations/orders', { consultationId, packageCode, payChannel, consultMinutes })
+}
+
+/** 结束问诊，释放医生。 */
+export function endConsult(consultationId, reason) {
+  return http.post('/api/consultations/end', { consultationId, reason })
+}
+
+/** 问诊中改时长。 */
+export function setConsultMinutes(consultationId, consultMinutes) {
+  return http.post('/api/consultations/session', { consultationId, consultMinutes })
+}
+
+/** 把当前账号的一位就诊人绑到本轮咨询。 */
+export function bindPatient(consultationId, patientId) {
+  return http.post('/api/consultations/patient', { consultationId, patientId })
 }

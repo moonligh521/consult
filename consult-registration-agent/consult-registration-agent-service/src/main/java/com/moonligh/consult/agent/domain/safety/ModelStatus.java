@@ -16,7 +16,11 @@ public enum ModelStatus {
     /** 没密钥、限流或上游失败。 */
     UNAVAILABLE(4),
     /** 输出对不上原话或目录。 */
-    INVALID_OUTPUT(5);
+    INVALID_OUTPUT(5),
+    /** 并发打满，没抢到许可。 */
+    BUSY(6),
+    /** 熔断打开，直接放弃。 */
+    BREAKER_OPEN(7);
 
     /** 存进审计表的数字。 */
     private final int code;
@@ -27,5 +31,10 @@ public enum ModelStatus {
 
     public int getCode() {
         return code;
+    }
+
+    /** 调了但没拿到可用结果。 */
+    public boolean failed() {
+        return this == TIMEOUT || this == UNAVAILABLE || this == INVALID_OUTPUT || this == BUSY || this == BREAKER_OPEN;
     }
 }

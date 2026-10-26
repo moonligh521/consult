@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { NDrawer, NDrawerContent } from 'naive-ui'
 import AppSider from '../components/AppSider.vue'
 import CardPanel from '../components/CardPanel.vue'
@@ -11,8 +12,11 @@ import ZhiAvatar from '../components/ZhiAvatar.vue'
 import { HUMAN_SHORTCUTS } from '../domain/humanAgent'
 import { DESCRIPTION_EXAMPLES, MISSING_SLOT, STATUS } from '../constants/catalog'
 import { useConsultationStore } from '../stores/consultation'
+import { useAuthStore } from '../stores/auth'
 
 const store = useConsultationStore()
+const auth = useAuthStore()
+const router = useRouter()
 const draft = ref('')
 const attachHint = ref('')
 const feed = ref(null)
@@ -27,15 +31,20 @@ function syncDrawer() {
 onMounted(() => {
   syncDrawer()
   window.addEventListener('resize', syncDrawer)
+  store.startConsultClock()
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', syncDrawer)
+  store.stopConsultClock()
 })
 
 const matching = computed(() => store.matchPhase === 'matching')
 
 const pageTitle = computed(() => {
+  if (store.consultEnded) {
+    return '问诊已结束'
+  }
   if (store.doctorOnline && store.doctor) {
     return `${store.doctor.name}医生 | 图文问诊`
   }
@@ -64,11 +73,8 @@ const placeholder = computed(() => {
   if (store.status === STATUS.NEED_HUMAN) {
     return '正在与人工客服对话，可直接输入'
   }
-  if (store.missingSlot === MISSING_SLOT.GENDER) {
-    return '请点选上方性别，不要手打'
-  }
-  if (store.missingSlot === MISSING_SLOT.AGE) {
-    return '请点选上方年龄，不要手打'
+  if (store.missingSlot === MISSING_SLOT.GENDER || store.missingSlot === MISSING_SLOT.AGE) {
+    return '请选择就诊人或新建患者'
   }
   if (store.missingSlot === MISSING_SLOT.DURATION) {
     return '请补充病程，例如「半年」「3天」'
@@ -80,10 +86,13 @@ const placeholder = computed(() => {
 })
 
 const hideComposer = computed(() => (
-  !store.humanOnline
-  && !store.doctorOnline
-  && (store.showCard || matching.value)
-  && !store.stopped
+  store.consultEnded
+  || (
+    !store.humanOnline
+    && !store.doctorOnline
+    && (store.showCard || matching.value)
+    && !store.stopped
+  )
 ))
 
 const lockComposer = computed(() => (
@@ -209,6 +218,12 @@ function goHome() {
   showRecords.value = false
 }
 
+function logout() {
+  auth.logout()
+  store.startNew()
+  router.replace('/login')
+}
+
 function onAttach() {
   attachHint.value = '检查单和照片上传即将开放，目前请先用文字描述症状。'
   window.setTimeout(() => {
@@ -232,6 +247,7 @@ function initialOf(name) {
       <h1>{{ pageTitle }}</h1>
       <div class="top-right">
         <button class="nav-link" type="button" @click="showRecords = true">咨询记录</button>
+        <button class="nav-link" type="button" @click="logout">退出</button>
         <button class="user-btn" type="button" aria-label="咨询记录" @click="showRecords = true">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
             <path
@@ -246,7 +262,7 @@ function initialOf(name) {
     <SafetyBanner :status="store.status" :prompt="store.prompt" />
 
     <div ref="feed" class="feed">
-      <UserInfoCard v-if="store.inClinic" />
+      <UserInfoCard v-if="store.inClinic || store.consultEnded" />
       <section v-if="store.doctorOnline && store.doctor" class="hero doctor">
         <div class="avatar md hero-face">{{ initialOf(store.doctor.name) }}</div>
         <div class="hero-copy">

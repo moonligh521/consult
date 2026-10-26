@@ -35,7 +35,9 @@ public final class DepartmentSeed {
             String version,
             List<SeedDept> departments,
             List<SeedTypo> typos,
-            List<String> uncertain) {
+            List<String> uncertain,
+            List<String> ambiguous,
+            List<SeedSynonym> synonyms) {
         private DepartmentSnapshot toSnapshot() {
             List<DepartmentRecord> records = new ArrayList<>();
             for (SeedDept dept : departments == null ? List.<SeedDept>of() : departments) {
@@ -45,8 +47,29 @@ public final class DepartmentSeed {
             for (SeedTypo typo : typos == null ? List.<SeedTypo>of() : typos) {
                 matchTypos.add(new MatchTypo(typo.from(), typo.to()));
             }
-            return new DepartmentSnapshot(version, records, matchTypos, uncertain == null ? List.of() : uncertain);
+            List<CanonSynonym> rules = new ArrayList<>();
+            for (SeedSynonym item : synonyms == null ? List.<SeedSynonym>of() : synonyms) {
+                rules.add(new CanonSynonym(item.ruleId(), item.target(), item.all(), item.none(), item.pattern(),
+                        item.status() == null ? SynonymStatus.DRAFT : item.status()));
+            }
+            return new DepartmentSnapshot(
+                    version,
+                    records,
+                    matchTypos,
+                    uncertain == null ? List.of() : uncertain,
+                    ambiguous == null ? List.of() : ambiguous,
+                    rules);
         }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record SeedSynonym(
+            String ruleId,
+            String target,
+            List<List<String>> all,
+            List<String> none,
+            String pattern,
+            SynonymStatus status) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -77,7 +100,7 @@ public final class DepartmentSeed {
             }
             List<DepartmentSpecialty> specs = new ArrayList<>();
             for (SeedSpecialty item : specialties == null ? List.<SeedSpecialty>of() : specialties) {
-                specs.add(new DepartmentSpecialty(item.name(), item.treatDesc(), item.keywords()));
+                specs.add(new DepartmentSpecialty(item.name(), item.treatDesc(), item.keywords(), item.diseases()));
             }
             return new DepartmentRecord(
                     code, name, enabled, sort, fallback, genderScope, childAgeLt,
@@ -86,7 +109,7 @@ public final class DepartmentSeed {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record SeedSpecialty(String name, String treatDesc, List<String> keywords) {
+    private record SeedSpecialty(String name, String treatDesc, List<String> keywords, List<String> diseases) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

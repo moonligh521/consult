@@ -28,7 +28,25 @@ public enum ErrorCode {
     INVALID_PACKAGE(1116, "咨询档位须为 1、2、3 或 4。"),
     ALREADY_ORDERED(1117, "这轮咨询已经下过单。"),
     INQUIRY_CLOSED(1118, "当前问诊通道正在维护，请稍后再试。"),
-    INVALID_DEPARTMENT(1119, "该科室当前未开通。");
+    INVALID_DEPARTMENT(1119, "该科室当前未开通。"),
+    PATIENT_NOT_FOUND(1120, "找不到这位就诊人。"),
+    INVALID_PATIENT(1121, "请填写就诊人姓名、性别和年龄。"),
+    INVALID_CONSULT_MINUTES(1122, "问诊时长须为 5、10、15、20 或 30 分钟。"),
+    CONSULT_ENDED(1123, "本次问诊已结束。"),
+
+    LOGIN_REQUIRED(1201, "请先登录。"),
+    INVALID_MOBILE(1202, "请输入正确的手机号。"),
+    INVALID_CAPTCHA(1203, "验证码不正确或已过期。"),
+    SMS_TOO_FREQUENT(1204, "验证码发送过于频繁，请稍后再试。"),
+    ACCOUNT_DISABLED(1205, "账号已停用。"),
+    PERSON_ALREADY_BOUND(1206, "该就诊人已在当前账号下。"),
+    STAFF_LOGIN_FAILED(1207, "用户名或密码不正确。"),
+
+    DOCTOR_NOT_FOUND(1301, "找不到这位医生。"),
+    INVALID_DOCTOR(1302, "请填写医生姓名、职称和科室。"),
+    SCHEDULE_NOT_FOUND(1303, "找不到这条排班。"),
+    SCHEDULE_CONFLICT(1304, "该医生此时段已有排班。"),
+    DOCTOR_UNAVAILABLE(1305, "当前暂无合适医生，请稍后再试。");
 
     /** 放进 Result.code 的数字。 */
     private final int code;

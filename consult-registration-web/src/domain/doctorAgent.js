@@ -1,30 +1,5 @@
 import { consultDepartmentLabel } from '../constants/catalog'
 
-const DOCTORS = {
-  1: { name: '周宁', title: '主治医师', hospital: '演示医院', dept: '内科' },
-  2: { name: '陈岚', title: '主治医师', hospital: '演示医院', dept: '外科' },
-  3: { name: '赵衡', title: '主治医师', hospital: '演示医院', dept: '男科' },
-  4: { name: '王启明', title: '主治医师', hospital: '演示医院', dept: '全科' },
-  5: { name: '刘岩', title: '主治医师', hospital: '演示医院', dept: '骨科' },
-  6: { name: '苏敏', title: '主治医师', hospital: '演示医院', dept: '妇产科' },
-  7: { name: '何川', title: '主治医师', hospital: '演示医院', dept: '口腔科' },
-  8: { name: '林晓', title: '主治医师', hospital: '演示医院', dept: '儿科' },
-  9: { name: '吴桐', title: '主治医师', hospital: '演示医院', dept: '耳鼻咽喉科' },
-  10: { name: '郑白', title: '主治医师', hospital: '演示医院', dept: '中医科' },
-  11: { name: '韩霜', title: '主治医师', hospital: '演示医院', dept: '皮肤科' },
-  12: { name: '方毅', title: '主治医师', hospital: '演示医院', dept: '感染病科' },
-  13: { name: '沈清', title: '主治医师', hospital: '演示医院', dept: '眼科' },
-  14: { name: '曹宁', title: '主治医师', hospital: '演示医院', dept: '精神科' },
-  15: { name: '姚岚', title: '主治医师', hospital: '演示医院', dept: '整形外科' },
-  16: { name: '顾青', title: '主治医师', hospital: '演示医院', dept: '营养科' },
-  17: { name: '蒋远', title: '主治医师', hospital: '演示医院', dept: '肿瘤综合科' },
-  18: { name: '潘夏', title: '主治医师', hospital: '演示医院', dept: '辅助生殖科' },
-  19: { name: '丁和', title: '主治医师', hospital: '演示医院', dept: '疼痛科' },
-  20: { name: '魏安', title: '主治医师', hospital: '演示医院', dept: '睡眠医学科' },
-  21: { name: '钱合', title: '主治医师', hospital: '演示医院', dept: '中西医结合科' },
-  22: { name: '冯康', title: '主治医师', hospital: '演示医院', dept: '康复科' },
-}
-
 function wait(ms) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
@@ -35,13 +10,18 @@ export function waitMs(ms) {
   return wait(ms)
 }
 
-/** 按分诊科室派一位演示医生。不接真实号源。 */
-export function assignDoctor(card) {
-  const fallback = consultDepartmentLabel(card)
-  const doctor = DOCTORS[card?.department] || DOCTORS[4]
+/** 订单上已派的医生。没有则空，不再按一级科写死。 */
+export function doctorFromOrder(order) {
+  const assigned = order?.doctor
+  if (!assigned?.name) {
+    return null
+  }
   return {
-    ...doctor,
-    dept: fallback === '—' ? doctor.dept : fallback,
+    name: assigned.name,
+    title: assigned.title,
+    hospital: assigned.hospital,
+    dept: assigned.specialty,
+    evidence: assigned.evidence,
   }
 }
 

@@ -32,7 +32,31 @@ public record ConsultationCardRes(
         /** 正在使用的药，描述里提到才有。 */
         String medications,
         /** 推荐这个科室的关键词依据。 */
-        String departmentEvidence) {
+        String departmentEvidence,
+        /** 本轮选用的就诊人编号。没选时为空。 */
+        String patientId,
+        /** 就诊人姓名快照。没选时为空，页面显示匿名。 */
+        String patientName,
+        /** 科室推荐来源：RULE 目录规则、MODEL AI 辅助、FALLBACK 兜底全科、PATIENT 患者自选。老卡为空。 */
+        String departmentSource) {
+
+    public ConsultationCardRes(
+            Gender gender,
+            Integer age,
+            String duration,
+            String description,
+            List<String> symptoms,
+            Department department,
+            String specialty,
+            List<String> associatedSymptoms,
+            String allergy,
+            String medications,
+            String departmentEvidence,
+            String patientId,
+            String patientName) {
+        this(gender, age, duration, description, symptoms, department, specialty, associatedSymptoms, allergy,
+                medications, departmentEvidence, patientId, patientName, null);
+    }
 
     public ConsultationCardRes {
         symptoms = symptoms == null ? List.of() : List.copyOf(symptoms);

@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: consult-identity-service
+  config:
+    import:
+      - optional:file:./config/application-local.yml
+      - optional:file:../../config/application-local.yml
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:your_password}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2s
+server:
+  port: 18082
+  address: 127.0.0.1
+consult:
+  auth:
+    jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
+    jwt-ttl-hours: 168
+    sms-ttl-seconds: 300
+    sms-interval-seconds: 60
+    sms-dev-code: ${AUTH_SMS_DEV_CODE:000000}
+    internal-token: ${AUTH_INTERNAL_TOKEN:consult-internal}
+    admin-username: ${AUTH_ADMIN_USERNAME:admin}
+    admin-password: ${AUTH_ADMIN_PASSWORD:admin1234}
+  # 执行器。admin-addresses 写调度中心根地址，不要加 /xxl-job-admin。
+  xxl:
+    enabled: ${XXL_ENABLED:false}
+    admin-addresses: ${XXL_ADMIN_ADDRESSES:http://127.0.0.1:18080}
+    appname: consult-identity
+    ip: ${XXL_EXECUTOR_IP:}
+    port: ${XXL_EXECUTOR_PORT:19999}
+    access-token: ${XXL_ACCESS_TOKEN:}
+    log-path: ./logs/xxl-job
+    log-retention-days: 30

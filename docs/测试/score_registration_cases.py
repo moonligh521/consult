@@ -36,6 +36,13 @@ ROUTER_GOLDEN = [
     ("咳嗽还头痛", "呼吸内科", "咳嗽"),
 ]
 
+CANON_GOLDEN = [
+    ("高血压，头晕三天", "DISEASE_LITERAL", ["高血压"]),
+    ("我有高血压好几年了，这两天咳嗽", "SYMPTOM_ONLY", []),
+    ("头晕乏力一周", "AMBIGUOUS_ONLY", []),
+    ("不知道挂哪个科，头晕", "UNCERTAIN_MARKER", []),
+]
+
 
 def load_csv() -> tuple[Path, list[dict]]:
     if len(sys.argv) > 1:
@@ -74,6 +81,12 @@ def self_check() -> list[str]:
         got_dept, got_evidence = engine.advise(text)
         if got_dept != dept or got_evidence != evidence:
             problems.append(f"科室路由 {text} 期望 {dept}/{evidence} 实得 {got_dept}/{got_evidence}")
+    for text, reason, terms in CANON_GOLDEN:
+        got = engine.canon_rule(text)
+        if got["reason"] != reason or [item["term"] for item in got["terms"]] != terms:
+            problems.append(
+                f"归约 {text} 期望 {reason}/{terms} 实得 {got['reason']}/{[item['term'] for item in got['terms']]}"
+            )
     return problems
 
 
@@ -89,6 +102,8 @@ def main() -> None:
     diff = Counter()
     shadow = Counter()
     mismatches: list[str] = []
+    mismatch_count = 0
+    route_reason = Counter()
     dept_pairs: Counter[tuple[str, str]] = Counter()
     diff_samples: dict[str, list[str]] = defaultdict(list)
 
@@ -124,7 +139,9 @@ def main() -> None:
             bad.append(f"科室 {expect_dept}->{got['department']}")
         if expect_shadow and expect_shadow != ",".join(got["shadows"]):
             bad.append(f"影子 {expect_shadow}->{got['shadows']}")
+        route_reason[got.get("route_reason") or ""] += 1
         if bad:
+            mismatch_count += 1
             if len(mismatches) < 20:
                 mismatches.append(f"    {row['编号']} 「{row['话术']}」 " + "；".join(bad))
         if got["status"] == engine.STATUS_PLAIN:
@@ -165,9 +182,13 @@ def main() -> None:
     if mismatches:
         for line in mismatches:
             print(line)
-        print(f"  共 {len(mismatches)} 条不符（这里不符说明代码行为变了，需要人工确认是有意改动还是回归缺陷）")
+        print(f"  共 {mismatch_count} 条不符（展示前 {len(mismatches)} 条；CSV 仍是旧标签，不符多为扩科/冲突改全科）")
     else:
         print(f"  {total}/{total} 一致")
+    print()
+    print("== N6 规则层原因（评测不调模型，冲突/歧义落全科）==")
+    for name, n in route_reason.most_common():
+        print(f"  {name or '(空)':22s} {n:5d}")
     print()
     print("== 生产 vs 临床 差距（按条数）==")
     for name, n in diff.most_common():

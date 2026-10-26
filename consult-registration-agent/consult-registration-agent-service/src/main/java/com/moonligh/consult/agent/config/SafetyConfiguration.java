@@ -7,14 +7,15 @@ import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.moonligh.consult.agent.domain.safety.CatalogLoader;
-import com.moonligh.consult.agent.domain.safety.DisabledSignalExtractor;
 import com.moonligh.consult.agent.domain.safety.DraftMode;
+import com.moonligh.consult.agent.domain.safety.ModelTriggerScan;
 import com.moonligh.consult.agent.domain.safety.RuleSafetyEngine;
 import com.moonligh.consult.agent.domain.safety.SafetyCatalog;
 import com.moonligh.consult.agent.domain.safety.SafetyGate;
 import com.moonligh.consult.agent.domain.safety.SafetyMetrics;
 import com.moonligh.consult.agent.domain.safety.SignalExtractor;
-import com.moonligh.consult.agent.infrastructure.langchain.DeepSeekSignalExtractor;
+import com.moonligh.consult.agent.infrastructure.model.DeepSeekSignalExtractor;
+import com.moonligh.consult.agent.infrastructure.model.ModelGateway;
 import com.moonligh.consult.agent.infrastructure.safety.JdbcSafetyCatalogReleaseStore;
 
 /**
@@ -49,13 +50,16 @@ public class SafetyConfiguration {
         return new RuleSafetyEngine();
     }
 
-    /** 模型没开就用空实现。默认关闭。 */
+    /** 模型触发词表。坏了起不来。 */
     @Bean
-    public SignalExtractor signalExtractor(SafetyProperties properties, SafetyCatalog catalog) {
-        if (!properties.getModel().isEnabled()) {
-            return new DisabledSignalExtractor();
-        }
-        return new DeepSeekSignalExtractor(properties, catalog);
+    public ModelTriggerScan modelTriggerScan() {
+        return ModelTriggerScan.load();
+    }
+
+    /** 安全模型。没有开关：只在触发词命中时调用，失败走安全降级。 */
+    @Bean
+    public SignalExtractor signalExtractor(ModelGateway gateway, SafetyCatalog catalog) {
+        return new DeepSeekSignalExtractor(gateway, catalog);
     }
 
     /** 安全状态计数。不含病情原文。 */
@@ -64,9 +68,13 @@ public class SafetyConfiguration {
         return new SafetyMetrics();
     }
 
-    /** 安全闸门。规则失败则安全降级。 */
+    /** 安全闸门。规则能定就不调模型；规则失败则安全降级。 */
     @Bean
-    public SafetyGate safetyGate(SafetyCatalog catalog, RuleSafetyEngine engine, SignalExtractor extractor) {
-        return new SafetyGate(catalog, engine, extractor);
+    public SafetyGate safetyGate(
+            SafetyCatalog catalog,
+            RuleSafetyEngine engine,
+            SignalExtractor extractor,
+            ModelTriggerScan triggers) {
+        return new SafetyGate(catalog, engine, extractor, triggers);
     }
 }

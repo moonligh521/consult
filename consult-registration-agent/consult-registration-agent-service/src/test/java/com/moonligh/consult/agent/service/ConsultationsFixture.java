@@ -1,9 +1,11 @@
 package com.moonligh.consult.agent.service;
 
+import com.moonligh.consult.agent.config.InquiryProperties;
 import com.moonligh.consult.agent.domain.DepartmentRouter;
 import com.moonligh.consult.agent.domain.InMemoryConsultationRepository;
 import com.moonligh.consult.agent.domain.SlotParser;
 import com.moonligh.consult.agent.domain.SymptomExtractor;
+import com.moonligh.consult.agent.domain.patient.MemoryPatientStore;
 import com.moonligh.consult.agent.domain.safety.CatalogLoader;
 import com.moonligh.consult.agent.domain.safety.DisabledSignalExtractor;
 import com.moonligh.consult.agent.domain.safety.DraftMode;
@@ -25,6 +27,7 @@ public final class ConsultationsFixture {
     public final SafetyCatalog catalog;
     public final SafetyGate gate;
     public final SafetyMetrics metrics;
+    public final MemoryPatientStore patients;
     public final ConsultationService service;
 
     private ConsultationsFixture(
@@ -38,13 +41,16 @@ public final class ConsultationsFixture {
         this.catalog = catalog;
         this.gate = gate;
         this.metrics = metrics;
+        this.patients = new MemoryPatientStore();
         this.service = new ConsultationService(
                 repository,
                 gate,
                 new SlotParser(),
                 new SymptomExtractor(),
                 new DepartmentRouter(),
-                metrics);
+                metrics,
+                new InquiryProperties(),
+                patients);
     }
 
     /** 生产同款：DRAFT 规则只记影子。 */
