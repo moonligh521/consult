@@ -39,7 +39,9 @@ public class SafetyGate {
         return catalog;
     }
 
-    /** 评估全部原话。规则失败则走安全降级。 */
+    /**
+     * 评估全部原话。三层：规则急症钉死则 SKIPPED；命中触发词才走 SAFETY 模型；模型失败走 SAFE_FALLBACK。
+     */
     public SafetyAssessment assess(List<ConsultationMessage> transcript, Demographics demographics) {
         SafetyAssessment rules;
         try {

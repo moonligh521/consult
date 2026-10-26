@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 
@@ -43,6 +44,24 @@ class ConsultationAcceptanceTest {
         assertEquals(List.of("干咳"), view.card().symptoms());
         assertEquals(Department.INTERNAL, view.card().department());
         assertEquals("女，32岁，干咳半年，运动后加重", view.card().description());
+    }
+
+    @Test
+    void cardReadyAppendRefreshesDescriptionAndDepartment() {
+        ConsultationRes first = service.acceptMessage(null, "女，32岁，干咳半年");
+        assertEquals(ConsultationStatus.CARD_READY, first.status());
+        assertEquals("呼吸内科", first.card().specialty());
+
+        ConsultationRes second = service.acceptMessage(first.consultationId(), "运动后加重，夜里也咳");
+        assertEquals(ConsultationStatus.CARD_READY, second.status());
+        assertTrue(second.card().description().contains("干咳半年"));
+        assertTrue(second.card().description().contains("运动后加重"));
+        assertEquals("呼吸内科", second.card().specialty());
+
+        ConsultationRes third = service.acceptMessage(first.consultationId(), "最近还胃痛");
+        assertEquals(ConsultationStatus.CARD_READY, third.status());
+        assertTrue(third.card().description().contains("胃痛"));
+        assertTrue(third.card().symptoms().contains("胃痛") || third.card().symptoms().contains("干咳"));
     }
 
     @Test

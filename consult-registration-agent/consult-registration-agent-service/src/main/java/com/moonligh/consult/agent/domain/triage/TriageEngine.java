@@ -19,11 +19,12 @@ import com.moonligh.consult.agent.domain.department.DepartmentSnapshot;
 import com.moonligh.consult.agent.domain.safety.ModelStatus;
 
 /**
- * N4 归约 + N6 挂科：规则能定就定；定不了合并成一次模型调用；模型也不行就兜底。
+ * N4 归约 + N6 挂科：规则能定就定；定不了合并成一次主诉模型调用；模型也不行就兜底。
  * <ul>
+ *   <li>规则 CERTAIN 时 {@code needModel=false}，禁止调模型。</li>
  *   <li>N4 失败（resolved=false）时 N6 不信孤立症状，只落全科。</li>
  *   <li>模型给了病名，挂科仍由目录规则映射（规则路由模型输出）。</li>
- *   <li>模型输出任一项不合格，整段丢弃。</li>
+ *   <li>模型输出任一项不合格，整段丢弃，走 FALLBACK。</li>
  * </ul>
  */
 public class TriageEngine {

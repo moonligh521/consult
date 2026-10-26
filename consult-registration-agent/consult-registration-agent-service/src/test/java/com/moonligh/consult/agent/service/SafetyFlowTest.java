@@ -87,12 +87,13 @@ class SafetyFlowTest {
     }
 
     @Test
-    void sf03CardReadyOrdinaryMessageKeepsCardAndStoresTranscript() {
+    void sf03CardReadyOrdinaryMessageRefreshesCardAndStoresTranscript() {
         ConsultationsFixture fixture = ConsultationsFixture.shadow();
         ConsultationRes ready = fixture.service.acceptMessage(null, COMPLETE);
-        BusinessException error = assertThrows(BusinessException.class,
-                () -> fixture.service.acceptMessage(ready.consultationId(), "还有点头晕"));
-        assertEquals(ErrorCode.CARD_PENDING_CONFIRMATION, error.getErrorCode());
+        ConsultationRes appended = fixture.service.acceptMessage(ready.consultationId(), "还有点头晕");
+        assertEquals(ConsultationStatus.CARD_READY, appended.status());
+        assertNotNull(appended.card());
+        assertTrue(appended.card().description().contains("还有点头晕"));
         ConsultationSession stored = session(fixture, ready.consultationId());
         assertEquals(ConsultationStatus.CARD_READY, stored.getBusinessStatus());
         assertNotNull(stored.getCard());

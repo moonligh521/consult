@@ -284,9 +284,11 @@ public class ConsultationService {
         if (session.getBusinessStatus() == ConsultationStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.ALREADY_CONFIRMED);
         }
-        // 卡片待确认：请走改卡接口，不要用发消息改卡片。
+        // 卡片待确认：允许继续补主诉，拼进描述后重跑分诊；改科仍走改卡接口。
         if (session.getBusinessStatus() == ConsultationStatus.CARD_READY) {
-            throw new BusinessException(ErrorCode.CARD_PENDING_CONFIRMATION);
+            fillEmptySlots(session, sentence);
+            addDescription(session, sentence);
+            return refreshCard(session, MatchDecision.TRIGGER_EDIT_DESCRIPTION);
         }
         // 第一句只说「有点不舒服」：先追问具体病情，不进入选就诊人。
         if (shouldAskForDetail(session, sentence)) {
@@ -782,6 +784,13 @@ public class ConsultationService {
             session.setCard(null);
             return buildResponse(session);
         }
+        return refreshCard(session, trigger);
+    }
+
+    /**
+     * 槽位已齐时出卡或补述刷新卡。程序能定科室就定；定不了才由 TriageEngine 调主诉模型。
+     */
+    private ConsultationRes refreshCard(ConsultationSession session, int trigger) {
         List<String> symptoms = symptomExtractor.extract(session.getDescription());
         TriageResult triage = runTriage(session, session.getDescription(), session.getAge(), session.getGender(), trigger);
         recordSymptoms(session, triage.runId(), symptoms, trigger);

@@ -87,10 +87,12 @@ const placeholder = computed(() => {
 
 const hideComposer = computed(() => (
   store.consultEnded
+  || matching.value
   || (
+    // 卡片待确认仍可补主诉；确认后到诊室前藏输入，诊室/人工再开
     !store.humanOnline
     && !store.doctorOnline
-    && (store.showCard || matching.value)
+    && store.status === STATUS.CONFIRMED
     && !store.stopped
   )
 ))

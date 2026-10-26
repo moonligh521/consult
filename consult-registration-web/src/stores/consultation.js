@@ -178,7 +178,8 @@ export const useConsultationStore = defineStore('consultation', {
       if (!sentence || this.sending || this.consultEnded) {
         return
       }
-      if (this.showCard && !this.doctorOnline && !this.humanOnline) {
+      // 卡片待确认允许补主诉；已确认且未进诊室不再发普通病情
+      if (this.status === STATUS.CONFIRMED && !this.doctorOnline && !this.humanOnline) {
         return
       }
       this.sending = true
