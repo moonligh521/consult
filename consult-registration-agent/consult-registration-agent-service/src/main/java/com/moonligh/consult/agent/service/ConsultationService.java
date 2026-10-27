@@ -13,7 +13,6 @@ import com.moonligh.consult.agent.api.enums.ConsultationStatus;
 import com.moonligh.consult.agent.api.enums.Department;
 import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.api.enums.MissingSlot;
-import com.moonligh.consult.agent.api.enums.ServiceType;
 import com.moonligh.consult.agent.api.req.CardPatchReq;
 import com.moonligh.consult.agent.api.res.AssignedDoctorRes;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
@@ -165,23 +164,21 @@ public class ConsultationService {
         this.doctorAssigner = doctorAssigner;
     }
 
-    /** 简写入口：不传 messageId、不传服务类型。 */
+    /** 简写入口：不传 messageId。 */
     public ConsultationRes acceptMessage(String consultationId, String text) {
-        return acceptMessage(consultationId, null, null, text);
+        return acceptMessage(consultationId, null, text);
     }
 
     /**
-     * 收一句病情。先加锁取会话，再评估，最后保存。
+     * 收一句病情。本产品只做在线问诊的智能挂号。
      */
-    public ConsultationRes acceptMessage(String consultationId, String messageId, Integer serviceTypeCode, String text) {
+    public ConsultationRes acceptMessage(String consultationId, String messageId, String text) {
         // 幂等键最长 64 个字符，超了直接参数错误。
         if (messageId != null && messageId.length() > 64) {
             throw new BusinessException(ErrorCode.PARAM_INVALID);
         }
-        // 把 1、2、3 转成服务类型；非法数字会变成 1114。
-        ServiceType requestedType = parseServiceType(serviceTypeCode);
         // 同一咨询排队执行；锁内办事，办完再保存。
-        return repository.runLocked(consultationId, session -> acceptLocked(session, messageId, requestedType, text));
+        return repository.runLocked(consultationId, session -> acceptLocked(session, messageId, text));
     }
 
     /**
@@ -250,8 +247,11 @@ public class ConsultationService {
     private ConsultationRes acceptLocked(
             ConsultationSession session,
             String messageId,
-            ServiceType requestedType,
             String text) {
+        // 问诊已结束：会话关闭，患者和医生侧都不可再发。
+        if (session.getOrder() != null && session.getOrder().isEnded()) {
+            throw new BusinessException(ErrorCode.CONSULT_ENDED);
+        }
         // 同一个 messageId 再来一次：不重复入库，直接返回当前画面（含档位和订单）。
         if (messageId != null && session.hasMessage(messageId)) {
             return buildResponse(session);
@@ -269,16 +269,10 @@ public class ConsultationService {
         session.appendMessage(messageId, MessageSource.MESSAGE, sentence);
         // 用全部原话做安全评估；已急症则钉死。
         assess(session, AuditTrigger.MESSAGE);
-        // 确认后再改不同服务类型，这里记一笔拒绝。
-        boolean serviceTypeRejected = applyServiceType(session, requestedType);
         // 本轮升到急症、转人工、降级：先回安全画面，不抛 1104/1105。
         if (SafetyPolicy.isSafetyStop(session)) {
             SafetyPolicy.applyStopCardPolicy(session);
             return buildResponse(session);
-        }
-        // 卡片已确认，还想改服务类型：原话已保存，这里抛 1113。
-        if (serviceTypeRejected) {
-            throw new BusinessException(ErrorCode.SERVICE_TYPE_LOCKED);
         }
         // 已确认且没有安全升级：普通消息返回 1105。原话已经入库。
         if (session.getBusinessStatus() == ConsultationStatus.CONFIRMED) {
@@ -514,19 +508,29 @@ public class ConsultationService {
         if (order == null) {
             throw new BusinessException(ErrorCode.ORDER_NOT_ALLOWED);
         }
-        if (order.endedAt() != null) {
+        // 已结束幂等：占坑身份侧也是非 ACTIVE，超时扫描不会再扫到
+        if (order.isEnded()) {
             return buildResponse(session);
         }
-        String code = reason == null || reason.isBlank() ? "ENDED" : reason.trim();
-        // 页面倒计时和 XXL 都可能走到这里，过期一律记 TIMEOUT
-        if (order.endsAt() != null && Instant.now().isAfter(order.endsAt())) {
+        // 前端手动结束传 ENDED；倒计时传 TIMEOUT；未传且已过期按 TIMEOUT
+        String code;
+        if (reason != null && !reason.isBlank()) {
+            code = reason.trim().toUpperCase();
+        } else if (order.endsAt() != null && Instant.now().isAfter(order.endsAt())) {
             code = "TIMEOUT";
+        } else {
+            code = "ENDED";
         }
-        if (doctorAssigner != null) {
-            doctorAssigner.release(order.orderId(), code);
-        }
-        session.setOrder(order.ended(Instant.now()));
+        // 先落 ended_at + end_reason，再释放占坑。身份侧 status≠ACTIVE 后 XXL 不再扫本单。
+        session.setOrder(order.ended(Instant.now(), code));
         recordRelease(session, code);
+        if (doctorAssigner != null) {
+            try {
+                doctorAssigner.release(order.orderId(), code);
+            } catch (RuntimeException error) {
+                // 会话结束态已落库；占坑失败不能挡住结束，避免前端卡在「正在结束」
+            }
+        }
         return buildResponse(session);
     }
 
@@ -535,7 +539,7 @@ public class ConsultationService {
         if (order == null) {
             throw new BusinessException(ErrorCode.ORDER_NOT_ALLOWED);
         }
-        if (order.endedAt() != null) {
+        if (order.isEnded()) {
             throw new BusinessException(ErrorCode.CONSULT_ENDED);
         }
         int minutes = ConsultMinutes.of(consultMinutes);
@@ -688,32 +692,6 @@ public class ConsultationService {
             return SafetyCatalog.UNSUITABLE_DEFAULT;
         }
         return null;
-    }
-
-    /** 写入服务类型。确认后改成不同值返回 true，调用方据此抛 1113。 */
-    private boolean applyServiceType(ConsultationSession session, ServiceType requestedType) {
-        if (requestedType == null) {
-            return false;
-        }
-        if (session.getBusinessStatus() == ConsultationStatus.CONFIRMED
-                && session.getServiceType() != null
-                && requestedType != session.getServiceType()) {
-            return true;
-        }
-        session.setServiceType(requestedType);
-        return false;
-    }
-
-    /** 把前端传来的 1/2/3 转成枚举。对不上就是 1114。 */
-    private ServiceType parseServiceType(Integer code) {
-        if (code == null) {
-            return null;
-        }
-        try {
-            return ServiceType.fromCode(code);
-        } catch (IllegalArgumentException error) {
-            throw new BusinessException(ErrorCode.INVALID_SERVICE_TYPE);
-        }
     }
 
     /** 空着的槽位才从这句话里抽。已经有的不覆盖。 */

@@ -87,7 +87,7 @@ class ConsultationAcceptanceTest {
         ConsultationRes first = service.acceptMessage(null, "女，28岁，头痛");
         assertEquals(ConsultationStatus.NEED_SLOT, first.status());
         assertEquals(MissingSlot.DURATION, first.missingSlot());
-        assertEquals("请补充病程。", first.prompt());
+        assertEquals("症状大概多久了？点选下方时长，或自己填写。", first.prompt());
         assertNull(first.card());
 
         ConsultationRes second = service.acceptMessage(first.consultationId(), "三天");

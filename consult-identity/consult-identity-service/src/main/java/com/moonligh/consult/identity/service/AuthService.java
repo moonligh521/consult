@@ -61,10 +61,16 @@ public class AuthService {
         String phone = Mobiles.require(mobile);
         String expected = redis.opsForValue().get("consult:sms:code:" + phone);
         String input = captcha == null ? "" : captcha.trim();
-        if (expected == null || expected.isBlank() || !expected.equals(input)) {
+        String demo = properties.getSmsDevCode() == null ? "" : properties.getSmsDevCode().trim();
+        // 演示码：未点发送、Redis 过期或丢 key 时，仍可用配置里的固定码登录
+        boolean ok = (!input.isEmpty() && input.equals(expected))
+                || (!demo.isEmpty() && input.equals(demo));
+        if (!ok) {
             throw new BusinessException(ErrorCode.INVALID_CAPTCHA);
         }
-        redis.delete("consult:sms:code:" + phone);
+        if (expected != null) {
+            redis.delete("consult:sms:code:" + phone);
+        }
         AccountRecord account = accounts.findByMobile(phone);
         if (account == null) {
             account = accounts.insert(phone);

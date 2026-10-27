@@ -22,8 +22,6 @@ public enum ErrorCode {
     HUMAN_STOP(1110, "请转人工协助。"),
     SAFE_FALLBACK_STOP(1111, "系统暂时无法完成安全分流，请转人工协助。"),
     UNSUITABLE_STOP(1112, "当前线上渠道不适用，请选择线下就诊或转人工。"),
-    SERVICE_TYPE_LOCKED(1113, "卡片确认后不能修改服务类型。"),
-    INVALID_SERVICE_TYPE(1114, "服务类型须为 1、2 或 3。"),
     ORDER_NOT_ALLOWED(1115, "请先确认咨询卡片。"),
     INVALID_PACKAGE(1116, "咨询档位须为 1、2、3 或 4。"),
     ALREADY_ORDERED(1117, "这轮咨询已经下过单。"),

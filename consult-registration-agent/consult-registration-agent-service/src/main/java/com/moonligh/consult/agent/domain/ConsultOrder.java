@@ -25,8 +25,9 @@ public record ConsultOrder(
         AssignedDoctorRes doctor,
         int consultMinutes,
         Instant endsAt,
-        Instant endedAt) {
-    // endsAt=计划到期；endedAt=实际结束。endedAt 有值就不能再改时长。
+        Instant endedAt,
+        String endReason) {
+    // endsAt=计划到期；endedAt/endReason=实际结束。有 endedAt 就不能再改时长，占坑也不再被超时扫描。
 
     /** 按当时目录价生成一笔已支付订单。 */
     public static ConsultOrder paidOf(PayPackageRes pkg) {
@@ -48,6 +49,7 @@ public record ConsultOrder(
                 null,
                 length,
                 now.plus(Duration.ofMinutes(length)),
+                null,
                 null);
     }
 
@@ -64,7 +66,8 @@ public record ConsultOrder(
                 assigned,
                 consultMinutes,
                 endsAt,
-                endedAt);
+                endedAt,
+                endReason);
     }
 
     public ConsultOrder withMinutes(int minutes) {
@@ -82,10 +85,13 @@ public record ConsultOrder(
                 doctor,
                 length,
                 now.plus(Duration.ofMinutes(length)),
-                endedAt);
+                endedAt,
+                endReason);
     }
 
-    public ConsultOrder ended(Instant at) {
+    /** 落结束态。reason：ENDED / TIMEOUT / CANCEL。 */
+    public ConsultOrder ended(Instant at, String reason) {
+        String code = reason == null || reason.isBlank() ? "ENDED" : reason.trim().toUpperCase();
         return new ConsultOrder(
                 orderId,
                 packageCode,
@@ -98,7 +104,12 @@ public record ConsultOrder(
                 doctor,
                 consultMinutes,
                 endsAt,
-                at);
+                at,
+                code);
+    }
+
+    public boolean isEnded() {
+        return endedAt != null;
     }
 
     /** 给前端的订单画面。 */
@@ -115,6 +126,7 @@ public record ConsultOrder(
                 doctor,
                 consultMinutes,
                 endsAt,
-                endedAt);
+                endedAt,
+                endReason);
     }
 }

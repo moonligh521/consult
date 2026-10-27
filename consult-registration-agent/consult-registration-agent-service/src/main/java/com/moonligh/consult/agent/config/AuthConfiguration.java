@@ -34,6 +34,13 @@ public class AuthConfiguration {
 
     @Bean
     public RestClient identityRestClient(IdentityProperties properties) {
-        return RestClient.builder().baseUrl(properties.getBaseUrl()).build();
+        // 结束问诊会同步调 release；不设超时前端会一直停在「正在结束」
+        var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(2));
+        factory.setReadTimeout(Duration.ofSeconds(3));
+        return RestClient.builder()
+                .baseUrl(properties.getBaseUrl())
+                .requestFactory(factory)
+                .build();
     }
 }

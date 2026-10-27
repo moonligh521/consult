@@ -60,7 +60,7 @@ class TriageFlowTest {
                 new SafetyMetrics(), new InquiryProperties(), new MemoryPatientStore(),
                 (consultationId, orderId, card, terms) -> {
                     assignedTerms.add(terms);
-                    return new AssignedDoctorRes("doc-1", "赵衡", "主治医师", "演示医院", 1, card.specialty(),
+                    return new AssignedDoctorRes("doc-1", "赵衡", "主治医师", "互联网医院", 1, card.specialty(),
                             "高血压", "高血压", "sch-1", "SKILL_CANON");
                 });
     }

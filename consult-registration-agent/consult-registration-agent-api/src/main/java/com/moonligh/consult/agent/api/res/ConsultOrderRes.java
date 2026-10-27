@@ -7,6 +7,7 @@ import com.moonligh.consult.agent.api.enums.PayStatus;
 
 /**
  * 已经落下的咨询订单。演示环境支付状态直接是已支付。
+ * endedAt / endReason 有值表示本轮问诊已结束（手动或超时），不可再发消息。
  */
 public record ConsultOrderRes(
         String orderId,
@@ -20,5 +21,6 @@ public record ConsultOrderRes(
         AssignedDoctorRes doctor,
         int consultMinutes,
         Instant endsAt,
-        Instant endedAt) {
+        Instant endedAt,
+        String endReason) {
 }

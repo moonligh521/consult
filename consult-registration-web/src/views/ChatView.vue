@@ -77,7 +77,7 @@ const placeholder = computed(() => {
     return '请选择就诊人或新建患者'
   }
   if (store.missingSlot === MISSING_SLOT.DURATION) {
-    return '请补充病程，例如「半年」「3天」'
+    return '也可直接输入，例如「4天」「半个月」'
   }
   if (store.status === STATUS.NEED_DESCRIPTION && store.messages.some((item) => item.role === 'user')) {
     return '请详细描述病情'
@@ -309,7 +309,12 @@ function initialOf(name) {
         </div>
       </template>
 
-      <div v-if="store.missingSlot" class="bubble-row bot">
+      <div
+        v-if="store.missingSlot === MISSING_SLOT.GENDER
+          || store.missingSlot === MISSING_SLOT.AGE
+          || store.missingSlot === MISSING_SLOT.DURATION"
+        class="bubble-row bot"
+      >
         <ZhiAvatar :size="40" />
         <SlotAsk />
       </div>
@@ -385,7 +390,10 @@ function initialOf(name) {
       </div>
     </div>
 
-    <footer v-if="!hideComposer" class="dock">
+    <footer v-if="store.consultEnded" class="dock dock-ended">
+      <p class="session-ended">问诊已结束，本会话不可再发送消息</p>
+    </footer>
+    <footer v-else-if="!hideComposer" class="dock">
       <p v-if="attachHint" class="attach-hint">{{ attachHint }}</p>
       <div class="composer">
         <button class="attach" type="button" aria-label="上传检查单或照片" @click="onAttach">+</button>

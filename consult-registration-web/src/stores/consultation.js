@@ -40,7 +40,6 @@ export const useConsultationStore = defineStore('consultation', {
   state: () => ({
     sessions: loadSessions(),
     activeId: null,
-    serviceType: 0,
     messages: [],
     latest: null,
     payOrder: null,
@@ -109,7 +108,6 @@ export const useConsultationStore = defineStore('consultation', {
         return
       }
       this.activeId = id
-      this.serviceType = found.serviceType ?? 0
       this.latest = found.snapshot || null
       this.payOrder = found.payOrder || null
       this.messages = found.messages || []
@@ -132,7 +130,6 @@ export const useConsultationStore = defineStore('consultation', {
       const record = {
         id: this.activeId,
         title: this.sessions[index]?.title || titleOf(text),
-        serviceType: this.serviceType,
         updatedAt: Date.now(),
         snapshot: this.latest,
         payOrder: this.payOrder,
@@ -189,7 +186,6 @@ export const useConsultationStore = defineStore('consultation', {
         const result = await sendMessage({
           consultationId: this.activeId,
           messageId: newMessageId(),
-          serviceType: this.serviceType || null,
           text: sentence,
         })
         if (result.code === 200) {
@@ -471,9 +467,10 @@ export const useConsultationStore = defineStore('consultation', {
           this.assigningDoctor = false
           this.matchPhase = null
           this.stopConsultClock()
+          const endedReason = result.data.order?.endReason || reason
           this.messages.push({
             role: 'system',
-            text: reason === 'TIMEOUT' ? '问诊时间已到，已自动结束。' : '您已结束问诊。',
+            text: endedReason === 'TIMEOUT' ? '问诊时间已到，已自动结束。' : '您已结束问诊。本会话已关闭。',
           })
           this.remember()
         } else {

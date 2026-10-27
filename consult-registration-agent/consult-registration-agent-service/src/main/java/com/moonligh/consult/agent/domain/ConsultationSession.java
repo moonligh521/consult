@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import com.moonligh.consult.agent.api.enums.ConsultationStatus;
 import com.moonligh.consult.agent.api.enums.Gender;
-import com.moonligh.consult.agent.api.enums.ServiceType;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
 import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
 import com.moonligh.consult.agent.domain.safety.FallbackReason;
@@ -25,8 +24,6 @@ public class ConsultationSession {
     private final String id;
     /** 业务状态：待描述、待补槽、卡片待确认、已确认。 */
     private ConsultationStatus businessStatus = ConsultationStatus.NEED_DESCRIPTION;
-    /** 用户要办的服务：线下挂号、互联网复诊、远程会诊。 */
-    private ServiceType serviceType;
     /** 已抽出的性别。空着表示还没抽到。 */
     private Gender gender;
     /** 已抽出的年龄。空着表示还没抽到。 */
@@ -94,14 +91,6 @@ public class ConsultationSession {
     public void setBusinessStatus(ConsultationStatus businessStatus) {
         this.businessStatus = businessStatus;
         this.updatedAt = Instant.now();
-    }
-
-    public ServiceType getServiceType() {
-        return serviceType;
-    }
-
-    public void setServiceType(ServiceType serviceType) {
-        this.serviceType = serviceType;
     }
 
     public Gender getGender() {

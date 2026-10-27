@@ -151,6 +151,11 @@ class JdbcConsultFlowIT {
                 "consult_order",
                 "ended_at",
                 "ALTER TABLE consult_order ADD COLUMN ended_at DATETIME(3) NULL COMMENT '实际结束时间' AFTER ends_at");
+        addColumnIfMissing(
+                jdbc,
+                "consult_order",
+                "end_reason",
+                "ALTER TABLE consult_order ADD COLUMN end_reason VARCHAR(16) NULL COMMENT '结束原因 ENDED/TIMEOUT/CANCEL' AFTER ended_at");
     }
 
     private void addColumnIfMissing(JdbcTemplate jdbc, String table, String column, String ddl) {

@@ -81,6 +81,20 @@ export const MISSING_SLOT = {
   DURATION: 3,
 }
 
+/** 补病程快捷选项。点选即发送，须能被后端 SlotParser 识别。 */
+export const DURATION_OPTIONS = [
+  '半天',
+  '1天',
+  '2天',
+  '3天',
+  '一周',
+  '半个月',
+  '一个月',
+  '三个月',
+  '半年',
+  '一年',
+]
+
 /** 病情描述太含糊时给出的示例，点选即发送。 */
 export const DESCRIPTION_EXAMPLES = [
   '咳嗽3天，伴有黄痰和头痛，无发热',
@@ -126,13 +140,6 @@ export const SPECIALTY_CASCADE = DEPARTMENT_TREE.map((item) => ({
     value: spec.name,
   })),
 }))
-
-export const SERVICE_OPTIONS = [
-  { label: '未指定（预约前整理）', value: 0 },
-  { label: '线下门诊挂号', value: 1 },
-  { label: '互联网复诊', value: 2 },
-  { label: '远程会诊', value: 3 },
-]
 
 export function money(value) {
   const text = Number(value).toFixed(1)

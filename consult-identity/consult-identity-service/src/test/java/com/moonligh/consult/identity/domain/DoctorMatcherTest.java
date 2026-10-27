@@ -113,6 +113,6 @@ class DoctorMatcherTest {
     private static DoctorMatcher.Candidate candidate(
             String id, String name, int dept, String specialty, String skills, int inFlight, int remainNum) {
         return new DoctorMatcher.Candidate(
-                id, name, "主治医师", "演示医院", dept, specialty, skills, inFlight, remainNum, "sch-" + id);
+                id, name, "主治医师", "互联网医院", dept, specialty, skills, inFlight, remainNum, "sch-" + id);
     }
 }

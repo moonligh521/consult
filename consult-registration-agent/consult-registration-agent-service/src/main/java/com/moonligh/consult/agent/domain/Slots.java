@@ -30,6 +30,6 @@ public final class Slots {
         if (slot == MissingSlot.GENDER || slot == MissingSlot.AGE) {
             return "请问您想为以下哪位患者咨询?";
         }
-        return "请补充病程。";
+        return "症状大概多久了？点选下方时长，或自己填写。";
     }
 }

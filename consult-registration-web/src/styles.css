@@ -662,6 +662,20 @@ input {
   border-top: 1px solid var(--zhi-line);
 }
 
+.dock-ended {
+  display: flex;
+  justify-content: center;
+}
+
+.session-ended {
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 14px;
+  color: var(--zhi-muted);
+  padding: 10px 0 4px;
+}
+
 .attach-hint {
   margin: 0 0 8px;
   font-size: 12px;
@@ -735,15 +749,6 @@ input {
 .sider-new {
   width: 100%;
   margin-bottom: 12px;
-}
-
-.record-service {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  color: var(--zhi-muted);
 }
 
 .session-list {
@@ -896,6 +901,30 @@ input {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.duration-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.duration-chips .slot-chip {
+  min-height: 40px;
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.duration-custom {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.duration-custom .n-input {
+  flex: 1;
 }
 
 .slot-chip {

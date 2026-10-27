@@ -44,10 +44,10 @@ public class ConsultationController {
     public Result<ConsultationRes> acceptMessage(@RequestBody MessageReq request) {
         // 请求体为空时按空文本处理，由服务返回提示。
         if (request == null) {
-            return Result.ok(service.acceptMessage(null, null, null, ""));
+            return Result.ok(service.acceptMessage(null, null, ""));
         }
         return Result.ok(service.acceptMessage(
-                request.consultationId(), request.messageId(), request.serviceType(), request.text()));
+                request.consultationId(), request.messageId(), request.text()));
     }
 
     /**

@@ -143,8 +143,8 @@ class SafetyFlowTest {
     @Test
     void sf07IdempotentMessageId() {
         ConsultationsFixture fixture = ConsultationsFixture.shadow();
-        ConsultationRes first = fixture.service.acceptMessage(null, "mid-1", null, COMPLETE);
-        ConsultationRes second = fixture.service.acceptMessage(first.consultationId(), "mid-1", null, COMPLETE);
+        ConsultationRes first = fixture.service.acceptMessage(null, "mid-1", COMPLETE);
+        ConsultationRes second = fixture.service.acceptMessage(first.consultationId(), "mid-1", COMPLETE);
         assertEquals(first.status(), second.status());
         assertEquals(1, session(fixture, first.consultationId()).messages().size());
     }
@@ -161,7 +161,7 @@ class SafetyFlowTest {
             pool.submit(() -> {
                 try {
                     ready.await();
-                    fixture.service.acceptMessage(first.consultationId(), UUID.randomUUID().toString(), null, text);
+                    fixture.service.acceptMessage(first.consultationId(), UUID.randomUUID().toString(), text);
                 } catch (Exception ignored) {
                     // 槽位未齐时并发追问仍入库
                 } finally {
@@ -230,55 +230,20 @@ class SafetyFlowTest {
         assertEquals(ErrorCode.SAFE_FALLBACK_STOP, assertThrows(BusinessException.class,
                 () -> fallback.service.confirm(down.consultationId())).getErrorCode());
 
+        // 智能挂号不区分渠道：线下拍片类不适配不再挡挂号整理
         ConsultationsFixture enforce = ConsultationsFixture.enforce();
-        ConsultationRes unsuitable = enforce.service.acceptMessage(null, null, 2, "女，32岁，需要线下拍片两天");
-        assertEquals(ConsultationStatus.UNSUITABLE_FOR_ONLINE, unsuitable.status());
-        assertEquals(ErrorCode.UNSUITABLE_STOP, assertThrows(BusinessException.class,
-                () -> enforce.service.confirm(unsuitable.consultationId())).getErrorCode());
+        ConsultationRes registration = enforce.service.acceptMessage(null, "女，32岁，需要线下拍片两天");
+        assertTrue(registration.status() == ConsultationStatus.NEED_SLOT
+                || registration.status() == ConsultationStatus.CARD_READY);
+        assertEquals(Handoff.PRE_APPOINTMENT_INFO, registration.handoff());
     }
 
     @Test
-    void sf13OnlineFollowUpHandoffIsPrecheck() {
-        ConsultationsFixture fixture = ConsultationsFixture.shadow();
-        ConsultationRes view = fixture.service.acceptMessage(null, null, 2, COMPLETE);
-        assertEquals(ConsultationStatus.CARD_READY, view.status());
-        assertEquals(Handoff.PRECHECK, view.handoff());
-    }
-
-    @Test
-    void sf14MissingServiceTypeIsPreAppointment() {
+    void sf13HandoffIsAlwaysPreAppointment() {
         ConsultationsFixture fixture = ConsultationsFixture.shadow();
         ConsultationRes view = fixture.service.acceptMessage(null, COMPLETE);
+        assertEquals(ConsultationStatus.CARD_READY, view.status());
         assertEquals(Handoff.PRE_APPOINTMENT_INFO, view.handoff());
-    }
-
-    @Test
-    void sf15ConfirmedServiceTypeLockedStillStoresMessage() {
-        ConsultationsFixture fixture = ConsultationsFixture.shadow();
-        ConsultationRes ready = fixture.service.acceptMessage(null, null, 1, COMPLETE);
-        fixture.service.confirm(ready.consultationId());
-        BusinessException error = assertThrows(BusinessException.class,
-                () -> fixture.service.acceptMessage(ready.consultationId(), null, 2, "还是干咳"));
-        assertEquals(ErrorCode.SERVICE_TYPE_LOCKED, error.getErrorCode());
-        assertEquals(2, session(fixture, ready.consultationId()).messages().size());
-    }
-
-    @Test
-    void sf16InvalidServiceTypeHasNoSideEffect() {
-        ConsultationsFixture fixture = ConsultationsFixture.shadow();
-        assertEquals(ErrorCode.INVALID_SERVICE_TYPE, assertThrows(BusinessException.class,
-                () -> fixture.service.acceptMessage(null, null, 9, COMPLETE)).getErrorCode());
-    }
-
-    @Test
-    void sf17UnsuitableOnlineThenOfflineRecovers() {
-        ConsultationsFixture fixture = ConsultationsFixture.enforce();
-        ConsultationRes first = fixture.service.acceptMessage(null, null, 2, "女，32岁，需要线下拍片两天");
-        assertEquals(ConsultationStatus.UNSUITABLE_FOR_ONLINE, first.status());
-        ConsultationRes recovered = fixture.service.acceptMessage(first.consultationId(), null, 1, "还是这些情况");
-        assertTrue(recovered.status() == ConsultationStatus.NEED_SLOT || recovered.status() == ConsultationStatus.CARD_READY);
-        assertNull(recovered.status() == ConsultationStatus.UNSUITABLE_FOR_ONLINE ? recovered : null);
-        assertFalse(recovered.status() == ConsultationStatus.UNSUITABLE_FOR_ONLINE);
     }
 
     @Test

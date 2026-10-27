@@ -1,0 +1,554 @@
+{
+  "version": "2026.10.27",
+  "doctorsPerSpecialty": 2,
+  "specialties": [
+    {
+      "departmentCode": 1,
+      "specialty": "普内科"
+    },
+    {
+      "departmentCode": 1,
+      "specialty": "消化内科"
+    },
+    {
+      "departmentCode": 1,
+      "specialty": "神经内科"
+    },
+    {
+      "departmentCode": 1,
+      "specialty": "呼吸内科"
+    },
+    {
+      "departmentCode": 1,
+      "specialty": "心血管内科"
+    },
+    {
+      "departmentCode": 1,
+      "specialty": "内分泌科"
+    },
+    {
+      "departmentCode": 1,
+      "specialty": "血液内科"
+    },
+    {
+      "departmentCode": 1,
+      "specialty": "风湿免疫科"
+    },
+    {
+      "departmentCode": 1,
+      "specialty": "肾内科"
+    },
+    {
+      "departmentCode": 1,
+      "specialty": "过敏反应科"
+    },
+    {
+      "departmentCode": 1,
+      "specialty": "老年病科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "普外科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "泌尿外科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "肛肠外科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "乳腺外科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "肝胆外科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "胸外科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "胃肠外科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "血管外科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "神经外科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "甲状腺外科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "烧伤科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "心外科"
+    },
+    {
+      "departmentCode": 2,
+      "specialty": "微创外科"
+    },
+    {
+      "departmentCode": 3,
+      "specialty": "男科"
+    },
+    {
+      "departmentCode": 4,
+      "specialty": "全科"
+    },
+    {
+      "departmentCode": 5,
+      "specialty": "骨科"
+    },
+    {
+      "departmentCode": 5,
+      "specialty": "脊柱外科"
+    },
+    {
+      "departmentCode": 5,
+      "specialty": "骨关节科"
+    },
+    {
+      "departmentCode": 5,
+      "specialty": "足踝外科"
+    },
+    {
+      "departmentCode": 5,
+      "specialty": "手外科"
+    },
+    {
+      "departmentCode": 5,
+      "specialty": "创伤骨科"
+    },
+    {
+      "departmentCode": 5,
+      "specialty": "骨肿瘤科"
+    },
+    {
+      "departmentCode": 5,
+      "specialty": "矫形骨科"
+    },
+    {
+      "departmentCode": 5,
+      "specialty": "运动医学科"
+    },
+    {
+      "departmentCode": 5,
+      "specialty": "骨质疏松科"
+    },
+    {
+      "departmentCode": 6,
+      "specialty": "妇产科"
+    },
+    {
+      "departmentCode": 6,
+      "specialty": "妇科"
+    },
+    {
+      "departmentCode": 6,
+      "specialty": "产科"
+    },
+    {
+      "departmentCode": 6,
+      "specialty": "肿瘤妇科"
+    },
+    {
+      "departmentCode": 6,
+      "specialty": "产前诊断科"
+    },
+    {
+      "departmentCode": 7,
+      "specialty": "口腔科"
+    },
+    {
+      "departmentCode": 7,
+      "specialty": "口腔黏膜科"
+    },
+    {
+      "departmentCode": 7,
+      "specialty": "牙周科"
+    },
+    {
+      "departmentCode": 7,
+      "specialty": "牙体牙髓科"
+    },
+    {
+      "departmentCode": 7,
+      "specialty": "口腔修复科"
+    },
+    {
+      "departmentCode": 7,
+      "specialty": "口腔正畸科"
+    },
+    {
+      "departmentCode": 7,
+      "specialty": "颌面外科"
+    },
+    {
+      "departmentCode": 7,
+      "specialty": "小儿口腔科"
+    },
+    {
+      "departmentCode": 7,
+      "specialty": "口腔预防科"
+    },
+    {
+      "departmentCode": 7,
+      "specialty": "种植科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "儿科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "新生儿科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿呼吸科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿外科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿皮肤科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿消化科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿耳鼻咽喉科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿感染科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿营养保健科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿骨科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿血液科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿泌尿外科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿神经内科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿肾内科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿神经外科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿内分泌科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿心内科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿免疫科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿胸外科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿心外科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿整形外科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿精神科"
+    },
+    {
+      "departmentCode": 8,
+      "specialty": "小儿康复科"
+    },
+    {
+      "departmentCode": 9,
+      "specialty": "耳鼻咽喉科"
+    },
+    {
+      "departmentCode": 9,
+      "specialty": "头颈外科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医内科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医肾内科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "针灸科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医消化科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医妇产科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医五官科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医按摩科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医肝病科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医男科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医皮肤科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医呼吸科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医儿科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医血液科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医心内科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医感染内科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医乳腺外科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医骨科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医内分泌"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医免疫内科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医神经内科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医肿瘤科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医外科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医肛肠科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医老年病科"
+    },
+    {
+      "departmentCode": 10,
+      "specialty": "中医眼科"
+    },
+    {
+      "departmentCode": 11,
+      "specialty": "皮肤科"
+    },
+    {
+      "departmentCode": 11,
+      "specialty": "性病科"
+    },
+    {
+      "departmentCode": 12,
+      "specialty": "感染病科"
+    },
+    {
+      "departmentCode": 12,
+      "specialty": "肝病科"
+    },
+    {
+      "departmentCode": 12,
+      "specialty": "艾滋病科"
+    },
+    {
+      "departmentCode": 12,
+      "specialty": "结核病科"
+    },
+    {
+      "departmentCode": 13,
+      "specialty": "眼科"
+    },
+    {
+      "departmentCode": 13,
+      "specialty": "眼视光学科"
+    },
+    {
+      "departmentCode": 13,
+      "specialty": "小儿眼科"
+    },
+    {
+      "departmentCode": 13,
+      "specialty": "眼底科"
+    },
+    {
+      "departmentCode": 13,
+      "specialty": "青光眼科"
+    },
+    {
+      "departmentCode": 13,
+      "specialty": "角膜及眼表科"
+    },
+    {
+      "departmentCode": 13,
+      "specialty": "白内障科"
+    },
+    {
+      "departmentCode": 13,
+      "specialty": "眼眶及眼肿瘤科"
+    },
+    {
+      "departmentCode": 13,
+      "specialty": "眼外伤科"
+    },
+    {
+      "departmentCode": 14,
+      "specialty": "精神科"
+    },
+    {
+      "departmentCode": 14,
+      "specialty": "心理咨询科"
+    },
+    {
+      "departmentCode": 14,
+      "specialty": "成瘾医学科"
+    },
+    {
+      "departmentCode": 15,
+      "specialty": "整形外科"
+    },
+    {
+      "departmentCode": 15,
+      "specialty": "皮肤美容科"
+    },
+    {
+      "departmentCode": 16,
+      "specialty": "营养科"
+    },
+    {
+      "departmentCode": 17,
+      "specialty": "肿瘤综合科"
+    },
+    {
+      "departmentCode": 17,
+      "specialty": "肿瘤内科"
+    },
+    {
+      "departmentCode": 17,
+      "specialty": "肿瘤外科"
+    },
+    {
+      "departmentCode": 17,
+      "specialty": "放疗科"
+    },
+    {
+      "departmentCode": 17,
+      "specialty": "肿瘤康复科"
+    },
+    {
+      "departmentCode": 18,
+      "specialty": "辅助生殖科"
+    },
+    {
+      "departmentCode": 18,
+      "specialty": "计划生育科"
+    },
+    {
+      "departmentCode": 18,
+      "specialty": "遗传咨询科"
+    },
+    {
+      "departmentCode": 19,
+      "specialty": "疼痛科"
+    },
+    {
+      "departmentCode": 19,
+      "specialty": "麻醉科"
+    },
+    {
+      "departmentCode": 20,
+      "specialty": "睡眠医学科"
+    },
+    {
+      "departmentCode": 21,
+      "specialty": "中西医结合科"
+    },
+    {
+      "departmentCode": 22,
+      "specialty": "康复科"
+    },
+    {
+      "departmentCode": 22,
+      "specialty": "理疗科"
+    }
+  ]
+}

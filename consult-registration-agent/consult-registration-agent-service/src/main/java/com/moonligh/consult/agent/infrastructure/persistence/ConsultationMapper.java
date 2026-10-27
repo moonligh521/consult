@@ -14,7 +14,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moonligh.consult.agent.api.enums.ConsultationStatus;
 import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.api.enums.PayStatus;
-import com.moonligh.consult.agent.api.enums.ServiceType;
 import com.moonligh.consult.agent.api.res.AssignedDoctorRes;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
 import com.moonligh.consult.agent.domain.ConsultOrder;
@@ -130,7 +129,7 @@ public class ConsultationMapper {
                 WHERE id=? AND is_deleted=0
                 """,
                 session.getBusinessStatus().getCode(),
-                session.getServiceType() == null ? null : session.getServiceType().getCode(),
+                null,
                 session.getGender() == null ? null : session.getGender().getCode(),
                 session.getAge(),
                 session.getPatientId(),
@@ -282,10 +281,6 @@ public class ConsultationMapper {
     private ConsultationSession mapSession(ResultSet rs, int rowNum) throws SQLException {
         ConsultationSession session = new ConsultationSession(rs.getString("id"));
         session.setBusinessStatus(ConsultationStatus.fromCode(rs.getInt("business_status")));
-        int serviceType = rs.getInt("service_type");
-        if (!rs.wasNull()) {
-            session.setServiceType(ServiceType.fromCode(serviceType));
-        }
         int gender = rs.getInt("gender");
         if (!rs.wasNull()) {
             session.setGender(Gender.fromCode(gender));
@@ -338,7 +333,7 @@ public class ConsultationMapper {
                 """
                 SELECT id, package_code, package_name, origin_amount, pay_amount, discount_amount, pay_status, paid_at,
                        doctor_id, doctor_name, doctor_title, hospital, department_code, specialty, skills_hit, schedule_id,
-                       consult_minutes, ends_at, ended_at
+                       consult_minutes, ends_at, ended_at, end_reason
                 FROM consult_order
                 WHERE consultation_id = ? AND is_deleted = 0
                 """,
@@ -355,8 +350,8 @@ public class ConsultationMapper {
                 INSERT INTO consult_order
                 (id, consultation_id, package_code, package_name, origin_amount, pay_amount, discount_amount,
                  pay_status, paid_at, doctor_id, doctor_name, doctor_title, hospital, department_code, specialty,
-                 skills_hit, schedule_id, consult_minutes, ends_at, ended_at, created_at, updated_at, is_deleted)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                 skills_hit, schedule_id, consult_minutes, ends_at, ended_at, end_reason, created_at, updated_at, is_deleted)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 ON DUPLICATE KEY UPDATE
                   package_code = VALUES(package_code),
                   package_name = VALUES(package_name),
@@ -376,6 +371,7 @@ public class ConsultationMapper {
                   consult_minutes = VALUES(consult_minutes),
                   ends_at = VALUES(ends_at),
                   ended_at = VALUES(ended_at),
+                  end_reason = VALUES(end_reason),
                   updated_at = CURRENT_TIMESTAMP(3)
                 """,
                 order.orderId(),
@@ -398,6 +394,7 @@ public class ConsultationMapper {
                 order.consultMinutes(),
                 order.endsAt() == null ? null : Timestamp.from(order.endsAt()),
                 order.endedAt() == null ? null : Timestamp.from(order.endedAt()),
+                order.endReason(),
                 Timestamp.from(now),
                 Timestamp.from(now));
     }
@@ -435,7 +432,8 @@ public class ConsultationMapper {
                 doctor,
                 minutes,
                 endsAt == null ? null : endsAt.toInstant(),
-                endedAt == null ? null : endedAt.toInstant());
+                endedAt == null ? null : endedAt.toInstant(),
+                rs.getString("end_reason"));
     }
 
     private String toJson(Object value, String column) {

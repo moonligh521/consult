@@ -71,7 +71,7 @@ class OccupancyFlowTest {
                     List<String> canonicalTerms,
                     int consultMinutes) {
                 lastMinutes.set(consultMinutes);
-                return new AssignedDoctorRes("doc-1", "周宁", "主治医师", "演示医院", 1, card.specialty(),
+                return new AssignedDoctorRes("doc-1", "周宁", "主治医师", "互联网医院", 1, card.specialty(),
                         "干咳", "干咳", "sch-1", "SKILL_TEXT");
             }
 
@@ -129,6 +129,7 @@ class OccupancyFlowTest {
         String id = paid(service, 15).consultationId();
         ConsultationRes ended = service.endConsult(id, "ENDED");
         assertNotNull(ended.order().endedAt());
+        assertEquals("ENDED", ended.order().endReason());
         assertEquals(List.of("ENDED"), releases);
         ConsultationRes again = service.endConsult(id, "ENDED");
         assertEquals(ended.order().endedAt(), again.order().endedAt());

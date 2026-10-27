@@ -27,6 +27,31 @@ public class DoctorStore {
         return n == null ? 0 : n;
     }
 
+    /** 某二级科在职医生数。 */
+    public int countBySpecialty(String specialty) {
+        Integer n = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM consult_doctor
+                WHERE is_deleted = 0 AND status = 1 AND specialty = ?
+                """,
+                Integer.class,
+                specialty);
+        return n == null ? 0 : n;
+    }
+
+    public List<DoctorAdminRes> listBySpecialty(String specialty) {
+        return jdbc.query(
+                """
+                SELECT id, name, gender, title, hospital, department_code, specialty, skills, intro,
+                       in_flight, concurrent_limit, status
+                FROM consult_doctor
+                WHERE is_deleted = 0 AND specialty = ?
+                ORDER BY name
+                """,
+                this::mapAdmin,
+                specialty);
+    }
+
     public boolean exists(String id) {
         Integer n = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM consult_doctor WHERE id = ? AND is_deleted = 0", Integer.class, id);

@@ -150,11 +150,10 @@ class SafetyInvariantsTest {
     }
 
     @Test
-    void inv013UnsuitableRejectsOrder() {
+    void inv013RegistrationPathAllowsCardForOfflineImaging() {
         ConsultationsFixture fixture = ConsultationsFixture.enforce();
-        ConsultationRes view = fixture.service.acceptMessage(null, null, 2, "女，32岁，需要线下拍片两天");
-        assertEquals(ConsultationStatus.UNSUITABLE_FOR_ONLINE, view.status());
-        assertEquals(ErrorCode.UNSUITABLE_STOP, stopCode(() -> fixture.service.placeOrder(view.consultationId(), 1)));
+        ConsultationRes view = fixture.service.acceptMessage(null, "女，32岁，需要线下拍片两天");
+        assertTrue(view.status() == ConsultationStatus.NEED_SLOT || view.status() == ConsultationStatus.CARD_READY);
     }
 
     @Test
@@ -170,8 +169,8 @@ class SafetyInvariantsTest {
     @Test
     void inv015SameMessageIdDoesNotDuplicateAndKeepsView() {
         ConsultationsFixture fixture = ConsultationsFixture.shadow();
-        ConsultationRes first = fixture.service.acceptMessage(null, "m-1", null, "女，32岁，干咳半年，运动后加重");
-        ConsultationRes again = fixture.service.acceptMessage(first.consultationId(), "m-1", null, "女，32岁，干咳半年，运动后加重");
+        ConsultationRes first = fixture.service.acceptMessage(null, "m-1", "女，32岁，干咳半年，运动后加重");
+        ConsultationRes again = fixture.service.acceptMessage(first.consultationId(), "m-1", "女，32岁，干咳半年，运动后加重");
         assertEquals(first.status(), again.status());
         assertEquals(first.consultationId(), again.consultationId());
         assertEquals(1, fixture.repository.getRequired(first.consultationId()).messages().size());
