@@ -1,5 +1,9 @@
 package com.moonligh.consult.agent.domain;
 
+import java.time.Instant;
+import java.util.List;
+
+import com.moonligh.consult.agent.api.res.ConsultationRecordRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 
 /**
@@ -14,4 +18,12 @@ public interface ConsultationRepository {
      * action 里抛出的业务错误会在保存之后再抛出，避免原话回滚丢失。
      */
     ConsultationRes runLocked(String consultationId, SessionAction action);
+
+    /** 不加锁读出会话。找不到返回 null。 */
+    ConsultationSession get(String consultationId);
+
+    /** 当前账号一年窗口内的记录，按最近更新倒序。 */
+    List<ConsultationRecordRes> listMine(String accountId, Instant from, int offset, int limit);
+
+    long countMine(String accountId, Instant from);
 }

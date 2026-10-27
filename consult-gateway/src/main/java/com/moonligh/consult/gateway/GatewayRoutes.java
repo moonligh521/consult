@@ -36,7 +36,7 @@ public class GatewayRoutes {
                                 "/api/admin/departments",
                                 "/api/admin/departments/**")
                         .uri(agent))
-                .route("agent-consult", r -> r.path("/api/consultations/**").uri(agent))
+                .route("agent-consult", r -> r.path("/api/consultations", "/api/consultations/**").uri(agent))
                 .build();
     }
 }

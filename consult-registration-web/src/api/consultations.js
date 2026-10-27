@@ -39,3 +39,23 @@ export function setConsultMinutes(consultationId, consultMinutes) {
 export function bindPatient(consultationId, patientId) {
   return http.post('/api/consultations/patient', { consultationId, patientId })
 }
+
+/** 当前账号一年内咨询记录。 */
+export function listConsultations(page = 1, size = 50) {
+  return http.get('/api/consultations', { params: { page, size } })
+}
+
+/** 打开一条咨询记录。 */
+export function getConsultation(consultationId) {
+  return http.get(`/api/consultations/${consultationId}`)
+}
+
+/** 把诊室画面存回会话。 */
+export function saveTranscript(consultationId, title, transcript) {
+  return http.put('/api/consultations/transcript', { consultationId, title, transcript })
+}
+
+/** 支付后未派到医生时再派一次。 */
+export function reassignDoctor(consultationId) {
+  return http.post('/api/consultations/reassign', { consultationId })
+}

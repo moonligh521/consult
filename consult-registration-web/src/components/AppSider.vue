@@ -1,9 +1,14 @@
 <script setup>
 import { NButton } from 'naive-ui'
+import { onMounted } from 'vue'
 import { useConsultationStore } from '../stores/consultation'
 
 const emit = defineEmits(['close'])
 const store = useConsultationStore()
+
+onMounted(() => {
+  store.loadRecords()
+})
 
 function createChat() {
   store.startNew()

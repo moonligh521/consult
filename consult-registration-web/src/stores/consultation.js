@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { bindPatient, confirmCard, endConsult as endConsultApi, listPackages, patchCard, placeOrder, sendMessage, setConsultMinutes } from '../api/consultations'
+import { bindPatient, confirmCard, endConsult as endConsultApi, getConsultation, listConsultations, listPackages, patchCard, placeOrder, reassignDoctor, saveTranscript, sendMessage, setConsultMinutes } from '../api/consultations'
 import { createPatient, listPatients } from '../api/patients'
 import { canShowCard, CONSULT_MINUTES, INQUIRY, isSafetyStop, STATUS } from '../constants/catalog'
 import { doctorFromOrder, firstAskAsDoctor, greetAsDoctor, MATCH_ASSIST, replyAsDoctor, waitForDoctor, waitForDoctorAssign, waitForDoctorServe, waitMs } from '../domain/doctorAgent'
@@ -24,6 +24,8 @@ function persist(sessions) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
 }
 
+let persistTimer = 0
+
 function newMessageId() {
   return crypto.randomUUID()
 }
@@ -33,8 +35,29 @@ function titleOf(text) {
   return value.length > 18 ? `${value.slice(0, 18)}…` : value
 }
 
+function parseTranscript(detail) {
+  if (!detail?.transcript) {
+    return null
+  }
+  try {
+    const payload = JSON.parse(detail.transcript)
+    return {
+      id: detail.view?.consultationId,
+      snapshot: payload.snapshot || detail.view || null,
+      payOrder: payload.payOrder || detail.view?.order || null,
+      doctor: payload.doctor || null,
+      doctorOnline: !!payload.doctorOnline,
+      matchPhase: payload.matchPhase || null,
+      humanOnline: !!payload.humanOnline,
+      messages: payload.messages || [],
+    }
+  } catch {
+    return null
+  }
+}
+
 /**
- * 咨询会话。列表只存在浏览器里，病情原文以服务端为准。
+ * 咨询会话。列表以服务端为准，浏览器里只做缓存。
  */
 export const useConsultationStore = defineStore('consultation', {
   state: () => ({
@@ -102,25 +125,69 @@ export const useConsultationStore = defineStore('consultation', {
       this.error = ''
       this.ending = false
     },
-    openSession(id) {
-      const found = this.sessions.find((item) => item.id === id)
-      if (!found) {
-        return
-      }
-      this.activeId = id
-      this.latest = found.snapshot || null
-      this.payOrder = found.payOrder || null
-      this.messages = found.messages || []
-      this.humanOnline = this.status === STATUS.NEED_HUMAN
-      this.doctor = found.doctor || null
-      this.doctorOnline = !!found.doctorOnline
-      this.matchPhase = found.doctorOnline ? 'consulting' : null
+    hydrate(record) {
+      this.activeId = record.id
+      this.latest = record.snapshot || null
+      this.payOrder = record.payOrder || null
+      this.messages = record.messages || []
+      this.humanOnline = !!record.humanOnline || this.status === STATUS.NEED_HUMAN
+      this.doctor = record.doctor || null
+      this.doctorOnline = !!record.doctorOnline
+      this.matchPhase = record.matchPhase || (record.doctorOnline ? 'consulting' : null)
       this.assigningDoctor = false
       this.error = ''
-      if (this.payOrder && !this.doctorOnline && !this.consultEnded) {
+    },
+    async openSession(id) {
+      const found = this.sessions.find((item) => item.id === id)
+      if (found) {
+        this.hydrate(found)
+      }
+      try {
+        const result = await getConsultation(id)
+        if (result.code === 200 && result.data) {
+          const remote = parseTranscript(result.data)
+          if (remote) {
+            this.hydrate(remote)
+          } else if (result.data.view) {
+            this.activeId = result.data.view.consultationId
+            this.latest = result.data.view
+            this.payOrder = result.data.view.order || null
+          }
+        }
+      } catch (error) {
+        this.error = error.message
+      }
+      if (this.payOrder && !this.doctorOnline && !this.humanOnline && !this.consultEnded && this.matchPhase !== 'timeout') {
         this.joinDoctor()
       }
       this.startConsultClock()
+    },
+    async loadRecords() {
+      try {
+        const result = await listConsultations(1, 50)
+        if (result.code !== 200 || !result.data?.items) {
+          return
+        }
+        const cached = new Map(this.sessions.map((item) => [item.id, item]))
+        this.sessions = result.data.items.map((item) => {
+          const local = cached.get(item.consultationId)
+          return {
+            id: item.consultationId,
+            title: item.title || local?.title || '新的咨询',
+            updatedAt: item.updatedAt ? Date.parse(item.updatedAt) : (local?.updatedAt || Date.now()),
+            snapshot: local?.snapshot || null,
+            payOrder: local?.payOrder || null,
+            doctor: local?.doctor || null,
+            doctorOnline: !!local?.doctorOnline,
+            matchPhase: local?.matchPhase || null,
+            humanOnline: !!local?.humanOnline,
+            messages: local?.messages || [],
+          }
+        })
+        persist(this.sessions)
+      } catch (error) {
+        this.error = error.message
+      }
     },
     remember(text) {
       if (!this.activeId) {
@@ -136,6 +203,7 @@ export const useConsultationStore = defineStore('consultation', {
         doctor: this.doctor,
         doctorOnline: this.doctorOnline,
         matchPhase: this.doctorOnline ? 'consulting' : this.matchPhase,
+        humanOnline: this.humanOnline,
         messages: this.messages,
       }
       if (index >= 0) {
@@ -144,6 +212,24 @@ export const useConsultationStore = defineStore('consultation', {
         this.sessions.unshift(record)
       }
       persist(this.sessions)
+      this.queuePersist(record)
+    },
+    queuePersist(record) {
+      if (!record?.id) {
+        return
+      }
+      window.clearTimeout(persistTimer)
+      persistTimer = window.setTimeout(() => {
+        saveTranscript(record.id, record.title, JSON.stringify({
+          messages: record.messages,
+          snapshot: record.snapshot,
+          payOrder: record.payOrder,
+          doctor: record.doctor,
+          doctorOnline: record.doctorOnline,
+          matchPhase: record.matchPhase,
+          humanOnline: record.humanOnline,
+        })).catch(() => {})
+      }, 600)
     },
     applyResult(data, { silent = false } = {}) {
       this.latest = data
@@ -175,8 +261,15 @@ export const useConsultationStore = defineStore('consultation', {
       if (!sentence || this.sending || this.consultEnded) {
         return
       }
-      // 卡片待确认允许补主诉；已确认且未进诊室不再发普通病情
-      if (this.status === STATUS.CONFIRMED && !this.doctorOnline && !this.humanOnline) {
+      if (this.matchPhase === 'timeout' || this.matchPhase === 'matching') {
+        return
+      }
+      if (this.doctorOnline || this.humanOnline) {
+        await this.sendClinic(sentence)
+        return
+      }
+      // 卡片待确认允许补主诉；已确认且未进诊室不再打分诊接口
+      if (this.status === STATUS.CONFIRMED) {
         return
       }
       this.sending = true
@@ -190,10 +283,9 @@ export const useConsultationStore = defineStore('consultation', {
         })
         if (result.code === 200) {
           const joined = this.humanOnline
-          const inConsult = this.doctorOnline
           const stopped = isSafetyStop(result.data.status)
           this.applyResult(result.data, {
-            silent: result.data.status === STATUS.NEED_HUMAN || (inConsult && !stopped),
+            silent: result.data.status === STATUS.NEED_HUMAN,
           })
           if (stopped) {
             this.doctorOnline = false
@@ -209,12 +301,6 @@ export const useConsultationStore = defineStore('consultation', {
             } else {
               this.messages.push({ role: 'human', text: replyAsHuman(sentence, this.card) })
             }
-          } else if (inConsult) {
-            await waitForDoctor()
-            this.messages.push({
-              role: 'doctor',
-              text: replyAsDoctor(sentence, this.card, this.doctor),
-            })
           }
         } else {
           this.messages.push({ role: 'assistant', text: result.message || '请求失败' })
@@ -223,6 +309,31 @@ export const useConsultationStore = defineStore('consultation', {
       } catch (error) {
         this.error = error.message
         this.messages.push({ role: 'assistant', text: error.message })
+      } finally {
+        this.sending = false
+      }
+    },
+    async sendClinic(text) {
+      const sentence = text.trim()
+      if (!sentence || this.consultEnded) {
+        return
+      }
+      this.sending = true
+      this.error = ''
+      this.messages.push({ role: 'user', text: sentence })
+      this.remember(sentence)
+      try {
+        if (this.humanOnline) {
+          await waitMs(420)
+          this.messages.push({ role: 'human', text: replyAsHuman(sentence, this.card) })
+        } else {
+          await waitForDoctor()
+          this.messages.push({
+            role: 'doctor',
+            text: replyAsDoctor(sentence, this.card, this.doctor),
+          })
+        }
+        this.remember(sentence)
       } finally {
         this.sending = false
       }
@@ -385,11 +496,20 @@ export const useConsultationStore = defineStore('consultation', {
       }
       this.remember()
       try {
+        const match = this.lastMatchCard()
+        if (!this.doctor) {
+          this.matchPhase = 'timeout'
+          if (match) {
+            match.phase = 'timeout'
+            match.text = '当前暂无合适医生，请重试匹配或转人工。'
+          }
+          this.remember()
+          return
+        }
         const result = await Promise.race([
           waitForDoctorAssign().then(() => 'ok'),
           waitMs(INQUIRY.matchTimeoutMs).then(() => 'timeout'),
         ])
-        const match = this.lastMatchCard()
         if (result === 'timeout' || !this.doctor) {
           this.matchPhase = 'timeout'
           if (match) {
@@ -426,11 +546,43 @@ export const useConsultationStore = defineStore('consultation', {
         this.assigningDoctor = false
       }
     },
-    retryMatch() {
+    async retryMatch() {
       if (this.matchPhase !== 'timeout' || this.doctorOnline || !this.order || this.consultEnded) {
         return
       }
+      if (!doctorFromOrder(this.order)) {
+        this.error = ''
+        try {
+          const result = await reassignDoctor(this.activeId)
+          if (result.code === 200) {
+            this.applyResult(result.data, { silent: true })
+            this.payOrder = result.data.order
+          } else {
+            this.error = result.message || '当前暂无合适医生，请稍后再试。'
+            this.messages.push({ role: 'system', text: this.error })
+            this.remember()
+            return
+          }
+        } catch (error) {
+          this.error = error.message
+          this.messages.push({ role: 'system', text: error.message })
+          this.remember()
+          return
+        }
+      }
       this.joinDoctor()
+    },
+    handoffAfterMatch() {
+      if (this.consultEnded || this.doctorOnline) {
+        return
+      }
+      this.humanOnline = true
+      this.doctorOnline = false
+      this.assigningDoctor = false
+      this.matchPhase = null
+      this.messages.push({ role: 'system', text: '已为您转接人工客服。' })
+      this.messages.push({ role: 'human', text: HUMAN_JOIN })
+      this.remember()
     },
     startConsultClock() {
       this.stopConsultClock()

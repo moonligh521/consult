@@ -32,6 +32,12 @@ public class ConsultationSession {
     private String patientId;
     /** 就诊人姓名快照，展示用。 */
     private String patientName;
+    /** 所属账号。登录后发第一句时写入。 */
+    private String accountId;
+    /** 咨询记录列表标题。 */
+    private String title;
+    /** 诊室对话快照 JSON。分诊原话仍在 consultation_message。 */
+    private String transcript;
     /** 已抽出的病程，例如「半年」。 */
     private String duration;
     /** 卡片展示描述，可编辑；不是原话记录。 */
@@ -123,6 +129,32 @@ public class ConsultationSession {
 
     public void setPatientName(String patientName) {
         this.patientName = patientName;
+    }
+
+    public String getAccountId() {
+        return accountId;
+    }
+
+    public void setAccountId(String accountId) {
+        this.accountId = accountId;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+        this.updatedAt = Instant.now();
+    }
+
+    public String getTranscript() {
+        return transcript;
+    }
+
+    public void setTranscript(String transcript) {
+        this.transcript = transcript;
+        this.updatedAt = Instant.now();
     }
 
     public String getDuration() {

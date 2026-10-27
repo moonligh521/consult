@@ -343,4 +343,31 @@ class ConsultationAcceptanceTest {
         assertEquals("请转人工协助。当前无法自动完成导诊。", patched.prompt());
         assertNull(patched.card());
     }
+
+    @Test
+    void sessionBindsAccountAndServesRecords() {
+        ConsultationRes view = service.acceptMessage(null, null, "女，32岁，干咳半年，运动后加重", "acc-1");
+        var page = service.listMine("acc-1", 1, 20);
+        assertEquals(1, page.total());
+        assertEquals(view.consultationId(), page.items().get(0).consultationId());
+        assertTrue(page.items().get(0).title().contains("干咳") || page.items().get(0).title().contains("女"));
+        assertTrue(service.listMine("acc-2", 1, 20).items().isEmpty());
+
+        service.saveTranscript(view.consultationId(), "acc-1", "干咳半年", "{\"messages\":[]}");
+        var detail = service.getMine("acc-1", view.consultationId());
+        assertEquals("干咳半年", detail.title());
+        assertEquals("{\"messages\":[]}", detail.transcript());
+        BusinessException missing = assertThrows(BusinessException.class, () -> service.getMine("acc-2", view.consultationId()));
+        assertEquals(ErrorCode.CONSULTATION_NOT_FOUND, missing.getErrorCode());
+    }
+
+    @Test
+    void reassignFailsWhenNoDoctorAndNoAssigner() {
+        String id = service.acceptMessage(null, "女，32岁，干咳半年，运动后加重").consultationId();
+        service.confirm(id);
+        ConsultationRes ordered = service.placeOrder(id, 3);
+        assertNull(ordered.order().doctor());
+        BusinessException error = assertThrows(BusinessException.class, () -> service.reassign(id));
+        assertEquals(ErrorCode.DOCTOR_UNAVAILABLE, error.getErrorCode());
+    }
 }

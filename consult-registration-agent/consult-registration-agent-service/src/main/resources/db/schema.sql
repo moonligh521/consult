@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS consultation_session (
     age                         INT          NULL     COMMENT '年龄，1到120。空表示还没抽到',
     patient_id                  VARCHAR(64)  NULL     COMMENT '本轮选用的就诊人编号。空表示还没选',
     patient_name                VARCHAR(32)  NULL     COMMENT '就诊人姓名快照，展示用',
+    account_id                  VARCHAR(64)  NULL     COMMENT '所属账号。登录后发第一句时写入',
+    title                       VARCHAR(64)  NULL     COMMENT '咨询记录列表标题',
+    transcript_json             MEDIUMTEXT   NULL     COMMENT '诊室对话快照JSON。分诊原话仍在 consultation_message',
     duration                    VARCHAR(64)  NULL     COMMENT '病程，例如半年、3天。空表示还没抽到',
     description                 TEXT         NOT NULL COMMENT '卡片展示用的病情描述，可编辑，不是原话',
     card_json                   JSON         NULL     COMMENT '已生成的咨询卡片JSON。未齐或已作废为空',
@@ -31,7 +34,8 @@ CREATE TABLE IF NOT EXISTS consultation_session (
     created_at                  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     updated_at                  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
     is_deleted                  BIGINT       NOT NULL DEFAULT 0 COMMENT '删除标记。0未删除；删除后写入非0唯一值，保证业务唯一键能再用',
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    KEY idx_consult_session_account (account_id, updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='咨询会话。一行一轮，FOR UPDATE 锁这一行';
 
 CREATE TABLE IF NOT EXISTS consultation_message (

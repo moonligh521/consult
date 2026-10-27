@@ -4,9 +4,12 @@ import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.moonligh.consult.agent.api.req.BindPatientReq;
@@ -16,11 +19,16 @@ import com.moonligh.consult.agent.api.req.ConsultSessionReq;
 import com.moonligh.consult.agent.api.req.EndConsultReq;
 import com.moonligh.consult.agent.api.req.MessageReq;
 import com.moonligh.consult.agent.api.req.OrderReq;
+import com.moonligh.consult.agent.api.req.ReassignReq;
+import com.moonligh.consult.agent.api.req.TranscriptReq;
+import com.moonligh.consult.agent.api.res.ConsultationDetailRes;
+import com.moonligh.consult.agent.api.res.ConsultationPageRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.api.res.PayPackageRes;
-import com.moonligh.consult.security.AccountIds;
 import com.moonligh.consult.agent.service.ConsultationService;
+import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.Result;
+import com.moonligh.consult.security.AccountIds;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -41,13 +49,64 @@ public class ConsultationController {
      * 患者发一句话。consultationId 为空则新开一轮。
      */
     @PostMapping("/messages")
-    public Result<ConsultationRes> acceptMessage(@RequestBody MessageReq request) {
+    public Result<ConsultationRes> acceptMessage(@RequestBody MessageReq request, HttpServletRequest http) {
+        String accountId = tryAccount(http);
         // 请求体为空时按空文本处理，由服务返回提示。
         if (request == null) {
-            return Result.ok(service.acceptMessage(null, null, ""));
+            return Result.ok(service.acceptMessage(null, null, "", accountId));
         }
         return Result.ok(service.acceptMessage(
-                request.consultationId(), request.messageId(), request.text()));
+                request.consultationId(), request.messageId(), request.text(), accountId));
+    }
+
+    /**
+     * 当前账号一年内咨询记录。
+     */
+    @GetMapping
+    public Result<ConsultationPageRes> listMine(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest http) {
+        return Result.ok(service.listMine(AccountIds.of(http), page, size));
+    }
+
+    /**
+     * 卡片确认后的四档咨询。不依赖某一轮会话。
+     */
+    @GetMapping("/packages")
+    public Result<List<PayPackageRes>> packages() {
+        return Result.ok(service.packages());
+    }
+
+    /**
+     * 打开一条自己的咨询记录。
+     */
+    @GetMapping("/{consultationId}")
+    public Result<ConsultationDetailRes> getMine(@PathVariable String consultationId, HttpServletRequest http) {
+        return Result.ok(service.getMine(AccountIds.of(http), consultationId));
+    }
+
+    /**
+     * 把诊室画面存回会话。
+     */
+    @PutMapping("/transcript")
+    public Result<ConsultationRes> saveTranscript(@RequestBody TranscriptReq request, HttpServletRequest http) {
+        if (request == null) {
+            return Result.ok(service.saveTranscript(null, AccountIds.of(http), null, null));
+        }
+        return Result.ok(service.saveTranscript(
+                request.consultationId(), AccountIds.of(http), request.title(), request.transcript()));
+    }
+
+    /**
+     * 支付后未派到医生时再派一次。
+     */
+    @PostMapping("/reassign")
+    public Result<ConsultationRes> reassign(@RequestBody ReassignReq request) {
+        if (request == null) {
+            return Result.ok(service.reassign(null));
+        }
+        return Result.ok(service.reassign(request.consultationId()));
     }
 
     /**
@@ -67,14 +126,6 @@ public class ConsultationController {
             return Result.ok(service.confirm(null));
         }
         return Result.ok(service.confirm(request.consultationId()));
-    }
-
-    /**
-     * 卡片确认后的四档咨询。不依赖某一轮会话。
-     */
-    @GetMapping("/packages")
-    public Result<List<PayPackageRes>> packages() {
-        return Result.ok(service.packages());
     }
 
     /**
@@ -119,5 +170,14 @@ public class ConsultationController {
             return Result.ok(service.setConsultMinutes(null, null));
         }
         return Result.ok(service.setConsultMinutes(request.consultationId(), request.consultMinutes()));
+    }
+
+    /** 单测没有登录过滤器时允许空账号。 */
+    private static String tryAccount(HttpServletRequest http) {
+        try {
+            return AccountIds.of(http);
+        } catch (BusinessException ignored) {
+            return null;
+        }
     }
 }

@@ -1,5 +1,7 @@
 package com.moonligh.consult.agent.infrastructure.persistence;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -9,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.moonligh.consult.agent.api.res.ConsultationRecordRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.domain.ConsultationRepository;
 import com.moonligh.consult.agent.domain.ConsultationSession;
@@ -117,5 +120,29 @@ public class JdbcConsultationRepository implements ConsultationRepository {
             session.markOrderPersisted();
         }
         mapper.insertDecisions(session.drainPendingDecisions());
+    }
+
+    @Override
+    public ConsultationSession get(String consultationId) {
+        if (consultationId == null || consultationId.isBlank()) {
+            return null;
+        }
+        ConsultationSession session = mapper.selectById(consultationId);
+        if (session == null) {
+            return null;
+        }
+        session.restoreMessages(mapper.selectMessages(consultationId));
+        session.restoreOrder(mapper.selectOrder(consultationId));
+        return session;
+    }
+
+    @Override
+    public List<ConsultationRecordRes> listMine(String accountId, Instant from, int offset, int limit) {
+        return mapper.listMine(accountId, from, offset, limit);
+    }
+
+    @Override
+    public long countMine(String accountId, Instant from) {
+        return mapper.countMine(accountId, from);
     }
 }

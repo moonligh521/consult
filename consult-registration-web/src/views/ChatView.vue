@@ -32,6 +32,7 @@ onMounted(() => {
   syncDrawer()
   window.addEventListener('resize', syncDrawer)
   store.startConsultClock()
+  store.loadRecords()
 })
 
 onUnmounted(() => {
@@ -335,7 +336,7 @@ function initialOf(name) {
           <p>{{ item.text }}</p>
           <div v-if="item.phase === 'timeout'" class="match-actions">
             <button class="match-retry" type="button" @click="store.retryMatch()">重试匹配</button>
-            <button class="match-human" type="button" @click="useShortcut('转人工')">转人工</button>
+            <button class="match-human" type="button" @click="store.handoffAfterMatch()">转人工</button>
           </div>
         </article>
         <div v-else-if="item.role === 'system'" class="sys-line">{{ item.text }}</div>

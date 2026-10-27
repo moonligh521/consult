@@ -109,6 +109,19 @@ class ConsultationControllerTest {
                 .andExpect(jsonPath("$.data.order.packageCode").value(3))
                 .andExpect(jsonPath("$.data.order.packageName").value("三甲医生"))
                 .andExpect(jsonPath("$.data.order.payStatus").value(2));
+
+        mockMvc.perform(post("/api/consultations/reassign")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"consultationId\":\"" + consultationId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(ErrorCode.DOCTOR_UNAVAILABLE.getCode()));
+    }
+
+    @Test
+    void listMineRequiresAccount() throws Exception {
+        mockMvc.perform(get("/api/consultations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(ErrorCode.LOGIN_REQUIRED.getCode()));
     }
 
     @Test

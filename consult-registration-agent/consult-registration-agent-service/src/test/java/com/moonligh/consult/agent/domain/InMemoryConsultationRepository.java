@@ -1,5 +1,7 @@
 package com.moonligh.consult.agent.domain;
 
+import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -7,6 +9,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantLock;
 
+import com.moonligh.consult.agent.api.res.ConsultationRecordRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.domain.safety.InMemorySafetyAuditRecorder;
 import com.moonligh.consult.agent.domain.safety.SafetyDecisionAudit;
@@ -120,5 +123,56 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
     /** 已保存的逐节点决策，按写入顺序。 */
     public List<MatchDecision> decisions() {
         return List.copyOf(decisions);
+    }
+
+    @Override
+    public ConsultationSession get(String consultationId) {
+        if (consultationId == null || consultationId.isBlank()) {
+            return null;
+        }
+        return sessions.get(consultationId);
+    }
+
+    @Override
+    public List<ConsultationRecordRes> listMine(String accountId, Instant from, int offset, int limit) {
+        return owned(accountId, from).stream()
+                .sorted(Comparator.comparing(ConsultationSession::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                .skip(Math.max(0, offset))
+                .limit(Math.max(0, limit))
+                .map(InMemoryConsultationRepository::toRecord)
+                .toList();
+    }
+
+    @Override
+    public long countMine(String accountId, Instant from) {
+        return owned(accountId, from).size();
+    }
+
+    private List<ConsultationSession> owned(String accountId, Instant from) {
+        if (accountId == null || accountId.isBlank()) {
+            return List.of();
+        }
+        Instant start = from == null ? Instant.EPOCH : from;
+        return sessions.values().stream()
+                .filter(session -> accountId.equals(session.getAccountId()))
+                .filter(session -> session.getCreatedAt() == null || !session.getCreatedAt().isBefore(start))
+                .toList();
+    }
+
+    private static ConsultationRecordRes toRecord(ConsultationSession session) {
+        ConsultOrder order = session.getOrder();
+        String title = session.getTitle();
+        if (title == null || title.isBlank()) {
+            String description = session.getDescription() == null ? "" : session.getDescription().trim();
+            title = description.isEmpty() ? "新的咨询" : (description.length() > 18 ? description.substring(0, 18) : description);
+        }
+        return new ConsultationRecordRes(
+                session.getId(),
+                title,
+                session.getBusinessStatus().getCode(),
+                session.getCreatedAt(),
+                session.getUpdatedAt(),
+                order == null ? null : order.endedAt(),
+                order == null || order.doctor() == null ? null : order.doctor().name());
     }
 }

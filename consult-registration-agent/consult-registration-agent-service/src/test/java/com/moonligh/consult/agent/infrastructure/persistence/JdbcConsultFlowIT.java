@@ -156,6 +156,21 @@ class JdbcConsultFlowIT {
                 "consult_order",
                 "end_reason",
                 "ALTER TABLE consult_order ADD COLUMN end_reason VARCHAR(16) NULL COMMENT '结束原因 ENDED/TIMEOUT/CANCEL' AFTER ended_at");
+        addColumnIfMissing(
+                jdbc,
+                "consultation_session",
+                "account_id",
+                "ALTER TABLE consultation_session ADD COLUMN account_id VARCHAR(64) NULL COMMENT '所属账号' AFTER patient_name");
+        addColumnIfMissing(
+                jdbc,
+                "consultation_session",
+                "title",
+                "ALTER TABLE consultation_session ADD COLUMN title VARCHAR(64) NULL COMMENT '咨询记录列表标题' AFTER account_id");
+        addColumnIfMissing(
+                jdbc,
+                "consultation_session",
+                "transcript_json",
+                "ALTER TABLE consultation_session ADD COLUMN transcript_json MEDIUMTEXT NULL COMMENT '诊室对话快照' AFTER title");
     }
 
     private void addColumnIfMissing(JdbcTemplate jdbc, String table, String column, String ddl) {

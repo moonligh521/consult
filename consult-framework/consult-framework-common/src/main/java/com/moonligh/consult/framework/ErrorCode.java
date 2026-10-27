@@ -31,6 +31,7 @@ public enum ErrorCode {
     INVALID_PATIENT(1121, "请填写就诊人姓名、性别和年龄。"),
     INVALID_CONSULT_MINUTES(1122, "问诊时长须为 5、10、15、20 或 30 分钟。"),
     CONSULT_ENDED(1123, "本次问诊已结束。"),
+    CONSULT_NOT_OWNED(1124, "找不到这轮咨询。"),
 
     LOGIN_REQUIRED(1201, "请先登录。"),
     INVALID_MOBILE(1202, "请输入正确的手机号。"),

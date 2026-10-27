@@ -66,6 +66,17 @@ def column_exists(cur, table: str, column: str) -> bool:
     return cur.fetchone()[0] > 0
 
 
+def index_exists(cur, table: str, name: str) -> bool:
+    cur.execute(
+        """
+        SELECT COUNT(*) FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = %s
+        """,
+        (table, name),
+    )
+    return cur.fetchone()[0] > 0
+
+
 def evict_redis(pwd: str) -> None:
     try:
         import redis
@@ -116,6 +127,25 @@ def main() -> None:
         cur.execute(
             "ALTER TABLE consultation_session ADD COLUMN patient_name VARCHAR(32) NULL "
             "COMMENT '就诊人姓名快照' AFTER patient_id"
+        )
+    if not column_exists(cur, "consultation_session", "account_id"):
+        cur.execute(
+            "ALTER TABLE consultation_session ADD COLUMN account_id VARCHAR(64) NULL "
+            "COMMENT '所属账号。登录后发第一句时写入' AFTER patient_name"
+        )
+    if not column_exists(cur, "consultation_session", "title"):
+        cur.execute(
+            "ALTER TABLE consultation_session ADD COLUMN title VARCHAR(64) NULL "
+            "COMMENT '咨询记录列表标题' AFTER account_id"
+        )
+    if not column_exists(cur, "consultation_session", "transcript_json"):
+        cur.execute(
+            "ALTER TABLE consultation_session ADD COLUMN transcript_json MEDIUMTEXT NULL "
+            "COMMENT '诊室对话快照JSON。分诊原话仍在 consultation_message' AFTER title"
+        )
+    if not index_exists(cur, "consultation_session", "idx_consult_session_account"):
+        cur.execute(
+            "ALTER TABLE consultation_session ADD INDEX idx_consult_session_account (account_id, updated_at)"
         )
     if not column_exists(cur, "consult_doctor", "skills"):
         cur.execute(

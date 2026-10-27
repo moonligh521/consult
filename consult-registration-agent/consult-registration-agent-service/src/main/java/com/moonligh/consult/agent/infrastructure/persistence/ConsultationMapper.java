@@ -16,6 +16,7 @@ import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.api.enums.PayStatus;
 import com.moonligh.consult.agent.api.res.AssignedDoctorRes;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
+import com.moonligh.consult.agent.api.res.ConsultationRecordRes;
 import com.moonligh.consult.agent.domain.ConsultOrder;
 import com.moonligh.consult.agent.domain.ConsultationSession;
 import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
@@ -99,6 +100,59 @@ public class ConsultationMapper {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /** 按编号读会话，不加锁。 */
+    public ConsultationSession selectById(String id) {
+        List<ConsultationSession> rows = jdbc.query(
+                "SELECT * FROM consultation_session WHERE id = ? AND is_deleted = 0",
+                this::mapSession,
+                id);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /** 当前账号一年窗口内的记录，按最近更新倒序。 */
+    public List<ConsultationRecordRes> listMine(String accountId, Instant from, int offset, int limit) {
+        return jdbc.query(
+                """
+                SELECT s.id,
+                       COALESCE(NULLIF(s.title, ''), LEFT(s.description, 18), '新的咨询') AS title,
+                       s.business_status, s.created_at, s.updated_at,
+                       o.ended_at, o.doctor_name
+                FROM consultation_session s
+                LEFT JOIN consult_order o ON o.consultation_id = s.id AND o.is_deleted = 0
+                WHERE s.account_id = ? AND s.is_deleted = 0 AND s.created_at >= ?
+                ORDER BY s.updated_at DESC
+                LIMIT ? OFFSET ?
+                """,
+                (rs, rowNum) -> {
+                    Timestamp endedAt = rs.getTimestamp("ended_at");
+                    return new ConsultationRecordRes(
+                            rs.getString("id"),
+                            rs.getString("title"),
+                            rs.getInt("business_status"),
+                            rs.getTimestamp("created_at").toInstant(),
+                            rs.getTimestamp("updated_at").toInstant(),
+                            endedAt == null ? null : endedAt.toInstant(),
+                            rs.getString("doctor_name"));
+                },
+                accountId,
+                Timestamp.from(from),
+                limit,
+                offset);
+    }
+
+    public long countMine(String accountId, Instant from) {
+        Long total = jdbc.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM consultation_session
+                WHERE account_id = ? AND is_deleted = 0 AND created_at >= ?
+                """,
+                Long.class,
+                accountId,
+                Timestamp.from(from));
+        return total == null ? 0L : total;
+    }
+
     /** 按序号查出这一轮的全部原话。 */
     public List<ConsultationMessage> selectMessages(String id) {
         return jdbc.query(
@@ -122,7 +176,8 @@ public class ConsultationMapper {
         jdbc.update(
                 """
                 UPDATE consultation_session SET
-                  business_status=?, service_type=?, gender=?, age=?, patient_id=?, patient_name=?, duration=?, description=?, card_json=?, triage_json=?,
+                  business_status=?, service_type=?, gender=?, age=?, patient_id=?, patient_name=?,
+                  account_id=?, title=?, transcript_json=?, duration=?, description=?, card_json=?, triage_json=?,
                   urgent_latched=?, prompt_evaluation_latched=?, human_requested_latched=?, unsuitable_latched=?,
                   undetermined=?, fallback_reason=?, urgent_template_id=?, notice_template_id=?,
                   last_message_seq=?, last_evaluated_seq=?, updated_at=?
@@ -134,6 +189,9 @@ public class ConsultationMapper {
                 session.getAge(),
                 session.getPatientId(),
                 session.getPatientName(),
+                session.getAccountId(),
+                session.getTitle(),
+                session.getTranscript(),
                 session.getDuration(),
                 session.getDescription(),
                 toCardJson(session),
@@ -289,6 +347,9 @@ public class ConsultationMapper {
         session.setAge(rs.wasNull() ? null : age);
         session.setPatientId(rs.getString("patient_id"));
         session.setPatientName(rs.getString("patient_name"));
+        session.setAccountId(rs.getString("account_id"));
+        session.setTitle(rs.getString("title"));
+        session.setTranscript(rs.getString("transcript_json"));
         session.setDuration(rs.getString("duration"));
         session.setDescription(rs.getString("description"));
         String cardJson = rs.getString("card_json");

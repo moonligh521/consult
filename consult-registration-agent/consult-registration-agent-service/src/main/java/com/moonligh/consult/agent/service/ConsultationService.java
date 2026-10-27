@@ -1,6 +1,7 @@
 package com.moonligh.consult.agent.service;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,8 @@ import com.moonligh.consult.agent.api.enums.MissingSlot;
 import com.moonligh.consult.agent.api.req.CardPatchReq;
 import com.moonligh.consult.agent.api.res.AssignedDoctorRes;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
+import com.moonligh.consult.agent.api.res.ConsultationDetailRes;
+import com.moonligh.consult.agent.api.res.ConsultationPageRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.api.res.PayPackageRes;
 import com.moonligh.consult.agent.config.InquiryProperties;
@@ -173,12 +176,65 @@ public class ConsultationService {
      * 收一句病情。本产品只做在线问诊的智能挂号。
      */
     public ConsultationRes acceptMessage(String consultationId, String messageId, String text) {
+        return acceptMessage(consultationId, messageId, text, null);
+    }
+
+    public ConsultationRes acceptMessage(String consultationId, String messageId, String text, String accountId) {
         // 幂等键最长 64 个字符，超了直接参数错误。
         if (messageId != null && messageId.length() > 64) {
             throw new BusinessException(ErrorCode.PARAM_INVALID);
         }
         // 同一咨询排队执行；锁内办事，办完再保存。
-        return repository.runLocked(consultationId, session -> acceptLocked(session, messageId, text));
+        return repository.runLocked(consultationId, session -> acceptLocked(session, messageId, text, accountId));
+    }
+
+    /** 当前账号一年内咨询记录。 */
+    public ConsultationPageRes listMine(String accountId, int page, int size) {
+        String owner = requireAccount(accountId);
+        int safePage = Math.max(1, page);
+        int safeSize = Math.min(50, Math.max(1, size));
+        Instant from = Instant.now().minus(365, ChronoUnit.DAYS);
+        long total = repository.countMine(owner, from);
+        return new ConsultationPageRes(
+                total,
+                safePage,
+                safeSize,
+                repository.listMine(owner, from, (safePage - 1) * safeSize, safeSize));
+    }
+
+    /** 打开一条自己的咨询记录。 */
+    public ConsultationDetailRes getMine(String accountId, String consultationId) {
+        String owner = requireAccount(accountId);
+        ConsultationSession session = repository.get(consultationId);
+        assertReadable(session, owner);
+        String title = session.getTitle();
+        if (title == null || title.isBlank()) {
+            title = clipTitle(session.getDescription());
+        }
+        return new ConsultationDetailRes(buildResponse(session), title, session.getTranscript());
+    }
+
+    /** 把诊室画面存回会话。 */
+    public ConsultationRes saveTranscript(String consultationId, String accountId, String title, String transcript) {
+        if (consultationId == null || consultationId.isBlank()) {
+            throw new BusinessException(ErrorCode.PARAM_MISSING);
+        }
+        String owner = requireAccount(accountId);
+        return repository.runLocked(consultationId, session -> {
+            bindOwner(session, owner);
+            if (title != null && !title.isBlank()) {
+                session.setTitle(clipTitle(title));
+            }
+            if (transcript != null) {
+                session.setTranscript(transcript);
+            }
+            return buildResponse(session);
+        });
+    }
+
+    /** 订单上还没有医生时再派一次。 */
+    public ConsultationRes reassign(String consultationId) {
+        return repository.runLocked(consultationId, this::reassignLocked);
     }
 
     /**
@@ -238,7 +294,10 @@ public class ConsultationService {
         if (patient == null) {
             throw new BusinessException(ErrorCode.PATIENT_NOT_FOUND);
         }
-        return repository.runLocked(consultationId, session -> bindLocked(session, patient));
+        return repository.runLocked(consultationId, session -> {
+            bindOwner(session, accountId.trim());
+            return bindLocked(session, patient);
+        });
     }
 
     /**
@@ -247,7 +306,9 @@ public class ConsultationService {
     private ConsultationRes acceptLocked(
             ConsultationSession session,
             String messageId,
-            String text) {
+            String text,
+            String accountId) {
+        bindOwner(session, accountId);
         // 问诊已结束：会话关闭，患者和医生侧都不可再发。
         if (session.getOrder() != null && session.getOrder().isEnded()) {
             throw new BusinessException(ErrorCode.CONSULT_ENDED);
@@ -264,6 +325,9 @@ public class ConsultationService {
                 return SafetyPolicy.view(session, catalog());
             }
             return blankView(session);
+        }
+        if (session.getTitle() == null || session.getTitle().isBlank()) {
+            session.setTitle(clipTitle(sentence));
         }
         // 原话只追加，不覆盖以前说过的话。
         session.appendMessage(messageId, MessageSource.MESSAGE, sentence);
@@ -500,6 +564,28 @@ public class ConsultationService {
             recordAssign(session, order.orderId(), doctor, terms);
         }
         session.setOrder(order);
+        return buildResponse(session);
+    }
+
+    private ConsultationRes reassignLocked(ConsultationSession session) {
+        ConsultOrder order = session.getOrder();
+        if (order == null) {
+            throw new BusinessException(ErrorCode.ORDER_NOT_ALLOWED);
+        }
+        if (order.isEnded()) {
+            throw new BusinessException(ErrorCode.CONSULT_ENDED);
+        }
+        if (order.doctor() != null) {
+            return buildResponse(session);
+        }
+        if (doctorAssigner == null) {
+            throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
+        }
+        List<String> terms = canonicalTerms(session);
+        AssignedDoctorRes doctor = doctorAssigner.assign(
+                session.getId(), order.orderId(), session.getCard(), terms, order.consultMinutes());
+        session.setOrder(order.withDoctor(doctor));
+        recordAssign(session, order.orderId(), doctor, terms);
         return buildResponse(session);
     }
 
@@ -863,6 +949,41 @@ public class ConsultationService {
         if (inquiry.isClosed()) {
             throw new BusinessException(ErrorCode.INQUIRY_CLOSED);
         }
+    }
+
+    private static String requireAccount(String accountId) {
+        if (accountId == null || accountId.isBlank()) {
+            throw new BusinessException(ErrorCode.LOGIN_REQUIRED);
+        }
+        return accountId.trim();
+    }
+
+    private static void bindOwner(ConsultationSession session, String accountId) {
+        if (accountId == null || accountId.isBlank()) {
+            return;
+        }
+        String owner = accountId.trim();
+        if (session.getAccountId() == null || session.getAccountId().isBlank()) {
+            session.setAccountId(owner);
+            return;
+        }
+        if (!owner.equals(session.getAccountId())) {
+            throw new BusinessException(ErrorCode.CONSULT_NOT_OWNED);
+        }
+    }
+
+    private static void assertReadable(ConsultationSession session, String accountId) {
+        if (session == null || session.getAccountId() == null || !accountId.equals(session.getAccountId())) {
+            throw new BusinessException(ErrorCode.CONSULTATION_NOT_FOUND);
+        }
+    }
+
+    private static String clipTitle(String text) {
+        String value = text == null ? "" : text.replaceAll("\\s+", " ").trim();
+        if (value.isEmpty()) {
+            return "新的咨询";
+        }
+        return value.length() > 18 ? value.substring(0, 18) : value;
     }
 
     /** 当前生效的急症目录，用来取提示文案。 */
