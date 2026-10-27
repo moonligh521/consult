@@ -15,6 +15,7 @@ import com.moonligh.consult.agent.domain.DoctorAssigner;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 import com.moonligh.consult.framework.Result;
+import com.moonligh.consult.security.AuthTokens;
 
 /**
  * 支付后向身份服务占坑派单。
@@ -91,7 +92,7 @@ public class HttpDoctorAssigner implements DoctorAssigner {
         try {
             Result<AssignedDoctorRes> body = client.post()
                     .uri("/internal/doctors/assign")
-                    .header("X-Internal-Token", properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
                     .body(payload)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<AssignedDoctorRes>>() {});
@@ -118,7 +119,7 @@ public class HttpDoctorAssigner implements DoctorAssigner {
         try {
             client.post()
                     .uri("/internal/doctors/release")
-                    .header("X-Internal-Token", properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
                     .body(payload)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<Void>>() {});
@@ -138,7 +139,7 @@ public class HttpDoctorAssigner implements DoctorAssigner {
         try {
             client.post()
                     .uri("/internal/doctors/extend")
-                    .header("X-Internal-Token", properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
                     .body(payload)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<Void>>() {});

@@ -1,9 +1,10 @@
-package com.moonligh.consult.agent.config;
+package com.moonligh.consult.framework.job;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * XXL-Job 执行器。调度中心地址和令牌只从本机 yml 或环境变量读。
+ * appname / port 由各服务自己配，不要用同一个默认值。
  */
 @ConfigurationProperties(prefix = "consult.xxl")
 public class XxlJobProperties {
@@ -13,11 +14,10 @@ public class XxlJobProperties {
     /** 调度中心根地址，不要带 /xxl-job-admin。 */
     private String adminAddresses = "http://127.0.0.1:18080";
     /** 和控制台「执行器 AppName」一致。 */
-    private String appname = "consult-registration-agent";
+    private String appname = "";
     /** 留空则自动探测网卡。和调度中心不在同一网络时不要指望回连成功。 */
     private String ip = "";
-    /** 和 identity 的 19999 错开，同机可同时起两个执行器。 */
-    private int port = 19998;
+    private int port = 9999;
     /** 3.4.2 默认 default_token，和调度中心保持一致。 */
     private String accessToken = "";
     private String logPath = "./logs/xxl-job";

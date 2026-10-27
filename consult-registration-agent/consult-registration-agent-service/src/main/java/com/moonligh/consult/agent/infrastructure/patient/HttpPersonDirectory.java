@@ -43,7 +43,7 @@ public class HttpPersonDirectory implements PatientStore {
             Result<PatientRes> body = client.get()
                     .uri("/internal/persons/{id}", patientId)
                     .header(AuthTokens.ACCOUNT_HEADER, accountId)
-                    .header("X-Internal-Token", properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<PatientRes>>() {});
             if (body == null || !body.isSuccess() || body.getData() == null) {

@@ -65,9 +65,9 @@
             <scope>runtime</scope>
         </dependency>
         <dependency>
-            <groupId>com.xuxueli</groupId>
-            <artifactId>xxl-job-core</artifactId>
-            <version>3.4.2</version>
+            <groupId>com.moonligh</groupId>
+            <artifactId>consult-framework-job</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

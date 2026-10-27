@@ -8,6 +8,7 @@ import com.moonligh.consult.agent.config.IdentityProperties;
 import com.moonligh.consult.agent.domain.department.DoctorCoverage;
 import com.moonligh.consult.agent.domain.department.DoctorCoverageClient;
 import com.moonligh.consult.framework.Result;
+import com.moonligh.consult.security.AuthTokens;
 
 /**
  * 身份服务上的覆盖率与演示补人。
@@ -29,7 +30,7 @@ public class HttpDoctorCoverageClient implements DoctorCoverageClient {
             Result<DoctorCoverage> body = client.get()
                     .uri("/internal/doctors/coverage?departmentCode={code}&specialty={spec}",
                             departmentCode, specialty)
-                    .header("X-Internal-Token", properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<DoctorCoverage>>() {});
             if (body == null || body.getData() == null) {
@@ -47,7 +48,7 @@ public class HttpDoctorCoverageClient implements DoctorCoverageClient {
             Result<DoctorCoverage> body = client.post()
                     .uri("/internal/doctors/ensure-demo-coverage?departmentCode={code}&specialty={spec}",
                             departmentCode, specialty)
-                    .header("X-Internal-Token", properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<DoctorCoverage>>() {});
             if (body == null || body.getData() == null) {

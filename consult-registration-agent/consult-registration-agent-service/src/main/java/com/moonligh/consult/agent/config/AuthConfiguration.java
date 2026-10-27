@@ -4,39 +4,22 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.Ordered;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 import com.moonligh.consult.agent.infrastructure.http.ResilienceInterceptor;
-import com.moonligh.consult.security.AccountAuthFilter;
-import com.moonligh.consult.security.AuthTokens;
 
 import io.github.resilience4j.bulkhead.Bulkhead;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 
 /**
- * 登录令牌、账号过滤、身份服务客户端。
+ * 身份服务客户端。JWT 过滤器在框架里。
  */
 @Configuration
-@EnableConfigurationProperties({AuthProperties.class, IdentityProperties.class})
+@EnableConfigurationProperties(IdentityProperties.class)
 public class AuthConfiguration {
-
-    @Bean
-    public AuthTokens authTokens(AuthProperties properties) {
-        return new AuthTokens(properties.getJwtSecret(), Duration.ofHours(properties.getJwtTtlHours()));
-    }
-
-    @Bean
-    public FilterRegistrationBean<AccountAuthFilter> accountAuthFilter(AuthTokens tokens) {
-        FilterRegistrationBean<AccountAuthFilter> bean = new FilterRegistrationBean<>(new AccountAuthFilter(tokens));
-        bean.setOrder(Ordered.HIGHEST_PRECEDENCE + 20);
-        bean.addUrlPatterns("/api/*");
-        return bean;
-    }
 
     @Bean
     public RestClient identityRestClient(

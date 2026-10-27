@@ -22,6 +22,7 @@ public final class AuthTokens {
 
     public static final String HEADER = "Authorization";
     public static final String ACCOUNT_HEADER = "X-Account-Id";
+    public static final String INTERNAL_HEADER = "X-Internal-Token";
     public static final String BEARER = "Bearer ";
 
     private final byte[] secret;
