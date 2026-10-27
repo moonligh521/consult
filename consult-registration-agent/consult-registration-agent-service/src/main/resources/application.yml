@@ -55,6 +55,8 @@ management:
       exposure:
         include: health,prometheus
 consult:
+  catalog:
+    provision-demo: true
   auth:
     jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
     jwt-ttl-hours: 168

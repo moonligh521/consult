@@ -10,7 +10,8 @@ import SlotAsk from '../components/SlotAsk.vue'
 import UserInfoCard from '../components/UserInfoCard.vue'
 import ZhiAvatar from '../components/ZhiAvatar.vue'
 import { HUMAN_SHORTCUTS } from '../domain/humanAgent'
-import { DESCRIPTION_EXAMPLES, MISSING_SLOT, STATUS } from '../constants/catalog'
+import { DESCRIPTION_EXAMPLES, hydrateDepartmentTree, MISSING_SLOT, STATUS } from '../constants/catalog'
+import { listPatientDepartments } from '../api/departments'
 import { useConsultationStore } from '../stores/consultation'
 import { useAuthStore } from '../stores/auth'
 
@@ -28,11 +29,19 @@ function syncDrawer() {
   drawerWidth.value = window.innerWidth < 640 ? Math.round(window.innerWidth * 0.86) : 360
 }
 
-onMounted(() => {
+onMounted(async () => {
   syncDrawer()
   window.addEventListener('resize', syncDrawer)
   store.startConsultClock()
   store.loadRecords()
+  try {
+    const result = await listPatientDepartments()
+    if (result?.code === 200) {
+      hydrateDepartmentTree(result.data)
+    }
+  } catch {
+    // 接口失败时沿用本地种子，确认时服务端仍会拒已停科
+  }
 })
 
 onUnmounted(() => {

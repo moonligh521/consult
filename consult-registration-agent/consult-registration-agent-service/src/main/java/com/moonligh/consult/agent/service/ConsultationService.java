@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.moonligh.consult.agent.api.enums.ConsultationStatus;
-import com.moonligh.consult.agent.api.enums.Department;
 import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.api.enums.MissingSlot;
 import com.moonligh.consult.agent.api.req.CardPatchReq;
@@ -424,7 +423,7 @@ public class ConsultationService {
             }
             symptoms = symptomExtractor.extract(description);
         }
-        DepartmentRouter.Advice advice = new DepartmentRouter.Advice(
+        DepartmentRouter.Advice advice = DepartmentRouter.Advice.fromCard(
                 current.department(), current.specialty(), current.departmentEvidence());
         DecisionSource source = sourceOf(current);
         boolean patientPicked = source == DecisionSource.PATIENT;
@@ -451,7 +450,7 @@ public class ConsultationService {
     }
 
     /** 患者在卡片上改科。没改返回 null。 */
-    private DepartmentRouter.Advice patientAdvice(Department patched, String specialty) {
+    private DepartmentRouter.Advice patientAdvice(Integer patched, String specialty) {
         boolean specialtyChanged = specialty != null && !specialty.isBlank();
         if (patched != null) {
             return registrationAgent.confirm(patched, specialtyChanged ? specialty : null);
@@ -471,7 +470,7 @@ public class ConsultationService {
             session.setTriage(previous.withRoute(route));
         }
         Map<String, Object> output = new LinkedHashMap<>();
-        output.put("departmentCode", picked.department().getCode());
+        output.put("departmentCode", picked.departmentCode());
         output.put("specialty", picked.specialty());
         output.put("previousSpecialty", previous == null ? null : previous.route().advice().specialty());
         record(session, MatchDecision.of(runId, TriageNode.N6_DEPARTMENT, Certainty.CERTAIN, DecisionSource.PATIENT,
@@ -510,6 +509,7 @@ public class ConsultationService {
         if (session.getBusinessStatus() != ConsultationStatus.CARD_READY) {
             throw new BusinessException(ErrorCode.CARD_NOT_READY);
         }
+        requireLiveCard(session.getCard());
         session.setBusinessStatus(ConsultationStatus.CONFIRMED);
         recordConfirm(session);
         return buildResponse(session);
@@ -540,6 +540,7 @@ public class ConsultationService {
         if (session.getBusinessStatus() != ConsultationStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.ORDER_NOT_ALLOWED);
         }
+        requireLiveCard(session.getCard());
         if (packageCode == null) {
             throw new BusinessException(ErrorCode.INVALID_PACKAGE);
         }
@@ -687,7 +688,7 @@ public class ConsultationService {
         session.setAge(patient.age());
         if (session.getBusinessStatus() == ConsultationStatus.CARD_READY && session.getCard() != null) {
             ConsultationCardRes current = session.getCard();
-            DepartmentRouter.Advice advice = new DepartmentRouter.Advice(
+            DepartmentRouter.Advice advice = DepartmentRouter.Advice.fromCard(
                     current.department(), current.specialty(), current.departmentEvidence());
             DecisionSource source = sourceOf(current);
             if (source != DecisionSource.PATIENT
@@ -922,16 +923,37 @@ public class ConsultationService {
         metrics.increment("view." + view.status().getCode());
         List<PayPackageRes> packages = view.status() == ConsultationStatus.CONFIRMED ? PayCatalog.list() : null;
         ConsultOrder order = session.getOrder();
+        ConsultationCardRes card = markStaleIfStopped(view.card(), order);
+        String prompt = card != null && card.stale()
+                ? "该科室已停诊，请改科或继续对话重新分诊。"
+                : view.prompt();
         return new ConsultationRes(
                 view.consultationId(),
                 view.status(),
-                view.prompt(),
+                prompt,
                 view.missingSlot(),
-                view.card(),
+                card,
                 view.safetyNotice(),
                 view.handoff(),
                 packages,
                 order == null ? null : order.toRes());
+    }
+
+    private void requireLiveCard(ConsultationCardRes card) {
+        if (card == null || card.department() == null || card.specialty() == null) {
+            throw new BusinessException(ErrorCode.INVALID_DEPARTMENT);
+        }
+        registrationAgent.snapshot().requireLiveSpecialty(card.department(), card.specialty());
+    }
+
+    private ConsultationCardRes markStaleIfStopped(ConsultationCardRes card, ConsultOrder order) {
+        if (card == null || order != null) {
+            return card;
+        }
+        if (registrationAgent.snapshot().isLiveSpecialty(card.department(), card.specialty())) {
+            return card;
+        }
+        return card.withStale(true);
     }
 
     /** 可改字段都没传，就算空修改。 */

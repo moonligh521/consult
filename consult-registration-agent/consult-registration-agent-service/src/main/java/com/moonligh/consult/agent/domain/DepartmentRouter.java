@@ -62,7 +62,7 @@ public class DepartmentRouter {
         String haystack = SpokenNormalizer.forMatch(description, snapshot);
         Hit override = firstOverride(haystack, snapshot, false);
         if (override != null) {
-            Hit inner = firstRouting(haystack, snapshot, snapshot.recordOf(override.department.getCode()), null);
+            Hit inner = firstRouting(haystack, snapshot, snapshot.recordOf(override.dept.code()), null);
             return clamp(snapshot, inner != null ? inner : override);
         }
         Integer resolvedAge = age != null ? age : parseAge(haystack);
@@ -106,11 +106,11 @@ public class DepartmentRouter {
         }
         Hit override = firstOverride(haystack, snapshot, false);
         if (override != null) {
-            DepartmentRecord rec = snapshot.recordOf(override.department.getCode());
+            DepartmentRecord rec = snapshot.recordOf(override.dept.code());
             Hit inner = null;
             for (int i = 0; i < termRefs.size(); i++) {
                 if (termRefs.get(i).departmentCode() == rec.code()) {
-                    inner = new Hit(override.department, termRefs.get(i).specialty(), 0, evidenceOf(haystack, terms.get(i)));
+                    inner = new Hit(override.dept, termRefs.get(i).specialty(), 0, evidenceOf(haystack, terms.get(i)));
                     break;
                 }
             }
@@ -189,7 +189,7 @@ public class DepartmentRouter {
         }
         DepartmentRecord rec = snapshot.recordOf(ref.departmentCode());
         String specialty = rec.hasSpecialty(ref.specialty()) ? ref.specialty() : rec.defaultSpecialty();
-        return new Advice(rec.toDepartment(), specialty, evidence);
+        return Advice.of(rec, specialty, evidence);
     }
 
     public static Advice fallbackOf(DepartmentSnapshot snapshot) {
@@ -219,18 +219,18 @@ public class DepartmentRouter {
 
     private static Advice fallbackAdvice(DepartmentSnapshot snapshot) {
         DepartmentRecord fallback = snapshot.fallback();
-        return new Advice(fallback.toDepartment(), fallback.defaultSpecialty(), null);
+        return Advice.of(fallback, fallback.defaultSpecialty(), null);
     }
 
     private static Advice clamp(DepartmentSnapshot snapshot, Hit hit) {
-        if (!snapshot.isEnabled(hit.department.getCode())) {
+        if (!snapshot.isEnabled(hit.dept.code())) {
             return fallbackAdvice(snapshot);
         }
-        DepartmentRecord rec = snapshot.recordOf(hit.department.getCode());
+        DepartmentRecord rec = snapshot.recordOf(hit.dept.code());
         String specialty = rec != null && rec.hasSpecialty(hit.specialty)
                 ? hit.specialty
                 : rec == null ? snapshot.fallback().defaultSpecialty() : rec.defaultSpecialty();
-        return new Advice(hit.department, specialty, hit.keyword);
+        return Advice.of(hit.dept, specialty, hit.keyword);
     }
 
     private static Hit firstOverride(String haystack, DepartmentSnapshot snapshot, boolean pediatricOnly) {
@@ -245,7 +245,7 @@ public class DepartmentRouter {
                     continue;
                 }
                 if (best == null || at < best.at || (at == best.at && keyword.length() > best.keyword.length())) {
-                    best = new Hit(dept.toDepartment(), dept.defaultSpecialty(), at, keyword);
+                    best = new Hit(dept, dept.defaultSpecialty(), at, keyword);
                 }
             }
         }
@@ -284,12 +284,12 @@ public class DepartmentRouter {
             return routing;
         }
         if (adultHint != null) {
-            return new Hit(pediatric.toDepartment(), mapToPediatric(pediatric, adultHint), 0, adultHint);
+            return new Hit(pediatric, mapToPediatric(pediatric, adultHint), 0, adultHint);
         }
         Hit adult = firstRouting(haystack, snapshot, null, gender);
         if (adult != null) {
             return new Hit(
-                    pediatric.toDepartment(),
+                    pediatric,
                     mapToPediatric(pediatric, adult.specialty()),
                     adult.at,
                     adult.keyword);
@@ -297,7 +297,7 @@ public class DepartmentRouter {
         if (marker != null) {
             return marker;
         }
-        return new Hit(pediatric.toDepartment(), pediatric.defaultSpecialty(), 0, "儿童");
+        return new Hit(pediatric, pediatric.defaultSpecialty(), 0, "儿童");
     }
 
     private static Hit firstRouting(
@@ -354,7 +354,7 @@ public class DepartmentRouter {
             return null;
         }
         if (best == null || at < best.at || (at == best.at && keyword.length() > best.keyword.length())) {
-            return new Hit(dept.toDepartment(), specialty, at, keyword);
+            return new Hit(dept, specialty, at, keyword);
         }
         return null;
     }
@@ -423,15 +423,33 @@ public class DepartmentRouter {
     }
 
     /**
-     * 科室建议。department 是一级类，specialty 是真正挂号的二级科。
+     * 科室建议。departmentCode 是一级类，specialty 是真正挂号的二级科。
      * evidence 是命中的关键词，没有则为空。
      */
-    public record Advice(Department department, String specialty, String evidence) {
+    public record Advice(int departmentCode, String departmentName, String specialty, String evidence) {
+        public Advice(Department department, String specialty, String evidence) {
+            this(department.getCode(), department.getLabel(), specialty, evidence);
+        }
+
         public Advice(Department department, String evidence) {
             this(department, null, evidence);
         }
+
+        public static Advice of(DepartmentRecord rec, String specialty, String evidence) {
+            return new Advice(rec.code(), rec.name(), specialty, evidence);
+        }
+
+        public static Advice fromCard(Integer departmentCode, String specialty, String evidence) {
+            int code = departmentCode == null ? 0 : departmentCode;
+            Department dept = Department.tryFromCode(code);
+            return new Advice(code, dept == null ? "" : dept.getLabel(), specialty, evidence);
+        }
+
+        public Department department() {
+            return Department.tryFromCode(departmentCode);
+        }
     }
 
-    private record Hit(Department department, String specialty, int at, String keyword) {
+    private record Hit(DepartmentRecord dept, String specialty, int at, String keyword) {
     }
 }

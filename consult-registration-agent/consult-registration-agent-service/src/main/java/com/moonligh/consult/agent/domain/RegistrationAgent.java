@@ -44,6 +44,10 @@ public class RegistrationAgent {
         return engine;
     }
 
+    public DepartmentSnapshot snapshot() {
+        return catalog.snapshot();
+    }
+
     public TriageRun triage(TriageInput in) {
         return engine.run(in);
     }
@@ -57,12 +61,18 @@ public class RegistrationAgent {
         return advise(description, null, null);
     }
 
-    /** 患者在卡片上确认的二级科。specialty 对不上时落到该一级类的默认二级。 */
+    /** 患者在卡片上确认的二级科。对不上已开通二级时拒绝，不再静默落到默认科。 */
     public DepartmentRouter.Advice confirm(Department department, String specialty) {
+        return confirm(department.getCode(), specialty);
+    }
+
+    public DepartmentRouter.Advice confirm(int departmentCode, String specialty) {
         DepartmentSnapshot snapshot = catalog.snapshot();
-        Department enabled = snapshot.requireEnabled(department.getCode());
-        String resolved = snapshot.resolveSpecialty(enabled, specialty);
-        return new DepartmentRouter.Advice(enabled, resolved, "患者确认科室");
+        snapshot.requireLiveSpecialty(departmentCode, specialty);
+        DepartmentRecord rec = snapshot.recordOf(departmentCode);
+        String resolved = specialty == null || specialty.isBlank() ? rec.defaultSpecialty() : specialty;
+        snapshot.requireLiveSpecialty(departmentCode, resolved);
+        return DepartmentRouter.Advice.of(rec, resolved, "患者确认科室");
     }
 
     public DepartmentRouter.Advice confirmSpecialty(String specialty) {
@@ -71,7 +81,7 @@ public class RegistrationAgent {
         if (parent == null) {
             throw new BusinessException(ErrorCode.INVALID_DEPARTMENT);
         }
-        return confirm(parent.toDepartment(), specialty);
+        return confirm(parent.code(), specialty);
     }
 
     /** 患者改科后的挂科结论。 */

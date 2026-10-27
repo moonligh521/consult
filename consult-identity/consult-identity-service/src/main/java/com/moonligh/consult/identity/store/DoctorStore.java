@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import com.moonligh.consult.identity.api.DoctorAdminRes;
+import com.moonligh.consult.identity.api.DoctorCoverageRes;
 import com.moonligh.consult.identity.api.DoctorSaveReq;
 import com.moonligh.consult.identity.domain.DoctorMatcher;
 
@@ -22,12 +23,66 @@ public class DoctorStore {
         this.jdbc = jdbc;
     }
 
+    public List<String[]> listEnabledSpecialties() {
+        try {
+            return jdbc.query(
+                    """
+                    SELECT d.code, s.name
+                    FROM consult_department_specialty s
+                    JOIN consult_department d ON d.code = s.department_code AND d.is_deleted = 0 AND d.enabled = 1
+                    WHERE s.is_deleted = 0 AND s.enabled = 1
+                    ORDER BY d.sort_no, s.sort_no, s.id
+                    """,
+                    (rs, rowNum) -> new String[] {String.valueOf(rs.getInt("code")), rs.getString("name")});
+        } catch (RuntimeException error) {
+            return List.of();
+        }
+    }
+
     public int count() {
         Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM consult_doctor WHERE is_deleted = 0", Integer.class);
         return n == null ? 0 : n;
     }
 
     /** 某二级科在职医生数。 */
+    public DoctorCoverageRes coverage(int departmentCode, String specialty) {
+        Integer doctors = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM consult_doctor
+                WHERE is_deleted = 0 AND status = 1 AND department_code = ? AND specialty = ?
+                """,
+                Integer.class,
+                departmentCode,
+                specialty);
+        Integer onDuty = jdbc.queryForObject(
+                """
+                SELECT COUNT(DISTINCT d.id)
+                FROM consult_doctor d
+                JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
+                  AND s.remain_num > 0 AND s.visit_date = CURDATE()
+                WHERE d.is_deleted = 0 AND d.status = 1 AND d.department_code = ? AND d.specialty = ?
+                  AND d.in_flight < d.concurrent_limit
+                """,
+                Integer.class,
+                departmentCode,
+                specialty);
+        Integer remain = jdbc.queryForObject(
+                """
+                SELECT COALESCE(SUM(s.remain_num), 0)
+                FROM consult_doctor d
+                JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
+                  AND s.visit_date = CURDATE()
+                WHERE d.is_deleted = 0 AND d.status = 1 AND d.department_code = ? AND d.specialty = ?
+                """,
+                Integer.class,
+                departmentCode,
+                specialty);
+        return new DoctorCoverageRes(
+                doctors == null ? 0 : doctors,
+                onDuty == null ? 0 : onDuty,
+                remain == null ? 0 : remain);
+    }
+
     public int countBySpecialty(String specialty) {
         Integer n = jdbc.queryForObject(
                 """
@@ -155,28 +210,51 @@ public class DoctorStore {
     }
 
     public List<DoctorMatcher.Candidate> listOnDuty() {
-        return jdbc.query(
-                """
+        String sql = """
                 SELECT d.id, d.name, d.title, d.hospital, d.department_code, d.specialty, d.skills,
                        d.in_flight, s.id AS schedule_id, s.remain_num
                 FROM consult_doctor d
+                JOIN consult_department dept
+                  ON dept.code = d.department_code AND dept.enabled = 1 AND dept.is_deleted = 0
+                JOIN consult_department_specialty spec
+                  ON spec.is_deleted = 0 AND spec.enabled = 1
+                 AND spec.department_code = d.department_code AND spec.name = d.specialty
                 JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
                   AND s.remain_num > 0
                   AND s.visit_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 6 DAY)
                 WHERE d.is_deleted = 0 AND d.status = 1 AND d.in_flight < d.concurrent_limit
                 ORDER BY s.visit_date, s.start_time
-                """,
-                (rs, rowNum) -> new DoctorMatcher.Candidate(
-                        rs.getString("id"),
-                        rs.getString("name"),
-                        rs.getString("title"),
-                        rs.getString("hospital"),
-                        rs.getInt("department_code"),
-                        rs.getString("specialty"),
-                        rs.getString("skills"),
-                        rs.getInt("in_flight"),
-                        rs.getInt("remain_num"),
-                        rs.getString("schedule_id")));
+                """;
+        try {
+            return jdbc.query(sql, this::mapCandidate);
+        } catch (RuntimeException error) {
+            return jdbc.query(
+                    """
+                    SELECT d.id, d.name, d.title, d.hospital, d.department_code, d.specialty, d.skills,
+                           d.in_flight, s.id AS schedule_id, s.remain_num
+                    FROM consult_doctor d
+                    JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
+                      AND s.remain_num > 0
+                      AND s.visit_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 6 DAY)
+                    WHERE d.is_deleted = 0 AND d.status = 1 AND d.in_flight < d.concurrent_limit
+                    ORDER BY s.visit_date, s.start_time
+                    """,
+                    this::mapCandidate);
+        }
+    }
+
+    private DoctorMatcher.Candidate mapCandidate(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        return new DoctorMatcher.Candidate(
+                rs.getString("id"),
+                rs.getString("name"),
+                rs.getString("title"),
+                rs.getString("hospital"),
+                rs.getInt("department_code"),
+                rs.getString("specialty"),
+                rs.getString("skills"),
+                rs.getInt("in_flight"),
+                rs.getInt("remain_num"),
+                rs.getString("schedule_id"));
     }
 
     public boolean occupy(String doctorId, String scheduleId) {

@@ -223,7 +223,7 @@ public class TriageEngine {
 
     private static MatchDecision routeDecision(String runId, RouteDecision rule, RouteDecision result, long latencyMs) {
         Map<String, Object> output = new LinkedHashMap<>();
-        output.put("departmentCode", result.advice().department() == null ? null : result.advice().department().getCode());
+        output.put("departmentCode", result.advice().departmentCode());
         output.put("specialty", result.advice().specialty());
         output.put("ruleReason", rule.reason());
         output.put("candidates", rule.candidates());

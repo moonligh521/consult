@@ -8,8 +8,10 @@ import java.util.List;
  * diseaseTerms 是挂词里的病名子集，主诉归约只认这些。
  */
 public record DepartmentSpecialty(
+        Long id,
         String name,
         String treatDesc,
+        boolean enabled,
         List<String> routingKeywords,
         List<String> diseaseTerms) {
 
@@ -18,6 +20,10 @@ public record DepartmentSpecialty(
         treatDesc = treatDesc == null ? "" : treatDesc;
         routingKeywords = routingKeywords == null ? List.of() : List.copyOf(routingKeywords);
         diseaseTerms = diseaseTerms == null ? List.of() : List.copyOf(diseaseTerms);
+    }
+
+    public DepartmentSpecialty(String name, String treatDesc, List<String> routingKeywords, List<String> diseaseTerms) {
+        this(null, name, treatDesc, true, routingKeywords, diseaseTerms);
     }
 
     public DepartmentSpecialty(String name, String treatDesc, List<String> routingKeywords) {

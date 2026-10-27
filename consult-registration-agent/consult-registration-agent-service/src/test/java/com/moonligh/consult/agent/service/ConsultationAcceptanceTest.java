@@ -42,7 +42,7 @@ class ConsultationAcceptanceTest {
         assertEquals(32, view.card().age());
         assertEquals("半年", view.card().duration());
         assertEquals(List.of("干咳"), view.card().symptoms());
-        assertEquals(Department.INTERNAL, view.card().department());
+        assertEquals(Department.INTERNAL.getCode(), view.card().department());
         assertEquals("女，32岁，干咳半年，运动后加重", view.card().description());
     }
 
@@ -78,7 +78,7 @@ class ConsultationAcceptanceTest {
         assertEquals(32, second.card().age());
         assertEquals("三天", second.card().duration());
         assertEquals(List.of("干咳"), second.card().symptoms());
-        assertEquals(Department.INTERNAL, second.card().department());
+        assertEquals(Department.INTERNAL.getCode(), second.card().department());
         assertEquals("男，干咳三天\n32岁", second.card().description());
     }
 
@@ -134,15 +134,15 @@ class ConsultationAcceptanceTest {
     @Test
     void ac5OverrideDepartmentThenConfirm() {
         String id = service.acceptMessage(null, "女，32岁，干咳半年，运动后加重").consultationId();
-        ConsultationRes patched = service.updateCard(new CardPatchReq(id, null, null, null, null, Department.GENERAL));
+        ConsultationRes patched = service.updateCard(new CardPatchReq(id, null, null, null, null, Department.GENERAL.getCode()));
         assertEquals(ConsultationStatus.CARD_READY, patched.status());
-        assertEquals(Department.GENERAL, patched.card().department());
+        assertEquals(Department.GENERAL.getCode(), patched.card().department());
         assertEquals("全科", patched.card().specialty());
         assertEquals(List.of("干咳"), patched.card().symptoms());
 
         ConsultationRes confirmed = service.confirm(id);
         assertEquals(ConsultationStatus.CONFIRMED, confirmed.status());
-        assertEquals(Department.GENERAL, confirmed.card().department());
+        assertEquals(Department.GENERAL.getCode(), confirmed.card().department());
         assertEquals(List.of("干咳"), confirmed.card().symptoms());
         assertNull(confirmed.prompt());
         assertNull(confirmed.missingSlot());
@@ -191,7 +191,7 @@ class ConsultationAcceptanceTest {
         assertEquals(ConsultationStatus.CARD_READY, patched.status());
         assertEquals("腹痛两天", patched.card().description());
         assertEquals(List.of("腹痛"), patched.card().symptoms());
-        assertEquals(Department.INTERNAL, patched.card().department());
+        assertEquals(Department.INTERNAL.getCode(), patched.card().department());
         assertEquals(Gender.FEMALE, patched.card().gender());
         assertEquals(32, patched.card().age());
         assertEquals("半年", patched.card().duration());
@@ -245,11 +245,11 @@ class ConsultationAcceptanceTest {
         assertEquals(Gender.FEMALE, view.card().gender());
         assertEquals(32, view.card().age());
         assertEquals("两天", view.card().duration());
-        assertEquals(Department.ORTHOPEDICS, view.card().department());
+        assertEquals(Department.ORTHOPEDICS.getCode(), view.card().department());
 
         ConsultationRes confirmed = service.confirm(view.consultationId());
         assertEquals(ConsultationStatus.CONFIRMED, confirmed.status());
-        assertEquals(Department.ORTHOPEDICS, confirmed.card().department());
+        assertEquals(Department.ORTHOPEDICS.getCode(), confirmed.card().department());
     }
 
     @Test

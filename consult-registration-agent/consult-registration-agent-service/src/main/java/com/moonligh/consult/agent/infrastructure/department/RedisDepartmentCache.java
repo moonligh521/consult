@@ -46,22 +46,33 @@ public class RedisDepartmentCache implements DepartmentCache {
         local.set(null);
         try {
             redis.delete(key);
+            redis.delete(versionKey());
         } catch (RuntimeException error) {
             log.warn("删除科室目录 Redis 缓存失败 key={}", key, error);
         }
     }
 
-    /** cache-aside：本地 → Redis → 数据库回源后回填。 */
+    @Override
+    public void put(DepartmentSnapshot snapshot) {
+        if (snapshot == null) {
+            evict();
+            return;
+        }
+        writeRedis(snapshot);
+        local.set(new Holder(snapshot, System.currentTimeMillis()));
+    }
+
+    /** cache-aside：本地（校验 Redis 版本）→ Redis → 数据库回源后回填。 */
     public DepartmentSnapshot load(java.util.function.Supplier<DepartmentSnapshot> source) {
         Holder cached = local.get();
         long now = System.currentTimeMillis();
-        if (cached != null && now - cached.loadedAt < localTtlMs) {
+        if (cached != null && now - cached.loadedAt < localTtlMs && versionMatches(cached.snapshot)) {
             return cached.snapshot;
         }
         synchronized (this) {
             cached = local.get();
             now = System.currentTimeMillis();
-            if (cached != null && now - cached.loadedAt < localTtlMs) {
+            if (cached != null && now - cached.loadedAt < localTtlMs && versionMatches(cached.snapshot)) {
                 return cached.snapshot;
             }
             DepartmentSnapshot fromRedis = readRedis();
@@ -73,6 +84,23 @@ public class RedisDepartmentCache implements DepartmentCache {
             writeRedis(loaded);
             local.set(new Holder(loaded, System.currentTimeMillis()));
             return loaded;
+        }
+    }
+
+    private String versionKey() {
+        return key + ":ver";
+    }
+
+    private boolean versionMatches(DepartmentSnapshot snapshot) {
+        try {
+            String ver = redis.opsForValue().get(versionKey());
+            if (ver == null || ver.isBlank()) {
+                return false;
+            }
+            return snapshot != null && ver.equals(snapshot.version());
+        } catch (RuntimeException error) {
+            log.warn("读取科室目录版本失败 key={}", versionKey(), error);
+            return true;
         }
     }
 
@@ -102,6 +130,7 @@ public class RedisDepartmentCache implements DepartmentCache {
                     snapshot.version(), snapshot.enabled(), snapshot.typos(), snapshot.uncertainMarkers(),
                     snapshot.ambiguousSymptoms(), snapshot.synonyms());
             redis.opsForValue().set(key, mapper.writeValueAsString(payload), redisTtl);
+            redis.opsForValue().set(versionKey(), snapshot.version(), redisTtl);
         } catch (RuntimeException | JsonProcessingException error) {
             log.warn("写入科室目录 Redis 缓存失败 key={}", key, error);
         }

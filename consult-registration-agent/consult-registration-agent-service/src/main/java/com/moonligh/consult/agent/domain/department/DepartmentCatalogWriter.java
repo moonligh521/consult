@@ -48,6 +48,26 @@ public class DepartmentCatalogWriter {
         mutate(() -> store.setEnabled(code, enabled));
     }
 
+    public int addDepartment(String name, int genderScope, Integer childAgeLt, String treatDesc) {
+        int[] code = new int[1];
+        mutate(() -> code[0] = store.insertDepartment(name, genderScope, childAgeLt, treatDesc));
+        return code[0];
+    }
+
+    public long addSpecialty(int departmentCode, String name, String treatDesc) {
+        long[] id = new long[1];
+        mutate(() -> id[0] = store.insertSpecialty(departmentCode, name, treatDesc));
+        return id[0];
+    }
+
+    public void setSpecialtyEnabled(long specialtyId, boolean enabled) {
+        mutate(() -> store.setSpecialtyEnabled(specialtyId, enabled));
+    }
+
+    public void renameSpecialty(long specialtyId, String name) {
+        mutate(() -> store.renameSpecialty(specialtyId, name));
+    }
+
     public void upsertTypo(String from, String to) {
         MatchTypo typo = lexiconRules == null
                 ? new MatchTypo(CompactText.of(from), CompactText.of(to))
@@ -95,21 +115,28 @@ public class DepartmentCatalogWriter {
     }
 
     /**
-     * 任意目录变更都走同一条双删。手工改 SQL 之后也可以只调 {@link #invalidateEventually()}。
-     * 写库失败也安排第二次删除，避免并发读把旧快照填回 Redis。
+     * 写库后回填新快照，延迟再填一次，清掉并发读填回去的旧值。
+     * 写库失败也安排第二次回填（或删除），避免脏缓存留着。
      */
     public void mutate(Runnable dbWrite) {
-        cache.evict();
         try {
             dbWrite.run();
-        } finally {
+            refill();
+        } catch (RuntimeException error) {
+            cache.evict();
             scheduler.schedule(cache::evict, doubleDeleteDelayMs);
+            throw error;
         }
+        scheduler.schedule(this::refill, doubleDeleteDelayMs);
     }
 
     /** 库已被外部改过时：删一次，延迟再删一次，不写库。 */
     public void invalidateEventually() {
         cache.evict();
         scheduler.schedule(cache::evict, doubleDeleteDelayMs);
+    }
+
+    private void refill() {
+        cache.put(store.load());
     }
 }

@@ -218,6 +218,26 @@ def main() -> None:
             "ALTER TABLE consult_order ADD COLUMN ends_at DATETIME(3) NULL "
             "COMMENT '问诊到期时间' AFTER consult_minutes"
         )
+    if not column_exists(cur, "consult_department_specialty", "enabled"):
+        cur.execute(
+            "ALTER TABLE consult_department_specialty ADD COLUMN enabled TINYINT NOT NULL DEFAULT 1 "
+            "COMMENT '1才可匹配、可手选' AFTER sort_no"
+        )
+    if not column_exists(cur, "consult_doctor", "specialty_id"):
+        cur.execute(
+            "ALTER TABLE consult_doctor ADD COLUMN specialty_id BIGINT NULL "
+            "COMMENT 'consult_department_specialty.id' AFTER department_code"
+        )
+    if column_exists(cur, "consult_doctor", "specialty_id"):
+        cur.execute(
+            """
+            UPDATE consult_doctor d
+            JOIN consult_department_specialty s
+              ON s.department_code = d.department_code AND s.name = d.specialty AND s.is_deleted = 0
+            SET d.specialty_id = s.id
+            WHERE d.specialty_id IS NULL AND d.is_deleted = 0
+            """
+        )
     if not column_exists(cur, "consult_order", "ended_at"):
         cur.execute(
             "ALTER TABLE consult_order ADD COLUMN ended_at DATETIME(3) NULL "

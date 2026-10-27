@@ -72,7 +72,7 @@ public final class CardFacts {
                 duration,
                 description,
                 tags,
-                advice.department(),
+                advice.departmentCode(),
                 advice.specialty(),
                 associated,
                 allergy,

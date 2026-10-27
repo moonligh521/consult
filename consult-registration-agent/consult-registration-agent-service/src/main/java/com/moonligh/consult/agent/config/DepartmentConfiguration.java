@@ -26,7 +26,11 @@ import com.moonligh.consult.agent.infrastructure.department.RedisDepartmentCache
  * 科室目录：MySQL 为源，Redis 做校验快照，变更走延时双删。
  */
 @Configuration
-@EnableConfigurationProperties({DepartmentProperties.class, InquiryProperties.class, SafetyProperties.class})
+@EnableConfigurationProperties({
+        DepartmentProperties.class,
+        InquiryProperties.class,
+        SafetyProperties.class,
+        CatalogProperties.class})
 public class DepartmentConfiguration {
 
     @Bean

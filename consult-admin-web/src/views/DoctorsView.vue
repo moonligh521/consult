@@ -30,10 +30,21 @@ const form = reactive({
   status: 1,
 })
 
+function specialtyName(spec) {
+  if (!spec) {
+    return ''
+  }
+  return typeof spec === 'string' ? spec : spec.name
+}
+
 const deptOptions = computed(() => catalog.value.map((item) => ({ label: item.name, value: item.code })))
 const specialtyOptions = computed(() => {
   const dept = catalog.value.find((item) => item.code === form.departmentCode)
-  return (dept?.specialties || []).map((name) => ({ label: name, value: name }))
+  return (dept?.specialties || []).map((spec) => {
+    const name = typeof spec === 'string' ? spec : spec.name
+    const off = spec && spec.enabled === false ? '（科室停用）' : ''
+    return { label: name + off, value: name }
+  })
 })
 
 const columns = [
@@ -85,7 +96,7 @@ function openCreate() {
     title: '主治医师',
     hospital: '互联网医院',
     departmentCode: catalog.value[0]?.code || 1,
-    specialty: catalog.value[0]?.specialties?.[0] || '',
+    specialty: specialtyName(catalog.value[0]?.specialties?.[0]),
     skills: '',
     intro: '',
     status: 1,

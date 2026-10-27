@@ -51,7 +51,7 @@ class CardFactsTest {
                 ConsultationCardRes.class);
         assertEquals(Gender.FEMALE, card.gender());
         assertEquals(32, card.age());
-        assertEquals(Department.INTERNAL, card.department());
+        assertEquals(Department.INTERNAL.getCode(), card.department());
         assertTrue(card.associatedSymptoms().isEmpty());
         assertNull(card.allergy());
         assertNull(card.medications());

@@ -51,14 +51,19 @@ public enum Department {
         return label;
     }
 
-    /** JSON 和数据库里的数字转成枚举。对不上就报错。 */
-    @JsonCreator
-    public static Department fromCode(int code) {
+    /** 种子枚举。目录里后加的一级没有对应常量，返回 null。 */
+    public static Department tryFromCode(int code) {
         for (Department item : Department.values()) {
             if (item.code == code) {
                 return item;
             }
         }
-        throw new IllegalArgumentException("未知的科室 code: " + code);
+        return null;
+    }
+
+    /** JSON 和数据库里的数字。未知码返回 null，以目录行为准。 */
+    @JsonCreator
+    public static Department fromCode(int code) {
+        return tryFromCode(code);
     }
 }

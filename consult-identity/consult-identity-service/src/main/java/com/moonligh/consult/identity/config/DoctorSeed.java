@@ -88,32 +88,9 @@ public class DoctorSeed implements ApplicationRunner {
             }
         }
         for (SpecialtyRow row : coverage.specialties()) {
-            List<DoctorAdminRes> existing = doctors.listBySpecialty(row.specialty());
-            int need = Math.max(0, coverage.doctorsPerSpecialty() - existing.size());
-            for (int i = 0; i < need; i++) {
-                int seq = existing.size() + i + 1;
-                String id = stableId(row.specialty(), seq);
-                if (doctors.exists(id)) {
-                    continue;
-                }
-                String name = uniqueDemoName(row.specialty(), seq, usedNames);
-                usedNames.add(name);
-                int gender = seq % 2 == 0 ? 2 : 1;
-                doctors.seed(
-                        id,
-                        name,
-                        gender,
-                        "主治医师",
-                        HOSPITAL,
-                        row.departmentCode(),
-                        row.specialty(),
-                        row.specialty() + "常见病",
-                        HOSPITAL + row.specialty() + "主治医师。");
-                addedDoctors++;
-            }
-            for (DoctorAdminRes doctor : doctors.listBySpecialty(row.specialty())) {
-                addedSlots += fillWeek(doctor.id());
-            }
+            int[] added = ensureRow(row.departmentCode(), row.specialty(), coverage.doctorsPerSpecialty(), usedNames);
+            addedDoctors += added[0];
+            addedSlots += added[1];
         }
         log.info(
                 "演示医生覆盖完成：目录二级科 {} 个，每科至少 {} 人；本次新增医生 {}、排班 {}、更正姓名 {}、医院名 {}",
@@ -285,7 +262,54 @@ public class DoctorSeed implements ApplicationRunner {
         }
     }
 
-    private static Coverage loadCoverage() {
+    /** 开通某二级时补齐演示医生和当日班。 */
+    public void ensureSpecialty(int departmentCode, String specialty) {
+        Set<String> usedNames = new HashSet<>();
+        for (DoctorAdminRes row : doctors.list()) {
+            if (row.name() != null && !row.name().isBlank()) {
+                usedNames.add(row.name());
+            }
+        }
+        ensureRow(departmentCode, specialty, 2, usedNames);
+    }
+
+    private int[] ensureRow(int departmentCode, String specialty, int per, Set<String> usedNames) {
+        List<DoctorAdminRes> existing = doctors.listBySpecialty(specialty);
+        int addedDoctors = 0;
+        int addedSlots = 0;
+        int need = Math.max(0, per - existing.size());
+        for (int i = 0; i < need; i++) {
+            int seq = existing.size() + i + 1;
+            String id = stableId(specialty, seq);
+            if (doctors.exists(id)) {
+                continue;
+            }
+            String name = uniqueDemoName(specialty, seq, usedNames);
+            usedNames.add(name);
+            int gender = seq % 2 == 0 ? 2 : 1;
+            doctors.seed(
+                    id,
+                    name,
+                    gender,
+                    "主治医师",
+                    HOSPITAL,
+                    departmentCode,
+                    specialty,
+                    specialty + "常见病",
+                    HOSPITAL + specialty + "主治医师。");
+            addedDoctors++;
+        }
+        for (DoctorAdminRes doctor : doctors.listBySpecialty(specialty)) {
+            addedSlots += fillWeek(doctor.id());
+        }
+        return new int[] {addedDoctors, addedSlots};
+    }
+
+    private Coverage loadCoverage() {
+        List<SpecialtyRow> fromCatalog = loadCatalogSpecialties();
+        if (!fromCatalog.isEmpty()) {
+            return new Coverage(2, fromCatalog);
+        }
         try (InputStream in = new ClassPathResource("department/demo-specialties.json").getInputStream()) {
             JsonNode root = MAPPER.readTree(in);
             int per = root.path("doctorsPerSpecialty").asInt(2);
@@ -297,6 +321,14 @@ public class DoctorSeed implements ApplicationRunner {
         } catch (Exception error) {
             throw new IllegalStateException("读不到 department/demo-specialties.json", error);
         }
+    }
+
+    private List<SpecialtyRow> loadCatalogSpecialties() {
+        List<SpecialtyRow> rows = new ArrayList<>();
+        for (String[] item : doctors.listEnabledSpecialties()) {
+            rows.add(new SpecialtyRow(Integer.parseInt(item[0]), item[1]));
+        }
+        return rows;
     }
 
     private static String stableId(String specialty, int seq) {

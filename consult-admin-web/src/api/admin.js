@@ -28,6 +28,18 @@ export async function listDepartments() {
   return result
 }
 
+export function patchDepartment(code, payload) {
+  return http.patch(`/api/admin/departments/${code}`, payload)
+}
+
+export function patchSpecialty(code, id, payload) {
+  return http.patch(`/api/admin/departments/${code}/specialties/${id}`, payload)
+}
+
+export function departmentImpact(code, specialtyId) {
+  return http.get('/api/admin/departments/impact', { params: { code, specialtyId } })
+}
+
 export function listDoctors() {
   return http.get('/api/admin/doctors')
 }

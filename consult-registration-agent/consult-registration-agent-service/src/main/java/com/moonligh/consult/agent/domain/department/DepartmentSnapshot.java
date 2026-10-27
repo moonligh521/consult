@@ -57,13 +57,35 @@ public final class DepartmentSnapshot {
             if (!item.enabled()) {
                 continue;
             }
-            live.add(item);
-            byCode.put(item.code(), item);
-            if (item.fallback()) {
+            List<DepartmentSpecialty> liveSpecs = new ArrayList<>();
+            java.util.Set<String> dropped = new java.util.HashSet<>();
+            for (DepartmentSpecialty spec : item.specialties()) {
+                if (spec.enabled()) {
+                    liveSpecs.add(spec);
+                } else {
+                    dropped.addAll(spec.matchTerms());
+                }
+            }
+            DepartmentRecord liveItem = item;
+            if (item.specialties().size() != liveSpecs.size()) {
+                List<String> routing = new ArrayList<>();
+                for (String keyword : item.routingKeywords()) {
+                    if (!dropped.contains(keyword)) {
+                        routing.add(keyword);
+                    }
+                }
+                liveItem = item.withSpecialties(liveSpecs).withRouting(routing);
+            }
+            if (liveSpecs.isEmpty() && !liveItem.fallback()) {
+                continue;
+            }
+            live.add(liveItem);
+            byCode.put(liveItem.code(), liveItem);
+            if (liveItem.fallback()) {
                 if (foundFallback != null) {
                     throw new IllegalStateException("科室目录只能有一个兜底科");
                 }
-                foundFallback = item;
+                foundFallback = liveItem;
             }
         }
         if (live.isEmpty()) {
@@ -177,7 +199,27 @@ public final class DepartmentSnapshot {
         if (!isEnabled(code)) {
             throw new BusinessException(ErrorCode.INVALID_DEPARTMENT);
         }
-        return Department.fromCode(code);
+        return Department.tryFromCode(code);
+    }
+
+    public boolean isLiveSpecialty(Integer departmentCode, String specialty) {
+        if (departmentCode == null || specialty == null || specialty.isBlank()) {
+            return false;
+        }
+        DepartmentRecord rec = enabledByCode.get(departmentCode);
+        return rec != null && rec.hasSpecialty(specialty);
+    }
+
+    public void requireLiveSpecialty(int departmentCode, String specialty) {
+        if (!isEnabled(departmentCode)) {
+            throw new BusinessException(ErrorCode.INVALID_DEPARTMENT);
+        }
+        if (specialty == null || specialty.isBlank()) {
+            return;
+        }
+        if (!isLiveSpecialty(departmentCode, specialty)) {
+            throw new BusinessException(ErrorCode.INVALID_DEPARTMENT);
+        }
     }
 
     public DepartmentRecord recordOf(int code) {
@@ -219,6 +261,14 @@ public final class DepartmentSnapshot {
             if (item.code() != code) {
                 copy.add(item);
             }
+        }
+        return new DepartmentSnapshot(version, copy, typos, uncertainMarkers, ambiguousSymptoms, synonyms);
+    }
+
+    public DepartmentSnapshot withoutSpecialty(String specialtyName) {
+        List<DepartmentRecord> copy = new ArrayList<>();
+        for (DepartmentRecord item : enabled) {
+            copy.add(item.withoutSpecialty(specialtyName));
         }
         return new DepartmentSnapshot(version, copy, typos, uncertainMarkers, ambiguousSymptoms, synonyms);
     }

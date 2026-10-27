@@ -160,6 +160,7 @@ CREATE TABLE IF NOT EXISTS consult_department_specialty (
     name              VARCHAR(32)  NOT NULL COMMENT '二级科室名，咨询科室挂这个',
     treat_desc        VARCHAR(400) NOT NULL COMMENT '主要治疗',
     sort_no           INT          NOT NULL DEFAULT 0 COMMENT '弹层顺序',
+    enabled           TINYINT      NOT NULL DEFAULT 1 COMMENT '1才可匹配、可手选',
     remark            VARCHAR(400) NULL     COMMENT '备注',
     created_by        VARCHAR(100) NULL     COMMENT '创建人',
     updated_by        VARCHAR(100) NULL     COMMENT '修改人',
@@ -314,3 +315,17 @@ CREATE TABLE IF NOT EXISTS consult_label_task (
     UNIQUE KEY uk_label_run (run_id, is_deleted),
     KEY idx_label_status (status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='线上分层抽样标注';
+
+CREATE TABLE IF NOT EXISTS consult_catalog_change (
+    id              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+    action          VARCHAR(32)  NOT NULL COMMENT 'ENABLE_L1 / DISABLE_L2 / RENAME_L2',
+    department_code INT          NOT NULL COMMENT '一级码',
+    specialty_id    BIGINT       NULL     COMMENT '二级 id',
+    before_json     JSON         NULL     COMMENT '变更前',
+    after_json      JSON         NULL     COMMENT '变更后',
+    impact_json     JSON         NULL     COMMENT '影响面',
+    created_by      VARCHAR(100) NULL     COMMENT '操作人',
+    created_at      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    PRIMARY KEY (id),
+    KEY idx_catalog_change_time (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='目录变更审计';

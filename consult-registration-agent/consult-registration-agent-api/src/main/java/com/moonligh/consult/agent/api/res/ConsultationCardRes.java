@@ -21,8 +21,8 @@ public record ConsultationCardRes(
         String description,
         /** 抽出的症状标签。 */
         List<String> symptoms,
-        /** 一级类，派医生用。 */
-        Department department,
+        /** 一级类 code，派医生用。目录后加的一级没有枚举。 */
+        Integer department,
         /** 二级挂号科，咨询科室展示这个。 */
         String specialty,
         /** 伴随症状。 */
@@ -38,7 +38,9 @@ public record ConsultationCardRes(
         /** 就诊人姓名快照。没选时为空，页面显示匿名。 */
         String patientName,
         /** 科室推荐来源：RULE 目录规则、MODEL AI 辅助、FALLBACK 兜底全科、PATIENT 患者自选。老卡为空。 */
-        String departmentSource) {
+        String departmentSource,
+        /** 当前卡片挂的科已停用，确认前需改科。 */
+        boolean stale) {
 
     public ConsultationCardRes(
             Gender gender,
@@ -54,8 +56,33 @@ public record ConsultationCardRes(
             String departmentEvidence,
             String patientId,
             String patientName) {
+        this(gender, age, duration, description, symptoms, department == null ? null : department.getCode(), specialty,
+                associatedSymptoms, allergy, medications, departmentEvidence, patientId, patientName, null, false);
+    }
+
+    public ConsultationCardRes(
+            Gender gender,
+            Integer age,
+            String duration,
+            String description,
+            List<String> symptoms,
+            Integer department,
+            String specialty,
+            List<String> associatedSymptoms,
+            String allergy,
+            String medications,
+            String departmentEvidence,
+            String patientId,
+            String patientName,
+            String departmentSource) {
         this(gender, age, duration, description, symptoms, department, specialty, associatedSymptoms, allergy,
-                medications, departmentEvidence, patientId, patientName, null);
+                medications, departmentEvidence, patientId, patientName, departmentSource, false);
+    }
+
+    public ConsultationCardRes withStale(boolean value) {
+        return new ConsultationCardRes(
+                gender, age, duration, description, symptoms, department, specialty, associatedSymptoms, allergy,
+                medications, departmentEvidence, patientId, patientName, departmentSource, value);
     }
 
     public ConsultationCardRes {

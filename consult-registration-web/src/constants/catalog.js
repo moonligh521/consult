@@ -1,4 +1,4 @@
-import { DEPARTMENT_TREE } from './departments'
+import { DEPARTMENT_TREE as FALLBACK_TREE } from './departments'
 
 /** 对外状态。未知码按安全停止处理：只展示 prompt，不展示卡片。 */
 export const STATUS = {
@@ -102,44 +102,72 @@ export const DESCRIPTION_EXAMPLES = [
   '头痛两天，时轻时重',
 ]
 
-export const DEPARTMENT_OPTIONS = DEPARTMENT_TREE.map((item) => ({
-  label: item.label,
-  value: item.code,
-}))
-
+let TREE = normalizeTree(FALLBACK_TREE)
 const SPECIALTY_PARENT = new Map()
 const DEFAULT_SPECIALTY = new Map()
-for (const item of DEPARTMENT_TREE) {
-  const sameName = item.specialties.find((spec) => spec.name === item.label)
-  DEFAULT_SPECIALTY.set(item.code, sameName?.name || item.specialties[0]?.name || '全科')
-  for (const spec of item.specialties) {
-    if (!SPECIALTY_PARENT.has(spec.name)) {
-      SPECIALTY_PARENT.set(spec.name, item.code)
+rebuildIndex()
+
+function specName(spec) {
+  return typeof spec === 'string' ? spec : spec.name
+}
+
+function specList(item) {
+  return (item.specialties || []).map((spec) => ({
+    name: specName(spec),
+    treatDesc: spec.treatDesc || '',
+  }))
+}
+
+function normalizeTree(tree) {
+  return (tree || []).map((item) => ({
+    code: item.code,
+    label: item.label || item.name,
+    specialties: specList(item),
+  }))
+}
+
+function rebuildIndex() {
+  SPECIALTY_PARENT.clear()
+  DEFAULT_SPECIALTY.clear()
+  for (const item of TREE) {
+    const sameName = item.specialties.find((spec) => spec.name === item.label)
+    DEFAULT_SPECIALTY.set(item.code, sameName?.name || item.specialties[0]?.name || '全科')
+    for (const spec of item.specialties) {
+      if (!SPECIALTY_PARENT.has(spec.name)) {
+        SPECIALTY_PARENT.set(spec.name, item.code)
+      }
     }
   }
 }
 
-/** 修改咨询科室：一级只作分组，选项和取值都是二级挂号科。 */
-export const SPECIALTY_OPTIONS = DEPARTMENT_TREE.map((item) => ({
-  type: 'group',
-  label: item.label,
-  key: `l1-${item.code}`,
-  children: item.specialties.map((spec) => ({
-    label: spec.name,
-    value: spec.name,
-    key: spec.name,
-  })),
-}))
+/** 登录后用接口开通树覆盖静态种子。 */
+export function hydrateDepartmentTree(tree) {
+  if (!Array.isArray(tree) || tree.length === 0) {
+    return
+  }
+  TREE = normalizeTree(tree)
+  rebuildIndex()
+}
+
+export function departmentOptions() {
+  return TREE.map((item) => ({ label: item.label, value: item.code }))
+}
+
+export const DEPARTMENT_OPTIONS = departmentOptions()
+
+export function specialtyCascade() {
+  return TREE.map((item) => ({
+    label: item.label,
+    value: `l1-${item.code}`,
+    children: item.specialties.map((spec) => ({
+      label: spec.name,
+      value: spec.name,
+    })),
+  }))
+}
 
 /** 级联回显：内科 / 呼吸内科。只能选叶子二级科。 */
-export const SPECIALTY_CASCADE = DEPARTMENT_TREE.map((item) => ({
-  label: item.label,
-  value: `l1-${item.code}`,
-  children: item.specialties.map((spec) => ({
-    label: spec.name,
-    value: spec.name,
-  })),
-}))
+export const SPECIALTY_CASCADE = specialtyCascade()
 
 export function money(value) {
   const text = Number(value).toFixed(1)
@@ -162,7 +190,7 @@ export function genderLabel(code) {
 }
 
 export function departmentLabel(code) {
-  return DEPARTMENT_OPTIONS.find((item) => item.value === code)?.label || '—'
+  return departmentOptions().find((item) => item.value === code)?.label || '—'
 }
 
 export function knownSpecialty(name) {
@@ -173,9 +201,9 @@ export function defaultSpecialtyOf(code) {
   return DEFAULT_SPECIALTY.get(code) || '全科'
 }
 
-/** 卡片上的咨询科室：只回显目录里的二级科。缺二级时落到该一级类的默认二级。 */
+/** 卡片上的咨询科室。已停用的二级仍显示当时的名字，不改挂默认科。 */
 export function resolveConsultSpecialty(card) {
-  return knownSpecialty(card?.specialty) || defaultSpecialtyOf(card?.department)
+  return card?.specialty || knownSpecialty(card?.specialty) || defaultSpecialtyOf(card?.department)
 }
 
 export function consultDepartmentLabel(card) {

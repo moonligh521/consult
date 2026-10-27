@@ -14,13 +14,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 /**
- * 科室变更走延时双删：先删缓存，再写库，延迟后再删一次。
- * 避免并发读把旧快照写回 Redis。
+ * 科室变更写库后回填快照，延迟再填一次，清掉并发读写回的旧值。
  */
 class DepartmentCatalogWriterTest {
 
     @Test
-    void delayedDoubleDeleteRunsDeleteWriteThenDelayedDelete() {
+    void mutateRefillsCacheThenRefillsAgain() {
         FakeCache cache = new FakeCache();
         FakeStore store = new FakeStore();
         ManualScheduler scheduler = new ManualScheduler();
@@ -29,22 +28,22 @@ class DepartmentCatalogWriterTest {
         cache.value.set("old-snapshot");
         writer.setEnabled(5, false);
 
-        assertEquals(List.of("delete"), cache.ops);
+        assertEquals(List.of("put"), cache.ops);
         assertEquals(List.of("setEnabled:5:false"), store.ops);
         assertEquals(1000, scheduler.delayMs);
-        assertEquals(null, cache.value.get());
+        assertEquals(MemoryDepartmentCatalog.seed().snapshot().version(), cache.value.get());
 
         cache.ops.clear();
         cache.value.set("stale-fill-from-concurrent-read");
         scheduler.runPending();
 
-        assertEquals(List.of("delete"), cache.ops);
-        assertEquals(null, cache.value.get());
+        assertEquals(List.of("put"), cache.ops);
+        assertEquals(MemoryDepartmentCatalog.seed().snapshot().version(), cache.value.get());
         assertTrue(scheduler.pending.isEmpty());
     }
 
     @Test
-    void upsertTypoGoesThroughDelayedDoubleDelete() {
+    void upsertTypoGoesThroughDelayedRefill() {
         FakeCache cache = new FakeCache();
         FakeStore store = new FakeStore();
         ManualScheduler scheduler = new ManualScheduler();
@@ -52,10 +51,10 @@ class DepartmentCatalogWriterTest {
 
         writer.upsertTypo("刻嗽", "咳嗽");
 
-        assertEquals(List.of("delete"), cache.ops);
+        assertEquals(List.of("put"), cache.ops);
         assertEquals(List.of("upsertTypo:刻嗽:咳嗽"), store.ops);
         scheduler.runPending();
-        assertEquals(List.of("delete", "delete"), cache.ops);
+        assertEquals(List.of("put", "put"), cache.ops);
     }
 
     @Test
@@ -103,12 +102,23 @@ class DepartmentCatalogWriterTest {
             ops.add("delete");
             value.set(null);
         }
+
+        @Override
+        public void put(DepartmentSnapshot snapshot) {
+            ops.add("put");
+            value.set(snapshot == null ? null : snapshot.version());
+        }
     }
 
     private static final class FakeStore implements DepartmentCatalogStore {
 
         private final List<String> ops = new ArrayList<>();
         private boolean failNext;
+
+        @Override
+        public DepartmentSnapshot load() {
+            return MemoryDepartmentCatalog.seed().snapshot();
+        }
 
         @Override
         public void setEnabled(int code, boolean enabled) {

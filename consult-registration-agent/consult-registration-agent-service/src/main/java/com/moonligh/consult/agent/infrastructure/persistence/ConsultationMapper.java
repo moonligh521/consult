@@ -519,6 +519,36 @@ public class ConsultationMapper {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    /** 未确认卡片挂着该二级科的会话数。近似。 */
+    public int countCardReady(String specialty) {
+        Integer n = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM consultation_session
+                WHERE is_deleted = 0 AND business_status = 4
+                  AND JSON_UNQUOTE(JSON_EXTRACT(card_json, '$.specialty')) = ?
+                """,
+                Integer.class,
+                specialty);
+        return n == null ? 0 : n;
+    }
+
+    /** 已确认未下单、卡片仍是该二级科。 */
+    public int countConfirmedUnpaid(String specialty) {
+        Integer n = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM consultation_session s
+                WHERE s.is_deleted = 0 AND s.business_status = 5
+                  AND JSON_UNQUOTE(JSON_EXTRACT(s.card_json, '$.specialty')) = ?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM consult_order o
+                    WHERE o.consultation_id = s.id AND o.is_deleted = 0
+                  )
+                """,
+                Integer.class,
+                specialty);
+        return n == null ? 0 : n;
+    }
+
     /** 卡片转成 JSON 存库。没有卡片就存 null。 */
     private String toCardJson(ConsultationSession session) {
         if (session.getCard() == null) {

@@ -5,13 +5,13 @@ import {
   AGE_OPTIONS,
   DEFAULT_AGE,
   GENDER_OPTIONS,
-  SPECIALTY_CASCADE,
   STATUS,
   consultDepartmentLabel,
   genderLabel,
   maskPatientName,
   parentDepartmentCode,
   resolveConsultSpecialty,
+  specialtyCascade,
 } from '../constants/catalog'
 import { useConsultationStore } from '../stores/consultation'
 
@@ -58,6 +58,7 @@ watch(
   { immediate: true },
 )
 
+const cascade = computed(() => specialtyCascade())
 const readonly = computed(() => store.status === STATUS.CONFIRMED)
 const folded = computed(() => !!store.order && !editing.value && !openFold.value)
 const personText = computed(() => {
@@ -139,6 +140,7 @@ async function save() {
         <span class="k">咨询科室：</span>{{ consultDepartmentLabel(store.card) }}
         <span v-if="store.card?.departmentSource === 'MODEL'" class="source-tag">AI 辅助推荐</span>
       </p>
+      <p v-if="store.card?.stale" class="source-note">该科室已停诊，请改科或继续对话重新分诊。</p>
       <p v-if="store.card?.departmentSource === 'FALLBACK'" class="source-note">建议先由全科医生评估</p>
       <p v-if="store.card?.departmentEvidence"><span class="k">分诊依据：</span>{{ store.card.departmentEvidence }}</p>
       <p><span class="k">主诉：</span>{{ store.card?.description }}</p>
@@ -163,7 +165,7 @@ async function save() {
         <label>咨询科室</label>
         <n-cascader
           v-model:value="form.specialty"
-          :options="SPECIALTY_CASCADE"
+          :options="cascade"
           filterable
           show-path
           leaf-only

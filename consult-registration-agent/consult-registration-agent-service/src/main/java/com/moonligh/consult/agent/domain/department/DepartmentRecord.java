@@ -54,7 +54,41 @@ public record DepartmentRecord(
     }
 
     public Department toDepartment() {
-        return Department.fromCode(code);
+        return Department.tryFromCode(code);
+    }
+
+    public DepartmentRecord withSpecialties(List<DepartmentSpecialty> live) {
+        return new DepartmentRecord(
+                code, name, enabled, sort, fallback, genderScope, childAgeLt,
+                routingKeywords, overrideKeywords, treatDesc, live);
+    }
+
+    public DepartmentRecord withRouting(List<String> routing) {
+        return new DepartmentRecord(
+                code, name, enabled, sort, fallback, genderScope, childAgeLt,
+                routing, overrideKeywords, treatDesc, specialties);
+    }
+
+    public DepartmentRecord withoutSpecialty(String specialtyName) {
+        if (specialtyName == null || specialtyName.isBlank()) {
+            return this;
+        }
+        java.util.Set<String> dropped = new java.util.HashSet<>();
+        List<DepartmentSpecialty> kept = new java.util.ArrayList<>();
+        for (DepartmentSpecialty spec : specialties) {
+            if (specialtyName.equals(spec.name())) {
+                dropped.addAll(spec.matchTerms());
+            } else {
+                kept.add(spec);
+            }
+        }
+        List<String> routing = new java.util.ArrayList<>();
+        for (String keyword : routingKeywords) {
+            if (!dropped.contains(keyword)) {
+                routing.add(keyword);
+            }
+        }
+        return withSpecialties(kept).withRouting(routing);
     }
 
     /** 没有更细的二级时，落到与一级同名的二级，否则第一个二级。 */

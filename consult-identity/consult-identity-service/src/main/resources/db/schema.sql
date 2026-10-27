@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS consult_doctor (
     title               VARCHAR(32)  NOT NULL COMMENT '职称',
     hospital            VARCHAR(64)  NOT NULL COMMENT '执业医院',
     department_code     INT          NOT NULL COMMENT '一级科室码，对应咨询目录',
+    specialty_id        BIGINT       NULL     COMMENT 'consult_department_specialty.id',
     specialty           VARCHAR(32)  NOT NULL COMMENT '二级科室',
     skills              VARCHAR(400) NULL     COMMENT '擅长。匹配用，顿号分隔',
     intro               VARCHAR(400) NULL     COMMENT '简介。不参与匹配',

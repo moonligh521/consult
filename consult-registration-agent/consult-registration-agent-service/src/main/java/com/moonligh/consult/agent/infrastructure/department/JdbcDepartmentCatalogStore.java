@@ -133,35 +133,11 @@ public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
     }
 
     private DepartmentSnapshot loadTables() {
-        Map<Integer, MutableDept> depts = new LinkedHashMap<>();
-        jdbc.query(
-                """
-                SELECT code, name, enabled, sort_no, fallback, gender_scope, child_age_lt, treat_desc
-                FROM consult_department
-                WHERE is_deleted = 0
-                ORDER BY sort_no, code
-                """,
-                rs -> {
-                    int code = rs.getInt("code");
-                    depts.put(code, new MutableDept(
-                            code,
-                            rs.getString("name"),
-                            rs.getInt("enabled") == 1,
-                            rs.getInt("sort_no"),
-                            rs.getInt("fallback") == 1,
-                            rs.getInt("gender_scope"),
-                            childAge(rs),
-                            rs.getString("treat_desc")));
-                });
-        loadSpecialties(depts);
-        loadKeywords(depts);
+        List<DepartmentRecord> records = loadRecords();
         DepartmentSnapshot seed = DepartmentSeed.load();
-        List<DepartmentRecord> records = new ArrayList<>();
-        for (MutableDept dept : depts.values()) {
-            records.add(dept.toRecord());
-        }
         return new DepartmentSnapshot(
-                "mysql", records, loadTypos(seed), loadUncertain(seed), loadAmbiguous(seed), loadSynonyms(seed));
+                "mysql-" + System.currentTimeMillis(),
+                records, loadTypos(seed), loadUncertain(seed), loadAmbiguous(seed), loadSynonyms(seed));
     }
 
     @Override
@@ -392,7 +368,7 @@ public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
         try {
             jdbc.query(
                     """
-                    SELECT department_code, name, treat_desc
+                    SELECT id, department_code, name, treat_desc, enabled
                     FROM consult_department_specialty
                     WHERE is_deleted = 0
                     ORDER BY sort_no, id
@@ -402,11 +378,158 @@ public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
                         if (dept == null) {
                             return;
                         }
-                        dept.specialties.add(new MutableSpec(rs.getString("name"), rs.getString("treat_desc")));
+                        dept.specialties.add(new MutableSpec(
+                                rs.getLong("id"),
+                                rs.getString("name"),
+                                rs.getString("treat_desc"),
+                                rs.getInt("enabled") == 1));
                     });
         } catch (DataAccessException error) {
             log.warn("二级科室表不可用，暂不加载细分科: {}", error.getMessage());
+            loadSpecialtiesLegacy(depts);
         }
+    }
+
+    private void loadSpecialtiesLegacy(Map<Integer, MutableDept> depts) {
+        try {
+            jdbc.query(
+                    """
+                    SELECT id, department_code, name, treat_desc
+                    FROM consult_department_specialty
+                    WHERE is_deleted = 0
+                    ORDER BY sort_no, id
+                    """,
+                    rs -> {
+                        MutableDept dept = depts.get(rs.getInt("department_code"));
+                        if (dept == null) {
+                            return;
+                        }
+                        dept.specialties.add(new MutableSpec(
+                                rs.getLong("id"),
+                                rs.getString("name"),
+                                rs.getString("treat_desc"),
+                                true));
+                    });
+        } catch (DataAccessException ignored) {
+            // 表仍不可用时目录只有一级
+        }
+    }
+
+    @Override
+    public List<DepartmentRecord> loadRecords() {
+        Map<Integer, MutableDept> depts = new LinkedHashMap<>();
+        jdbc.query(
+                """
+                SELECT code, name, enabled, sort_no, fallback, gender_scope, child_age_lt, treat_desc
+                FROM consult_department
+                WHERE is_deleted = 0
+                ORDER BY sort_no, code
+                """,
+                rs -> {
+                    int code = rs.getInt("code");
+                    depts.put(code, new MutableDept(
+                            code,
+                            rs.getString("name"),
+                            rs.getInt("enabled") == 1,
+                            rs.getInt("sort_no"),
+                            rs.getInt("fallback") == 1,
+                            rs.getInt("gender_scope"),
+                            childAge(rs),
+                            rs.getString("treat_desc")));
+                });
+        loadSpecialties(depts);
+        loadKeywords(depts);
+        List<DepartmentRecord> records = new ArrayList<>();
+        for (MutableDept dept : depts.values()) {
+            records.add(dept.toRecord());
+        }
+        return records;
+    }
+
+    @Override
+    public int insertDepartment(String name, int genderScope, Integer childAgeLt, String treatDesc) {
+        Integer max = jdbc.queryForObject(
+                "SELECT COALESCE(MAX(code), 22) FROM consult_department", Integer.class);
+        int code = (max == null ? 22 : max) + 1;
+        jdbc.update(
+                """
+                INSERT INTO consult_department
+                    (code, name, enabled, sort_no, fallback, gender_scope, child_age_lt, treat_desc, remark)
+                VALUES (?, ?, 0, ?, 0, ?, ?, ?, '运营新增')
+                """,
+                code,
+                name,
+                code,
+                genderScope,
+                childAgeLt,
+                treatDesc);
+        return code;
+    }
+
+    @Override
+    public long insertSpecialty(int departmentCode, String name, String treatDesc) {
+        jdbc.update(
+                """
+                INSERT INTO consult_department_specialty
+                    (department_code, name, treat_desc, sort_no, enabled, remark)
+                VALUES (?, ?, ?, 0, 0, '运营新增')
+                """,
+                departmentCode,
+                name,
+                treatDesc);
+        Long id = jdbc.queryForObject(
+                """
+                SELECT id FROM consult_department_specialty
+                WHERE department_code = ? AND name = ? AND is_deleted = 0
+                ORDER BY id DESC LIMIT 1
+                """,
+                Long.class,
+                departmentCode,
+                name);
+        if (id == null) {
+            throw new IllegalStateException("新建二级科失败: " + name);
+        }
+        return id;
+    }
+
+    @Override
+    public void setSpecialtyEnabled(long specialtyId, boolean enabled) {
+        int updated = jdbc.update(
+                "UPDATE consult_department_specialty SET enabled = ? WHERE id = ? AND is_deleted = 0",
+                enabled ? 1 : 0,
+                specialtyId);
+        if (updated == 0) {
+            throw new IllegalStateException("没有这个二级科 id: " + specialtyId);
+        }
+    }
+
+    @Override
+    public void renameSpecialty(long specialtyId, String name) {
+        jdbc.update(
+                "UPDATE consult_department_specialty SET name = ? WHERE id = ? AND is_deleted = 0",
+                name,
+                specialtyId);
+        jdbc.update(
+                """
+                UPDATE consult_department_keyword k
+                JOIN consult_department_specialty s ON s.id = ? AND s.is_deleted = 0
+                SET k.specialty_name = ?
+                WHERE k.department_code = s.department_code AND k.specialty_name = s.name AND k.is_deleted = 0
+                """,
+                specialtyId,
+                name);
+        jdbc.update(
+                """
+                UPDATE consult_doctor d
+                JOIN consult_department_specialty s ON s.id = ? AND s.is_deleted = 0
+                SET d.specialty = ?, d.department_code = s.department_code
+                WHERE d.is_deleted = 0 AND (
+                    d.specialty_id = s.id
+                    OR (d.specialty_id IS NULL AND d.department_code = s.department_code AND d.specialty = s.name)
+                )
+                """,
+                specialtyId,
+                name);
     }
 
     private static Integer childAge(ResultSet rs) throws SQLException {
@@ -458,7 +581,8 @@ public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
         private DepartmentRecord toRecord() {
             List<DepartmentSpecialty> specs = new ArrayList<>();
             for (MutableSpec spec : specialties) {
-                specs.add(new DepartmentSpecialty(spec.name, spec.treatDesc, spec.keywords, spec.diseases));
+                specs.add(new DepartmentSpecialty(
+                        spec.id, spec.name, spec.treatDesc, spec.enabled, spec.keywords, spec.diseases));
             }
             return new DepartmentRecord(
                     code, name, enabled, sort, fallback, genderScope, childAgeLt,
@@ -467,14 +591,18 @@ public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
     }
 
     private static final class MutableSpec {
+        private final Long id;
         private final String name;
         private final String treatDesc;
+        private final boolean enabled;
         private final List<String> keywords = new ArrayList<>();
         private final List<String> diseases = new ArrayList<>();
 
-        private MutableSpec(String name, String treatDesc) {
+        private MutableSpec(Long id, String name, String treatDesc, boolean enabled) {
+            this.id = id;
             this.name = name;
             this.treatDesc = treatDesc == null ? "" : treatDesc;
+            this.enabled = enabled;
         }
     }
 }

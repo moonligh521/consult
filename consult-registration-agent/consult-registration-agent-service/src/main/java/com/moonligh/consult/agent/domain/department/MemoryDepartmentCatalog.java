@@ -19,6 +19,10 @@ public final class MemoryDepartmentCatalog implements DepartmentCatalog {
         return new MemoryDepartmentCatalog(snapshot.withoutEnabled(code));
     }
 
+    public MemoryDepartmentCatalog withoutSpecialty(String specialtyName) {
+        return new MemoryDepartmentCatalog(snapshot.withoutSpecialty(specialtyName));
+    }
+
     @Override
     public DepartmentSnapshot snapshot() {
         return snapshot;

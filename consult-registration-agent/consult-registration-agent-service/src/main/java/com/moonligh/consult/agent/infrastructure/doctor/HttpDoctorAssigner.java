@@ -50,7 +50,7 @@ public class HttpDoctorAssigner implements DoctorAssigner {
             throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
         }
         Map<String, Object> payload = new HashMap<>();
-        payload.put("departmentCode", card.department() == null ? 0 : card.department().getCode());
+        payload.put("departmentCode", card.department() == null ? 0 : card.department());
         payload.put("specialty", card.specialty() == null ? "" : card.specialty());
         payload.put("complaint", card.description() == null ? "" : card.description());
         payload.put("symptoms", card.symptoms() == null ? List.of() : card.symptoms());

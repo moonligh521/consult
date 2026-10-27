@@ -109,7 +109,7 @@ class TriageFlowTest {
     void modelDownFallsBackToGeneral() {
         ConsultationService service = service(ComplaintModel.unavailable());
         ConsultationRes card = service.acceptMessage(null, "男，50岁，头晕乏力一周");
-        assertEquals(Department.GENERAL, card.card().department());
+        assertEquals(Department.GENERAL.getCode(), card.card().department());
         assertEquals("FALLBACK", card.card().departmentSource());
     }
 
