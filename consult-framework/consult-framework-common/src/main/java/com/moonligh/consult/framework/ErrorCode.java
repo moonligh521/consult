@@ -9,11 +9,13 @@ public enum ErrorCode {
     UNKNOWN_ERROR(1000, "未知错误"),
     PARAM_INVALID(1001, "参数校验失败"),
     PARAM_MISSING(1002, "缺少必填参数"),
+    TOO_MANY_REQUESTS(1003, "请求太频繁，请稍后再试。"),
+    SERVICE_BUSY(1004, "服务繁忙，请稍后再试。"),
 
     CONSULTATION_NOT_FOUND(1101, "找不到这轮咨询。"),
     CARD_NOT_READY(1102, "咨询卡片尚未生成。"),
     URGENT_STOP(1103, "请先寻求紧急医疗帮助。"),
-    CARD_PENDING_CONFIRMATION(1104, "请先确认或修改咨询卡片。"),
+    CARD_PENDING_CONFIRMATION(1104, "请在卡片上修改或选择咨询档位。"),
     ALREADY_CONFIRMED(1105, "这轮咨询已经确认。"),
     INVALID_GENDER(1106, "性别须为 1 或 2。"),
     INVALID_AGE(1107, "年龄须为 1 到 120 的整数。"),
@@ -34,6 +36,7 @@ public enum ErrorCode {
     CONSULT_NOT_OWNED(1124, "找不到这轮咨询。"),
     CANNOT_DISABLE_FALLBACK(1125, "兜底全科不能停用。"),
     SPECIALTY_NO_COVERAGE(1126, "该科室医生或当日号源不足，暂不能开通。"),
+    CONSULT_IN_PROGRESS(1127, "上一步还在处理，请稍候再试。"),
 
     LOGIN_REQUIRED(1201, "请先登录。"),
     INVALID_MOBILE(1202, "请输入正确的手机号。"),

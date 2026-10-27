@@ -16,8 +16,12 @@ public class ModelProperties {
     private String modelName = "deepseek-v4-flash";
     /** 模型结果缓存小时数。 */
     private int cacheTtlHours = 168;
-    private final Lane safety = new Lane(2500, 32, 50, 1);
-    private final Lane complaint = new Lane(2000, 32, 50, 0);
+    /**
+     * 并发是单实例上限，供应商侧总并发 = 实例数 × maxConcurrency，按账号限额核算。
+     * 模型已在会话锁外调用，排队等一会儿不再占数据库连接，比 50ms 拿不到就判繁忙、整单安全降级划算。
+     */
+    private final Lane safety = new Lane(2500, 32, 1500, 1);
+    private final Lane complaint = new Lane(2000, 32, 800, 0);
 
     public Lane lane(ModelPurpose purpose) {
         return purpose == ModelPurpose.SAFETY ? safety : complaint;
@@ -69,6 +73,8 @@ public class ModelProperties {
         private int maxConcurrency;
         private int acquireWaitMs;
         private int invalidOutputRetries;
+        /** 全部实例合计的并发上限，按供应商账号限额配；0 表示不设全局配额，只靠单实例 maxConcurrency。 */
+        private int globalMaxConcurrency;
 
         public Lane() {
         }
@@ -110,6 +116,14 @@ public class ModelProperties {
 
         public void setInvalidOutputRetries(int invalidOutputRetries) {
             this.invalidOutputRetries = invalidOutputRetries;
+        }
+
+        public int getGlobalMaxConcurrency() {
+            return globalMaxConcurrency;
+        }
+
+        public void setGlobalMaxConcurrency(int globalMaxConcurrency) {
+            this.globalMaxConcurrency = globalMaxConcurrency;
         }
     }
 }

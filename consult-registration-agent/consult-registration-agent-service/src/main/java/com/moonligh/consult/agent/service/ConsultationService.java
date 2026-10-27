@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -15,6 +16,7 @@ import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.api.enums.MissingSlot;
 import com.moonligh.consult.agent.api.req.CardPatchReq;
 import com.moonligh.consult.agent.api.res.AssignedDoctorRes;
+import com.moonligh.consult.agent.api.res.ConsultOrderRes;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
 import com.moonligh.consult.agent.api.res.ConsultationDetailRes;
 import com.moonligh.consult.agent.api.res.ConsultationPageRes;
@@ -26,15 +28,18 @@ import com.moonligh.consult.agent.domain.ComplaintClarity;
 import com.moonligh.consult.agent.domain.ConsultMinutes;
 import com.moonligh.consult.agent.domain.ConsultOrder;
 import com.moonligh.consult.agent.domain.ConsultationRepository;
+import com.moonligh.consult.agent.domain.MatchQueue;
 import com.moonligh.consult.agent.domain.ConsultationSession;
 import com.moonligh.consult.agent.domain.DoctorAssigner;
 import com.moonligh.consult.agent.domain.DepartmentRouter;
 import com.moonligh.consult.agent.domain.RegistrationAgent;
 import com.moonligh.consult.agent.domain.PayCatalog;
+import com.moonligh.consult.agent.domain.SessionAction;
 import com.moonligh.consult.agent.domain.SlotParser;
 import com.moonligh.consult.agent.domain.Slots;
 import com.moonligh.consult.agent.domain.SymptomExtractor;
 import com.moonligh.consult.agent.domain.safety.AuditTrigger;
+import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
 import com.moonligh.consult.agent.domain.safety.Demographics;
 import com.moonligh.consult.agent.domain.safety.EvaluationKind;
 import com.moonligh.consult.agent.domain.safety.MessageSource;
@@ -66,6 +71,9 @@ import com.moonligh.consult.framework.ErrorCode;
 @Service
 public class ConsultationService {
 
+    /** 当前请求的模型结论暂存。只在 runWithModelsOutsideLock 期间有值。 */
+    private static final ThreadLocal<ModelMemo> MEMO = new ThreadLocal<>();
+
     /** 会话存取。同一咨询编号会排队，避免两条消息互相覆盖。 */
     private final ConsultationRepository repository;
     /** 安全闸门：先规则，必要时再让模型补漏。 */
@@ -86,6 +94,8 @@ public class ConsultationService {
     private final PatientStore patients;
     /** 支付后按二级科和擅长派医生。测试可不接。 */
     private final DoctorAssigner doctorAssigner;
+    /** Redis/内存派单队。测试可不接。 */
+    private MatchDispatcher matchDispatcher;
 
     public ConsultationService(
             ConsultationRepository repository,
@@ -166,6 +176,11 @@ public class ConsultationService {
         this.doctorAssigner = doctorAssigner;
     }
 
+    @Autowired(required = false)
+    public void setMatchDispatcher(MatchDispatcher matchDispatcher) {
+        this.matchDispatcher = matchDispatcher;
+    }
+
     /** 简写入口：不传 messageId。 */
     public ConsultationRes acceptMessage(String consultationId, String text) {
         return acceptMessage(consultationId, null, text);
@@ -183,8 +198,43 @@ public class ConsultationService {
         if (messageId != null && messageId.length() > 64) {
             throw new BusinessException(ErrorCode.PARAM_INVALID);
         }
-        // 同一咨询排队执行；锁内办事，办完再保存。
-        return repository.runLocked(consultationId, session -> acceptLocked(session, messageId, text, accountId));
+        // 同一咨询排队执行；模型先在锁外算好，锁内只办事、保存。
+        return runWithModelsOutsideLock(consultationId, session -> acceptLocked(session, messageId, text, accountId));
+    }
+
+    /**
+     * 先在会话副本上预演一遍，把安全模型和主诉模型的结论算好；再进锁用同样输入复用结论。
+     * 这样数据库行锁和连接只在毫秒级的读改写期间占用，不陪着模型等几秒。
+     */
+    private ConsultationRes runWithModelsOutsideLock(String consultationId, SessionAction action) {
+        ConsultationSession draft = draftOf(consultationId);
+        if (draft == null) {
+            return repository.runLocked(consultationId, action);
+        }
+        ModelMemo memo = new ModelMemo();
+        MEMO.set(memo);
+        try {
+            action.run(draft);
+        } catch (RuntimeException ignored) {
+            // 预演只为提前拿到模型结论；真正的报错由锁内那一遍给出
+        } finally {
+            MEMO.remove();
+        }
+        MEMO.set(memo.replay());
+        try {
+            return repository.runLocked(consultationId, action);
+        } finally {
+            MEMO.remove();
+        }
+    }
+
+    /** 新开一轮用空白会话预演；已有编号读一份不加锁的副本。找不到就不预演，交给锁内报 1101。 */
+    private ConsultationSession draftOf(String consultationId) {
+        if (consultationId == null || consultationId.isBlank()) {
+            return new ConsultationSession("draft");
+        }
+        ConsultationSession current = repository.get(consultationId);
+        return current == null ? null : current.copy();
     }
 
     /** 当前账号一年内咨询记录。 */
@@ -231,9 +281,64 @@ public class ConsultationService {
         });
     }
 
-    /** 订单上还没有医生时再派一次。 */
+    /** 订单上还没有医生时再派一次。排队超时的队头会提档。 */
     public ConsultationRes reassign(String consultationId) {
-        return repository.runLocked(consultationId, this::reassignLocked);
+        return assignDoctor(repository.runLocked(consultationId, this::reassignLocked));
+    }
+
+    /**
+     * 把排队超过 1 分钟的队头提一档。不扫全表，只消化延迟集合里到期的单。
+     */
+    public int drainMatchQueue() {
+        return matchDispatcher == null ? 0 : matchDispatcher.promoteDue();
+    }
+
+    /** 启动时把库里未派上的单重新入队。 */
+    public void rebuildMatchQueue() {
+        if (matchDispatcher == null) {
+            return;
+        }
+        matchDispatcher.restoreAll(repository.listUnmatchedPaid(5000));
+    }
+
+    /** 队头出队后占坑。没坑返回 false，调用方把单放回队头。 */
+    public boolean occupyQueued(MatchQueue.Entry entry) {
+        if (entry == null || doctorAssigner == null) {
+            return false;
+        }
+        ConsultationSession snapshot = repository.get(entry.consultationId());
+        if (snapshot == null || snapshot.getOrder() == null) {
+            return true;
+        }
+        ConsultOrder order = snapshot.getOrder();
+        if (order.doctor() != null || order.isEnded() || !entry.orderId().equals(order.orderId())) {
+            return true;
+        }
+        List<String> terms = canonicalTerms(snapshot);
+        try {
+            AssignedDoctorRes doctor = doctorAssigner.assign(
+                    snapshot.getId(),
+                    order.orderId(),
+                    snapshot.getCard(),
+                    terms,
+                    order.consultMinutes(),
+                    entry.queuedGrade() <= 0 ? order.packageCode() : entry.queuedGrade(),
+                    false);
+            AtomicReference<Release> release = new AtomicReference<>();
+            repository.runLocked(
+                    snapshot.getId(),
+                    session -> attachDoctorLocked(session, order.orderId(), doctor, terms, release));
+            Release pending = release.get();
+            if (pending != null) {
+                doctorAssigner.release(pending.orderId(), pending.reason());
+            }
+            return true;
+        } catch (BusinessException error) {
+            if (error.getErrorCode() == ErrorCode.DOCTOR_UNAVAILABLE) {
+                return false;
+            }
+            throw error;
+        }
     }
 
     /**
@@ -243,7 +348,7 @@ public class ConsultationService {
         if (patch == null) {
             throw new BusinessException(ErrorCode.EMPTY_CARD_PATCH);
         }
-        return repository.runLocked(patch.consultationId(), session -> updateLocked(session, patch));
+        return runWithModelsOutsideLock(patch.consultationId(), session -> updateLocked(session, patch));
     }
 
     /**
@@ -265,18 +370,50 @@ public class ConsultationService {
         return placeOrder(consultationId, packageCode, null);
     }
 
+    /**
+     * 先在锁内落订单（订单号就此固定），提交后再到锁外派医生。
+     * 派单失败时订单已在库里，再次下同一档或调重派都用同一个订单号，身份服务按订单号幂等，不会重复占坑。
+     */
     public ConsultationRes placeOrder(String consultationId, Integer packageCode, Integer consultMinutes) {
-        return repository.runLocked(consultationId, session -> placeOrderLocked(session, packageCode, consultMinutes));
+        ConsultationRes placed = repository.runLocked(
+                consultationId, session -> placeOrderLocked(session, packageCode, consultMinutes));
+        return assignDoctor(placed);
     }
 
-    /** 患者结束问诊，释放医生占坑。 */
+    /** 患者结束问诊，释放医生占坑。结束态先提交，释放在锁外做。 */
     public ConsultationRes endConsult(String consultationId, String reason) {
-        return repository.runLocked(consultationId, session -> endConsultLocked(session, reason));
+        AtomicReference<Release> release = new AtomicReference<>();
+        ConsultationRes view = repository.runLocked(consultationId, session -> endConsultLocked(session, reason, release));
+        Release pending = release.get();
+        AssignedDoctorRes freed = view.order() == null ? null : view.order().doctor();
+        if (pending != null && doctorAssigner != null) {
+            try {
+                doctorAssigner.release(pending.orderId(), pending.reason());
+            } catch (RuntimeException error) {
+                // 会话结束态已落库；占坑释放失败由身份侧超时扫描兜底，不能挡住结束
+            }
+            if (matchDispatcher != null && freed != null) {
+                matchDispatcher.onSlotFreed(
+                        freed.specialty(), MatchQueue.gradeOfTitle(freed.title()));
+            }
+        }
+        return view;
     }
 
-    /** 问诊中改时长，从现在起重新计时。 */
+    /** 问诊中改时长，从现在起重新计时。身份侧延时在锁外做，按订单号幂等。 */
     public ConsultationRes setConsultMinutes(String consultationId, Integer consultMinutes) {
+        ConsultationSession snapshot = consultationId == null || consultationId.isBlank()
+                ? null
+                : repository.get(consultationId);
+        ConsultOrder order = snapshot == null ? null : snapshot.getOrder();
+        if (order != null && !order.isEnded() && doctorAssigner != null) {
+            doctorAssigner.extend(order.orderId(), ConsultMinutes.of(consultMinutes));
+        }
         return repository.runLocked(consultationId, session -> setConsultMinutesLocked(session, consultMinutes));
+    }
+
+    /** 锁内定下要释放的占坑，提交后再调身份服务。 */
+    private record Release(String orderId, String reason) {
     }
 
     /**
@@ -293,7 +430,7 @@ public class ConsultationService {
         if (patient == null) {
             throw new BusinessException(ErrorCode.PATIENT_NOT_FOUND);
         }
-        return repository.runLocked(consultationId, session -> {
+        return runWithModelsOutsideLock(consultationId, session -> {
             bindOwner(session, accountId.trim());
             return bindLocked(session, patient);
         });
@@ -341,11 +478,9 @@ public class ConsultationService {
         if (session.getBusinessStatus() == ConsultationStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.ALREADY_CONFIRMED);
         }
-        // 卡片待确认：允许继续补主诉，拼进描述后重跑分诊；改科仍走改卡接口。
+        // 出卡后不能再对话补述，改信息只走卡片修改。
         if (session.getBusinessStatus() == ConsultationStatus.CARD_READY) {
-            fillEmptySlots(session, sentence);
-            addDescription(session, sentence);
-            return refreshCard(session, MatchDecision.TRIGGER_EDIT_DESCRIPTION);
+            throw new BusinessException(ErrorCode.CARD_PENDING_CONFIRMATION);
         }
         // 第一句只说「有点不舒服」：先追问具体病情，不进入选就诊人。
         if (shouldAskForDetail(session, sentence)) {
@@ -555,16 +690,7 @@ public class ConsultationService {
             }
             throw new BusinessException(ErrorCode.ALREADY_ORDERED);
         }
-        int minutes = ConsultMinutes.of(consultMinutes);
-        ConsultOrder order = ConsultOrder.paidOf(pkg, minutes);
-        if (doctorAssigner != null) {
-            List<String> terms = canonicalTerms(session);
-            AssignedDoctorRes doctor = doctorAssigner.assign(
-                    session.getId(), order.orderId(), session.getCard(), terms, minutes);
-            order = order.withDoctor(doctor);
-            recordAssign(session, order.orderId(), doctor, terms);
-        }
-        session.setOrder(order);
+        session.setOrder(ConsultOrder.paidOf(pkg, ConsultMinutes.of(consultMinutes)));
         return buildResponse(session);
     }
 
@@ -576,21 +702,85 @@ public class ConsultationService {
         if (order.isEnded()) {
             throw new BusinessException(ErrorCode.CONSULT_ENDED);
         }
-        if (order.doctor() != null) {
-            return buildResponse(session);
-        }
-        if (doctorAssigner == null) {
+        if (order.doctor() == null && doctorAssigner == null) {
             throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
         }
-        List<String> terms = canonicalTerms(session);
-        AssignedDoctorRes doctor = doctorAssigner.assign(
-                session.getId(), order.orderId(), session.getCard(), terms, order.consultMinutes());
-        session.setOrder(order.withDoctor(doctor));
-        recordAssign(session, order.orderId(), doctor, terms);
         return buildResponse(session);
     }
 
-    private ConsultationRes endConsultLocked(ConsultationSession session, String reason) {
+    /** 订单已落库、还没医生：锁外调身份服务派单，再短锁写回。同一科按支付时间先进先出。 */
+    private ConsultationRes assignDoctor(ConsultationRes placed) {
+        ConsultOrderRes order = placed.order();
+        if (doctorAssigner == null || order == null || order.doctor() != null || order.endedAt() != null) {
+            return placed;
+        }
+        String consultationId = placed.consultationId();
+        ConsultationSession snapshot = repository.get(consultationId);
+        if (snapshot == null || snapshot.getOrder() == null) {
+            return placed;
+        }
+        if (matchDispatcher != null) {
+            matchDispatcher.offer(queueEntry(snapshot));
+            ConsultationSession latest = repository.get(consultationId);
+            return latest == null ? placed : buildResponse(latest);
+        }
+        List<String> terms = canonicalTerms(snapshot);
+        AssignedDoctorRes doctor;
+        try {
+            doctor = doctorAssigner.assign(
+                    consultationId, order.orderId(), snapshot.getCard(), terms, order.consultMinutes(),
+                    order.packageCode(), false);
+        } catch (BusinessException error) {
+            if (error.getErrorCode() == ErrorCode.DOCTOR_UNAVAILABLE) {
+                return placed;
+            }
+            throw error;
+        }
+        AtomicReference<Release> release = new AtomicReference<>();
+        ConsultationRes view = repository.runLocked(
+                consultationId, session -> attachDoctorLocked(session, order.orderId(), doctor, terms, release));
+        Release pending = release.get();
+        if (pending != null) {
+            try {
+                doctorAssigner.release(pending.orderId(), pending.reason());
+            } catch (RuntimeException error) {
+                // 派单途中问诊已结束：占坑交给身份侧超时扫描兜底
+            }
+        }
+        return view;
+    }
+
+    private static MatchQueue.Entry queueEntry(ConsultationSession session) {
+        ConsultOrder order = session.getOrder();
+        String specialty = session.getCard() == null ? "" : session.getCard().specialty();
+        return new MatchQueue.Entry(
+                session.getId(),
+                order.orderId(),
+                order.paidAt(),
+                order.packageCode(),
+                specialty == null ? "" : specialty);
+    }
+
+    private ConsultationRes attachDoctorLocked(
+            ConsultationSession session,
+            String orderId,
+            AssignedDoctorRes doctor,
+            List<String> terms,
+            AtomicReference<Release> release) {
+        ConsultOrder current = session.getOrder();
+        if (current == null || !orderId.equals(current.orderId()) || current.doctor() != null) {
+            return buildResponse(session);
+        }
+        if (current.isEnded()) {
+            release.set(new Release(orderId, current.endReason()));
+            return buildResponse(session);
+        }
+        session.setOrder(current.withDoctor(doctor));
+        recordAssign(session, orderId, doctor, terms);
+        return buildResponse(session);
+    }
+
+    private ConsultationRes endConsultLocked(ConsultationSession session, String reason, AtomicReference<Release> release) {
         ConsultOrder order = session.getOrder();
         if (order == null) {
             throw new BusinessException(ErrorCode.ORDER_NOT_ALLOWED);
@@ -611,13 +801,7 @@ public class ConsultationService {
         // 先落 ended_at + end_reason，再释放占坑。身份侧 status≠ACTIVE 后 XXL 不再扫本单。
         session.setOrder(order.ended(Instant.now(), code));
         recordRelease(session, code);
-        if (doctorAssigner != null) {
-            try {
-                doctorAssigner.release(order.orderId(), code);
-            } catch (RuntimeException error) {
-                // 会话结束态已落库；占坑失败不能挡住结束，避免前端卡在「正在结束」
-            }
-        }
+        release.set(new Release(order.orderId(), code));
         return buildResponse(session);
     }
 
@@ -630,9 +814,6 @@ public class ConsultationService {
             throw new BusinessException(ErrorCode.CONSULT_ENDED);
         }
         int minutes = ConsultMinutes.of(consultMinutes);
-        if (doctorAssigner != null) {
-            doctorAssigner.extend(order.orderId(), minutes);
-        }
         session.setOrder(order.withMinutes(minutes));
         return buildResponse(session);
     }
@@ -728,7 +909,7 @@ public class ConsultationService {
             kind = EvaluationKind.PINNED_URGENT;
         } else {
             // 用原话 + 已知年龄性别评估。结果只升不降。
-            assessment = safetyGate.assess(session.messages(), new Demographics(session.getAge(), session.getGender()));
+            assessment = assessSafety(session.messages(), new Demographics(session.getAge(), session.getGender()));
             SafetyPolicy.merge(session, assessment);
             session.setLastEvaluatedSeq(session.getLastMessageSeq());
             kind = EvaluationKind.EVALUATED;
@@ -757,10 +938,50 @@ public class ConsultationService {
                 Instant.now(),
                 assessment.ruleCertain(),
                 assessment.modelTriggerIds()));
-        metrics.increment("status." + view.status().getCode());
+        count("status." + view.status().getCode());
         // DRAFT 规则命中只进影子计数，不影响患者决策。
         if (!assessment.shadowRuleIds().isEmpty()) {
-            metrics.increment("shadow.hit");
+            count("shadow.hit");
+        }
+    }
+
+    /** 安全评估。锁内遇到预演算过的同一输入直接复用，不再调模型。 */
+    private SafetyAssessment assessSafety(List<ConsultationMessage> transcript, Demographics demographics) {
+        ModelMemo memo = MEMO.get();
+        if (memo != null && !memo.recording()) {
+            SafetyAssessment known = memo.safety(transcript, demographics);
+            if (known != null) {
+                return known;
+            }
+        }
+        SafetyAssessment assessment = safetyGate.assess(transcript, demographics);
+        if (memo != null && memo.recording()) {
+            memo.putSafety(transcript, demographics, assessment);
+        }
+        return assessment;
+    }
+
+    /** 分诊。和安全评估一样，预演算过的同一输入锁内直接复用。 */
+    private TriageRun triageOnce(TriageInput input) {
+        ModelMemo memo = MEMO.get();
+        if (memo != null && !memo.recording()) {
+            TriageRun known = memo.triage(input);
+            if (known != null) {
+                return known;
+            }
+        }
+        TriageRun run = registrationAgent.triage(input);
+        if (memo != null && memo.recording()) {
+            memo.putTriage(input, run);
+        }
+        return run;
+    }
+
+    /** 预演那一遍不计数，避免监测翻倍。 */
+    private void count(String name) {
+        ModelMemo memo = MEMO.get();
+        if (memo == null || !memo.recording()) {
+            metrics.increment(name);
         }
     }
 
@@ -875,7 +1096,7 @@ public class ConsultationService {
 
     /** 跑一次 N4+N6，结论存进会话，决策排队落库。 */
     private TriageResult runTriage(ConsultationSession session, String description, Integer age, Gender gender, int trigger) {
-        TriageRun run = registrationAgent.triage(new TriageInput(description, age, gender));
+        TriageRun run = triageOnce(new TriageInput(description, age, gender));
         session.setTriage(run.result());
         session.addPendingDecisions(run.decisions(), null, trigger);
         return run.result();
@@ -917,15 +1138,16 @@ public class ConsultationService {
         return buildResponse(session);
     }
 
-    /** 按安全状态和业务状态拼出给前端的画面。已确认时带上四档和下单结果。 */
+    /** 按安全状态和业务状态拼出给前端的画面。出卡后即可选档。 */
     private ConsultationRes buildResponse(ConsultationSession session) {
         ConsultationRes view = SafetyPolicy.view(session, catalog());
-        metrics.increment("view." + view.status().getCode());
-        List<PayPackageRes> packages = view.status() == ConsultationStatus.CONFIRMED ? PayCatalog.list() : null;
+        count("view." + view.status().getCode());
+        List<PayPackageRes> packages = view.status() == ConsultationStatus.CONFIRMED
+                || view.status() == ConsultationStatus.CARD_READY ? PayCatalog.list() : null;
         ConsultOrder order = session.getOrder();
         ConsultationCardRes card = markStaleIfStopped(view.card(), order);
         String prompt = card != null && card.stale()
-                ? "该科室已停诊，请改科或继续对话重新分诊。"
+                ? "该科室已停诊，请在卡片上改科。"
                 : view.prompt();
         return new ConsultationRes(
                 view.consultationId(),

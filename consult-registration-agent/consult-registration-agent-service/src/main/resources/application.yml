@@ -6,14 +6,24 @@ spring:
       - optional:file:./config/application-local.yml
       - optional:file:./consult-registration-agent/consult-registration-agent-service/config/application-local.yml
       - optional:file:../../config/application-local.yml
+  # 请求线程用虚拟线程：等模型、等身份服务时不占平台线程。并发闸门在连接池和模型信号量上。
+  threads:
+    virtual:
+      enabled: ${VIRTUAL_THREADS:true}
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai
+    # 行锁最多等 5 秒就报错，不让同一会话的并发请求排成长队拖住连接；批量写决策改写成多值 INSERT
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true&sessionVariables=innodb_lock_wait_timeout=5
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:your_password}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
+      # 实例数 × 本值 + 身份服务连接数，要小于 MySQL max_connections 并留余量
+      maximum-pool-size: ${DB_POOL_SIZE:30}
+      minimum-idle: ${DB_POOL_MIN_IDLE:10}
+      # 拿不到连接 3 秒就失败，别让请求在池子前排 30 秒把整个实例拖死
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:3000}
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
@@ -28,38 +38,80 @@ department:
     double-delete-delay-ms: 1000
 server:
   port: 18081
+  # 滚动发布时先摘流量再停：处理中的请求最多再跑 30 秒（盖住模型排队 + 调用 + 派单）
+  shutdown: graceful
+  tomcat:
+    # 虚拟线程下线程数不是瓶颈，连接数要盖住网关到单实例的峰值长连接
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:10000}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:500}
+    connection-timeout: 5s
 safety:
   catalog:
     location: classpath:safety/urgent-catalog.json
     draft-mode: SHADOW
 model:
   api-key: ${DEEPSEEK_API_KEY:}
-  base-url: https://api.deepseek.com
+  # 压测时指向 loadtest/wiremock 模拟的模型，避免压测流量打到真实账号
+  base-url: ${MODEL_BASE_URL:https://api.deepseek.com}
   model-name: deepseek-v4-flash
   cache-ttl-hours: 168
+  # max-concurrency 是单实例上限（舱壁）；global-max-concurrency 是全部实例合计（Redisson 配额），按供应商账号并发限额配，0 不启用
   safety:
-    timeout-ms: 2500
-    max-concurrency: 32
-    acquire-wait-ms: 50
+    timeout-ms: ${MODEL_SAFETY_TIMEOUT_MS:2500}
+    max-concurrency: ${MODEL_SAFETY_CONCURRENCY:32}
+    global-max-concurrency: ${MODEL_SAFETY_GLOBAL_CONCURRENCY:0}
+    acquire-wait-ms: ${MODEL_SAFETY_ACQUIRE_WAIT_MS:1500}
     invalid-output-retries: 1
   complaint:
-    timeout-ms: 2000
-    max-concurrency: 32
-    acquire-wait-ms: 50
+    timeout-ms: ${MODEL_COMPLAINT_TIMEOUT_MS:2000}
+    max-concurrency: ${MODEL_COMPLAINT_CONCURRENCY:32}
+    global-max-concurrency: ${MODEL_COMPLAINT_GLOBAL_CONCURRENCY:0}
+    acquire-wait-ms: ${MODEL_COMPLAINT_ACQUIRE_WAIT_MS:800}
     invalid-output-retries: 0
 inquiry:
   closed: false
+  # 本档医生满员先排队；队头等超过该时间只提一档。扫描走 XXL matchUpgradeJob。
+  match-upgrade-after: 1m
 management:
   endpoints:
     web:
       exposure:
         include: health,prometheus
+  endpoint:
+    health:
+      # /actuator/health/liveness 与 /readiness 给 K8s 探针用；停机时 readiness 先变 DOWN 再停
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
 consult:
+  redisson:
+    enabled: ${REDISSON_ENABLED:true}
+    # 哨兵/集群时指向 Redisson YAML；为空用上面 spring.data.redis 单机地址
+    config-file: ${REDISSON_CONFIG_FILE:}
+    timeout: 1s
+    pool-size: ${REDISSON_POOL_SIZE:64}
+  guard:
+    lease: ${CONSULT_GUARD_LEASE:20s}
   catalog:
     provision-demo: true
   auth:
     jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
     jwt-ttl-hours: 168
   identity:
-    base-url: http://127.0.0.1:18082
+    base-url: ${IDENTITY_BASE_URL:http://127.0.0.1:18082}
     internal-token: ${AUTH_INTERNAL_TOKEN:consult-internal}
+    # 单实例同时打身份服务的上限（Resilience4j 舱壁）
+    max-concurrency: ${IDENTITY_MAX_CONCURRENCY:200}
+    max-wait: 200ms
+  # 执行器。admin-addresses 写调度中心根地址，不要加 /xxl-job-admin。
+  xxl:
+    enabled: ${XXL_ENABLED:false}
+    admin-addresses: ${XXL_ADMIN_ADDRESSES:http://127.0.0.1:18080}
+    appname: consult-registration-agent
+    ip: ${XXL_EXECUTOR_IP:}
+    port: ${XXL_AGENT_EXECUTOR_PORT:19998}
+    access-token: ${XXL_ACCESS_TOKEN:}
+    log-path: ./logs/xxl-job
+    log-retention-days: 30

@@ -21,6 +21,17 @@ public interface DoctorAssigner {
         return assign(consultationId, orderId, card, canonicalTerms);
     }
 
+    default AssignedDoctorRes assign(
+            String consultationId,
+            String orderId,
+            ConsultationCardRes card,
+            List<String> canonicalTerms,
+            int consultMinutes,
+            int packageCode,
+            boolean allowUpgrade) {
+        return assign(consultationId, orderId, card, canonicalTerms, consultMinutes);
+    }
+
     default void release(String orderId, String reason) {
     }
 

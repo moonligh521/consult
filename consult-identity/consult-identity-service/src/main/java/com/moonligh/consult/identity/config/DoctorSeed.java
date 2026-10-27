@@ -273,6 +273,30 @@ public class DoctorSeed implements ApplicationRunner {
         ensureRow(departmentCode, specialty, 2, usedNames);
     }
 
+    /** 每科至少留一位主任，供排队超时后提档到专家。 */
+    private void diversifyTitles(List<DoctorAdminRes> roster) {
+        if (roster.size() < 2) {
+            return;
+        }
+        for (DoctorAdminRes row : roster) {
+            if ("主任医师".equals(row.title())) {
+                return;
+            }
+        }
+        DoctorAdminRes second = roster.get(1);
+        String specialty = second.specialty() == null || second.specialty().isBlank() ? "全科" : second.specialty();
+        service.updateDoctor(second.id(), new DoctorSaveReq(
+                second.name(),
+                second.gender(),
+                "主任医师",
+                HOSPITAL,
+                second.departmentCode(),
+                specialty,
+                second.skills(),
+                HOSPITAL + specialty + "主任医师。",
+                second.status()));
+    }
+
     private int[] ensureRow(int departmentCode, String specialty, int per, Set<String> usedNames) {
         List<DoctorAdminRes> existing = doctors.listBySpecialty(specialty);
         int addedDoctors = 0;
@@ -287,19 +311,22 @@ public class DoctorSeed implements ApplicationRunner {
             String name = uniqueDemoName(specialty, seq, usedNames);
             usedNames.add(name);
             int gender = seq % 2 == 0 ? 2 : 1;
+            String title = seq % 2 == 0 ? "主任医师" : "主治医师";
             doctors.seed(
                     id,
                     name,
                     gender,
-                    "主治医师",
+                    title,
                     HOSPITAL,
                     departmentCode,
                     specialty,
                     specialty + "常见病",
-                    HOSPITAL + specialty + "主治医师。");
+                    HOSPITAL + specialty + title + "。");
             addedDoctors++;
         }
-        for (DoctorAdminRes doctor : doctors.listBySpecialty(specialty)) {
+        List<DoctorAdminRes> roster = doctors.listBySpecialty(specialty);
+        diversifyTitles(roster);
+        for (DoctorAdminRes doctor : roster) {
             addedSlots += fillWeek(doctor.id());
         }
         return new int[] {addedDoctors, addedSlots};

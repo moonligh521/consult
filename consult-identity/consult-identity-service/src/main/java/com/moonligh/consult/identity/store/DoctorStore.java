@@ -209,7 +209,16 @@ public class DoctorStore {
                 """);
     }
 
-    public List<DoctorMatcher.Candidate> listOnDuty() {
+    /**
+     * 派单候选：只取 DoctorMatcher 会看的三层——同二级科、同一级科、全科兜底（一级码 4 或二级「全科」），
+     * 不再每单把全院 7 天排班拉回内存。
+     */
+    public List<DoctorMatcher.Candidate> listOnDuty(String specialty, Integer departmentCode) {
+        String scope = """
+                  AND (d.specialty = ? OR d.department_code = ? OR d.department_code = 4 OR d.specialty = '全科')
+                ORDER BY s.visit_date, s.start_time
+                """;
+        Object[] args = {specialty == null ? "" : specialty, departmentCode == null ? -1 : departmentCode};
         String sql = """
                 SELECT d.id, d.name, d.title, d.hospital, d.department_code, d.specialty, d.skills,
                        d.in_flight, s.id AS schedule_id, s.remain_num
@@ -223,10 +232,9 @@ public class DoctorStore {
                   AND s.remain_num > 0
                   AND s.visit_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 6 DAY)
                 WHERE d.is_deleted = 0 AND d.status = 1 AND d.in_flight < d.concurrent_limit
-                ORDER BY s.visit_date, s.start_time
-                """;
+                """ + scope;
         try {
-            return jdbc.query(sql, this::mapCandidate);
+            return jdbc.query(sql, this::mapCandidate, args);
         } catch (RuntimeException error) {
             return jdbc.query(
                     """
@@ -237,9 +245,9 @@ public class DoctorStore {
                       AND s.remain_num > 0
                       AND s.visit_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 6 DAY)
                     WHERE d.is_deleted = 0 AND d.status = 1 AND d.in_flight < d.concurrent_limit
-                    ORDER BY s.visit_date, s.start_time
-                    """,
-                    this::mapCandidate);
+                    """ + scope,
+                    this::mapCandidate,
+                    args);
         }
     }
 

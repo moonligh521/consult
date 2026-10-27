@@ -86,7 +86,8 @@ CREATE TABLE IF NOT EXISTS consult_doctor (
     updated_at          DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
     is_deleted          BIGINT       NOT NULL DEFAULT 0 COMMENT '删除标记。0未删除',
     PRIMARY KEY (id),
-    KEY idx_consult_doctor_dept (department_code, is_deleted)
+    KEY idx_consult_doctor_dept (department_code, is_deleted),
+    KEY idx_consult_doctor_specialty (specialty, is_deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='医生档案。对应旧 dic_doctor 精简';
 
 CREATE TABLE IF NOT EXISTS consult_schedule (

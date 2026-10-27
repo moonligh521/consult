@@ -2,6 +2,7 @@ package com.moonligh.consult.agent.config;
 
 import java.util.Arrays;
 
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -13,6 +14,8 @@ import com.moonligh.consult.agent.domain.department.DepartmentCatalog;
 import com.moonligh.consult.agent.domain.triage.ComplaintModel;
 import com.moonligh.consult.agent.infrastructure.model.DeepSeekComplaintModel;
 import com.moonligh.consult.agent.infrastructure.model.ModelGateway;
+import com.moonligh.consult.agent.infrastructure.model.ModelQuota;
+import com.moonligh.consult.agent.infrastructure.model.RedissonModelQuota;
 
 import io.micrometer.core.instrument.MeterRegistry;
 
@@ -27,13 +30,16 @@ public class ModelConfiguration {
     public ModelGateway modelGateway(
             ModelProperties properties,
             ObjectProvider<StringRedisTemplate> redis,
+            ObjectProvider<RedissonClient> redisson,
             MeterRegistry meters,
             Environment environment) {
         boolean prod = Arrays.asList(environment.getActiveProfiles()).contains("prod");
         if (prod && (properties.getApiKey() == null || properties.getApiKey().isBlank())) {
             throw new IllegalStateException("prod 环境必须配置 model.api-key");
         }
-        return new ModelGateway(properties, redis.getIfAvailable(), meters);
+        RedissonClient client = redisson.getIfAvailable();
+        ModelQuota quota = client == null ? ModelQuota.NONE : new RedissonModelQuota(client, properties, meters);
+        return new ModelGateway(properties, redis.getIfAvailable(), meters, quota);
     }
 
     @Bean

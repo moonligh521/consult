@@ -1,6 +1,10 @@
 package com.moonligh.consult.agent.infrastructure.model;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,7 +18,7 @@ import com.moonligh.consult.agent.domain.safety.SignalExtraction;
 import com.moonligh.consult.agent.domain.safety.SignalExtractor;
 
 /**
- * 急症信号补漏。只拼提示词和解析，HTTP、限流、熔断交给 {@link ModelGateway}。整段对话上下文各异，不做缓存。
+ * 急症信号补漏。只拼提示词和解析，HTTP、限流、熔断交给 {@link ModelGateway}。只按整段原话精确缓存格式合格的回复。
  */
 public class DeepSeekSignalExtractor implements SignalExtractor {
 
@@ -33,23 +37,44 @@ public class DeepSeekSignalExtractor implements SignalExtractor {
     public SignalExtraction extract(List<ConsultationMessage> transcript, Demographics demographics) {
         String system = systemPrompt();
         String user = userPrompt(transcript, demographics);
+        String key = cacheKey(system, user);
         int retries = gateway.lane(ModelPurpose.SAFETY).getInvalidOutputRetries();
-        SignalExtraction result = callOnce(system, user);
+        SignalExtraction result = callOnce(system, user, key);
         while (result.status() == ModelStatus.INVALID_OUTPUT && retries-- > 0) {
-            result = callOnce(system, user);
+            result = callOnce(system, user, key);
         }
         return result;
     }
 
-    private SignalExtraction callOnce(String system, String user) {
-        ModelReply reply = gateway.chat(ModelPurpose.SAFETY, system, user, null, 0);
+    private SignalExtraction callOnce(String system, String user, String key) {
+        ModelReply reply = gateway.chat(ModelPurpose.SAFETY, system, user, key, 0);
         if (reply.status() != ModelStatus.SUCCESS) {
             return new SignalExtraction(reply.status(), reply.modelName(), List.of(), false);
         }
+        SignalExtraction parsed;
         try {
-            return parse(reply.content(), reply.modelName());
+            parsed = parse(reply.content(), reply.modelName());
         } catch (Exception error) {
             return SignalExtraction.invalid();
+        }
+        if (parsed.status() == ModelStatus.SUCCESS && !reply.cached()) {
+            gateway.remember(key, reply.content());
+        }
+        return parsed;
+    }
+
+    /**
+     * 同一份原话（含序号）+ 年龄性别 + 提示词 + 模型名才算同一次评估。重复提交、确认前补评、
+     * 输出不合格重试都能命中；原话只要多一个字就是新键，不会拿旧结论顶替。
+     */
+    private String cacheKey(String system, String user) {
+        String raw = gateway.modelName() + "\u0000" + system + "\u0000" + user;
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            String hash = HexFormat.of().formatHex(digest.digest(raw.getBytes(StandardCharsets.UTF_8)));
+            return "consult:safety:model:" + catalog.catalogVersion() + ":" + hash;
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException(error);
         }
     }
 

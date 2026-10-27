@@ -5,6 +5,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Consumer;
 
+import com.moonligh.consult.identity.api.DoctorAdminRes;
+import com.moonligh.consult.identity.store.DoctorStore;
+
 /**
  * 占坑：下单写入、改时长、结束或超时释放。释放只减一次医生在途数。
  */
@@ -16,11 +19,24 @@ public class OccupancyService {
     private final OccupancyStore store;
     private final Consumer<String> releaseFlight;
     private final Clock clock;
+    private final DoctorStore doctors;
+    private final SlotFreedSink slotFreed;
 
     public OccupancyService(OccupancyStore store, Consumer<String> releaseFlight, Clock clock) {
+        this(store, releaseFlight, clock, null, null);
+    }
+
+    public OccupancyService(
+            OccupancyStore store,
+            Consumer<String> releaseFlight,
+            Clock clock,
+            DoctorStore doctors,
+            SlotFreedSink slotFreed) {
         this.store = store;
         this.releaseFlight = releaseFlight;
         this.clock = clock;
+        this.doctors = doctors;
+        this.slotFreed = slotFreed == null ? SlotFreedSink.NONE : slotFreed;
     }
 
     public OccupancyRow find(String orderId) {
@@ -54,7 +70,19 @@ public class OccupancyService {
             return false;
         }
         releaseFlight.accept(row.doctorId());
+        notifyFreed(row.doctorId());
         return true;
+    }
+
+    private void notifyFreed(String doctorId) {
+        if (doctors == null || doctorId == null || doctorId.isBlank()) {
+            return;
+        }
+        DoctorAdminRes doctor = doctors.find(doctorId);
+        if (doctor == null) {
+            return;
+        }
+        slotFreed.freed(doctor.specialty(), DoctorGrade.ofTitle(doctor.title()));
     }
 
     public boolean extend(String orderId, int minutes) {

@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.23",
+  "version": "2026.10.27.v05",
   "typos": [
     {"from": "刻嗽", "to": "咳嗽"},
     {"from": "头通", "to": "头痛"},
@@ -10,7 +10,28 @@
     {"from": "孝喘", "to": "哮喘"},
     {"from": "藕吐", "to": "呕吐"},
     {"from": "头运", "to": "头晕"},
-    {"from": "饿心", "to": "恶心"}
+    {"from": "饿心", "to": "恶心"},
+    {"from": "该嗽", "to": "咳嗽"},
+    {"from": "头痌", "to": "头痛"},
+    {"from": "头庝", "to": "头疼"},
+    {"from": "腹写", "to": "腹泻"},
+    {"from": "腹痌", "to": "腹痛"},
+    {"from": "笑喘", "to": "哮喘"},
+    {"from": "温疹", "to": "湿疹"},
+    {"from": "显疹", "to": "湿疹"},
+    {"from": "瘙氧", "to": "瘙痒"},
+    {"from": "瘙养", "to": "瘙痒"},
+    {"from": "志疮", "to": "痔疮"},
+    {"from": "治疮", "to": "痔疮"},
+    {"from": "鼻焱", "to": "鼻炎"},
+    {"from": "鼻严", "to": "鼻炎"},
+    {"from": "咽焱", "to": "咽炎"},
+    {"from": "咽严", "to": "咽炎"},
+    {"from": "牙庝", "to": "牙疼"},
+    {"from": "牙痌", "to": "牙痛"},
+    {"from": "水种", "to": "水肿"},
+    {"from": "打憨", "to": "打鼾"},
+    {"from": "打酣", "to": "打鼾"}
   ],
   "uncertain": [
     "不知道挂哪个科",
@@ -42,7 +63,7 @@
         {
           "name": "普内科",
           "treatDesc": "慢性感染 慢性疾病 基础病",
-          "keywords": ["普内科", "慢性感染", "慢性疾病", "基础病", "记性越来越差", "太阳穴跳着疼", "吃完就跑厕所", "整宿睡不着", "大便不成形", "放屁特别臭", "嗓子呼噜", "吃不下饭", "嘴里发苦", "喉咙痒", "食欲差", "打饱嗝", "反酸烧心", "睡不好", "反酸", "烧心", "便秘", "气促", "胸闷", "失眠", "高血压", "心悸", "甲状腺", "痛风", "高血脂", "血糖", "感冒", "手脚发麻", "肥胖", "胆囊", "肝区", "打嗝", "嗳气", "呼吸"],
+          "keywords": ["普内科", "慢性感染", "慢性疾病", "基础病", "慢性病调药", "记性越来越差", "太阳穴跳着疼", "吃完就跑厕所", "整宿睡不着", "大便不成形", "放屁特别臭", "嗓子呼噜", "吃不下饭", "嘴里发苦", "喉咙痒", "食欲差", "打饱嗝", "反酸烧心", "睡不好", "反酸", "烧心", "便秘", "气促", "胸闷", "失眠", "高血压", "心悸", "甲状腺", "痛风", "高血脂", "血糖", "感冒", "手脚发麻", "肥胖", "胆囊", "肝区", "打嗝", "嗳气", "呼吸"],
           "diseases": ["高血压", "痛风", "高血脂"]
         },
         {
@@ -54,7 +75,7 @@
         {
           "name": "神经内科",
           "treatDesc": "癫痫 脑梗死 帕金森",
-          "keywords": ["神经内科", "癫痫", "脑梗死", "帕金森", "脑袋昏昏沉沉", "脑子里嗡嗡响", "站着要晕", "脑子迷糊", "偏头疼", "脑袋疼", "头昏", "偏头痛", "头痛", "头晕", "眩晕"],
+          "keywords": ["神经内科", "癫痫", "脑梗死", "帕金森", "脑袋昏昏沉沉", "脑子里嗡嗡响", "站着要晕", "脑子迷糊", "偏头疼", "脑袋疼", "头昏", "偏头痛", "头痛", "头晕", "眩晕", "头疼"],
           "diseases": ["癫痫", "脑梗死", "帕金森"]
         },
         {
@@ -90,13 +111,13 @@
         {
           "name": "肾内科",
           "treatDesc": "肾炎 尿毒症 肾病综合征",
-          "keywords": ["肾内科", "肾炎", "尿毒症", "肾病综合征"],
+          "keywords": ["肾内科", "肾炎", "尿毒症", "肾病综合征", "水肿"],
           "diseases": ["肾炎", "尿毒症", "肾病综合征"]
         },
         {
           "name": "过敏反应科",
           "treatDesc": "皮肤过敏 酒精过敏 青霉素过敏",
-          "keywords": ["过敏反应科", "皮肤过敏", "酒精过敏", "青霉素过敏"],
+          "keywords": ["过敏反应科", "皮肤过敏", "酒精过敏", "青霉素过敏", "过敏"],
           "diseases": ["皮肤过敏", "酒精过敏", "青霉素过敏"]
         },
         {
@@ -111,6 +132,7 @@
         {"text": "慢性感染", "kind": "ROUTING", "specialty": "普内科"},
         {"text": "慢性疾病", "kind": "ROUTING", "specialty": "普内科"},
         {"text": "基础病", "kind": "ROUTING", "specialty": "普内科"},
+        {"text": "慢性病调药", "kind": "ROUTING", "specialty": "普内科"},
         {"text": "消化内科", "kind": "ROUTING", "specialty": "消化内科"},
         {"text": "胃溃疡", "kind": "ROUTING", "specialty": "消化内科"},
         {"text": "胰腺炎", "kind": "ROUTING", "specialty": "消化内科"},
@@ -218,7 +240,10 @@
         {"text": "嗳气", "kind": "ROUTING", "specialty": "普内科"},
         {"text": "呼吸", "kind": "ROUTING", "specialty": "普内科"},
         {"text": "咳", "kind": "ROUTING", "specialty": "呼吸内科"},
-        {"text": "喘", "kind": "ROUTING", "specialty": "呼吸内科"}
+        {"text": "喘", "kind": "ROUTING", "specialty": "呼吸内科"},
+        {"text": "头疼", "kind": "ROUTING", "specialty": "神经内科"},
+        {"text": "水肿", "kind": "ROUTING", "specialty": "肾内科"},
+        {"text": "过敏", "kind": "ROUTING", "specialty": "过敏反应科"}
       ]
     },
     {
@@ -233,19 +258,19 @@
         {
           "name": "普外科",
           "treatDesc": "过敏性休克 淋巴结节 疝气",
-          "keywords": ["普外科", "过敏性休克", "淋巴结节", "疝气", "乳房肿块", "乳腺肿块", "甲沟炎", "外伤", "伤口", "缝针", "刀伤", "拆线", "换药", "乳腺"],
+          "keywords": ["普外科", "过敏性休克", "淋巴结节", "疝气", "乳房肿块", "乳腺肿块", "甲沟炎", "外伤", "伤口", "缝针", "刀伤", "拆线", "换药", "乳腺", "淋巴结肿大"],
           "diseases": ["过敏性休克", "淋巴结节", "疝气", "甲沟炎"]
         },
         {
           "name": "泌尿外科",
           "treatDesc": "尿道炎 膀胱炎 尿路感染",
-          "keywords": ["泌尿外科", "尿道炎", "膀胱炎", "尿路感染"],
+          "keywords": ["泌尿外科", "尿道炎", "膀胱炎", "尿路感染", "肾结石"],
           "diseases": ["尿道炎", "膀胱炎"]
         },
         {
           "name": "肛肠外科",
           "treatDesc": "痔疮 肛裂 肛瘘",
-          "keywords": ["肛肠外科", "痔疮", "肛裂", "肛瘘"],
+          "keywords": ["肛肠外科", "痔疮", "肛裂", "肛瘘", "便血"],
           "diseases": ["痔疮", "肛裂", "肛瘘"]
         },
         {
@@ -257,7 +282,7 @@
         {
           "name": "肝胆外科",
           "treatDesc": "胆结石 胆囊炎 胆囊息肉",
-          "keywords": ["肝胆外科", "胆结石", "胆囊炎", "胆囊息肉"],
+          "keywords": ["肝胆外科", "胆结石", "胆囊炎", "胆囊息肉", "黄疸"],
           "diseases": ["胆结石", "胆囊炎", "胆囊息肉"]
         },
         {
@@ -370,7 +395,11 @@
         {"text": "刀伤", "kind": "ROUTING", "specialty": "普外科"},
         {"text": "拆线", "kind": "ROUTING", "specialty": "普外科"},
         {"text": "换药", "kind": "ROUTING", "specialty": "普外科"},
-        {"text": "乳腺", "kind": "ROUTING", "specialty": "普外科"}
+        {"text": "乳腺", "kind": "ROUTING", "specialty": "普外科"},
+        {"text": "便血", "kind": "ROUTING", "specialty": "肛肠外科"},
+        {"text": "肾结石", "kind": "ROUTING", "specialty": "泌尿外科"},
+        {"text": "淋巴结肿大", "kind": "ROUTING", "specialty": "普外科"},
+        {"text": "黄疸", "kind": "ROUTING", "specialty": "肝胆外科"}
       ]
     },
     {
@@ -697,7 +726,7 @@
         {
           "name": "小儿口腔科",
           "treatDesc": "儿童牙病 儿童口腔溃疡 儿童口炎",
-          "keywords": ["小儿口腔科", "儿童牙病", "儿童口腔溃疡", "儿童口炎"],
+          "keywords": ["小儿口腔科", "儿童牙病", "儿童口腔溃疡", "儿童口炎", "口腔溃疡", "孩子口腔溃疡"],
           "diseases": ["儿童牙病", "儿童口炎"]
         },
         {
@@ -709,7 +738,7 @@
         {
           "name": "种植科",
           "treatDesc": "牙缺失的种植与修复",
-          "keywords": ["种植科", "牙缺失的种植与修复"],
+          "keywords": ["种植科", "牙缺失的种植与修复", "种植牙", "种牙"],
           "diseases": []
         }
       ],
@@ -745,11 +774,15 @@
         {"text": "儿童牙病", "kind": "ROUTING", "specialty": "小儿口腔科"},
         {"text": "儿童口腔溃疡", "kind": "ROUTING", "specialty": "小儿口腔科"},
         {"text": "儿童口炎", "kind": "ROUTING", "specialty": "小儿口腔科"},
+        {"text": "口腔溃疡", "kind": "ROUTING", "specialty": "小儿口腔科"},
+        {"text": "孩子口腔溃疡", "kind": "ROUTING", "specialty": "小儿口腔科"},
         {"text": "口腔预防科", "kind": "ROUTING", "specialty": "口腔预防科"},
         {"text": "龋齿", "kind": "ROUTING", "specialty": "口腔预防科"},
         {"text": "蛀牙", "kind": "ROUTING", "specialty": "口腔预防科"},
         {"text": "窝沟封闭", "kind": "ROUTING", "specialty": "口腔预防科"},
         {"text": "种植科", "kind": "ROUTING", "specialty": "种植科"},
+        {"text": "种植牙", "kind": "ROUTING", "specialty": "种植科"},
+        {"text": "种牙", "kind": "ROUTING", "specialty": "种植科"},
         {"text": "牙缺失的种植与修复", "kind": "ROUTING", "specialty": "种植科"},
         {"text": "牙痛", "kind": "ROUTING", "specialty": "口腔科"},
         {"text": "牙疼", "kind": "ROUTING", "specialty": "口腔科"},
@@ -908,7 +941,7 @@
         {
           "name": "小儿康复科",
           "treatDesc": "法洛四联症 儿童阑尾炎 儿童骨折",
-          "keywords": ["小儿康复科", "儿童阑尾炎", "儿童骨折"],
+          "keywords": ["小儿康复科", "儿童阑尾炎", "儿童骨折", "骨折康复"],
           "diseases": ["儿童阑尾炎", "儿童骨折"]
         }
       ],
@@ -1003,6 +1036,7 @@
         {"text": "小儿康复科", "kind": "ROUTING", "specialty": "小儿康复科"},
         {"text": "儿童阑尾炎", "kind": "ROUTING", "specialty": "小儿康复科"},
         {"text": "儿童骨折", "kind": "ROUTING", "specialty": "小儿康复科"},
+        {"text": "骨折康复", "kind": "ROUTING", "specialty": "小儿康复科"},
         {"text": "小孩", "kind": "OVERRIDE"},
         {"text": "孩子", "kind": "OVERRIDE"},
         {"text": "宝宝", "kind": "OVERRIDE"},
@@ -1024,7 +1058,7 @@
         {
           "name": "耳鼻咽喉科",
           "treatDesc": "鼻炎 咽炎 鼻窦炎",
-          "keywords": ["耳鼻咽喉科", "鼻炎", "咽炎", "鼻窦炎", "打喷嚏流鼻涕", "鼻子不通气", "声音嘶哑", "中耳炎", "扁桃体", "打呼噜", "打喷嚏", "流鼻涕", "嗓子疼", "嗓子痛", "咽痛", "耳鸣", "耳痛", "耳朵疼", "鼻塞", "流涕", "声音哑", "耳朵嗡嗡", "鼻出血"],
+          "keywords": ["耳鼻咽喉科", "鼻炎", "咽炎", "鼻窦炎", "打喷嚏流鼻涕", "鼻子不通气", "声音嘶哑", "中耳炎", "扁桃体", "打呼噜", "打喷嚏", "流鼻涕", "嗓子疼", "嗓子痛", "咽痛", "耳鸣", "耳痛", "耳朵疼", "鼻塞", "流涕", "声音哑", "耳朵嗡嗡", "鼻出血", "打鼾"],
           "diseases": ["鼻炎", "咽炎", "鼻窦炎", "中耳炎"]
         },
         {
@@ -1061,7 +1095,8 @@
         {"text": "流涕", "kind": "ROUTING", "specialty": "耳鼻咽喉科"},
         {"text": "声音哑", "kind": "ROUTING", "specialty": "耳鼻咽喉科"},
         {"text": "耳朵嗡嗡", "kind": "ROUTING", "specialty": "耳鼻咽喉科"},
-        {"text": "鼻出血", "kind": "ROUTING", "specialty": "耳鼻咽喉科"}
+        {"text": "鼻出血", "kind": "ROUTING", "specialty": "耳鼻咽喉科"},
+        {"text": "打鼾", "kind": "ROUTING", "specialty": "耳鼻咽喉科"}
       ]
     },
     {
@@ -1094,7 +1129,7 @@
         {
           "name": "针灸科",
           "treatDesc": "腰肌劳损 肩周炎 膝关节炎",
-          "keywords": ["针灸科"],
+          "keywords": ["针灸科", "针灸"],
           "diseases": []
         },
         {
@@ -1242,6 +1277,7 @@
         {"text": "肾阳虚", "kind": "ROUTING", "specialty": "中医肾内科"},
         {"text": "肾阴虚", "kind": "ROUTING", "specialty": "中医肾内科"},
         {"text": "针灸科", "kind": "ROUTING", "specialty": "针灸科"},
+        {"text": "针灸", "kind": "ROUTING", "specialty": "针灸科"},
         {"text": "中医消化科", "kind": "ROUTING", "specialty": "中医消化科"},
         {"text": "胃虚", "kind": "ROUTING", "specialty": "中医消化科"},
         {"text": "肝经湿热", "kind": "ROUTING", "specialty": "中医消化科"},
@@ -1313,7 +1349,7 @@
         {
           "name": "皮肤科",
           "treatDesc": "湿疹 足癣 白癜风 痤疮",
-          "keywords": ["皮肤科", "湿疹", "足癣", "白癜风", "痤疮", "皮肤痒", "脱发", "荨麻疹", "红疹", "皮疹"],
+          "keywords": ["皮肤科", "皮肤性病科", "湿疹", "足癣", "白癜风", "痤疮", "皮肤痒", "脱发", "荨麻疹", "红疹", "皮疹", "瘙痒", "黄褐斑"],
           "diseases": ["湿疹", "足癣", "白癜风", "痤疮"]
         },
         {
@@ -1325,6 +1361,7 @@
       ],
       "keywords": [
         {"text": "皮肤科", "kind": "ROUTING", "specialty": "皮肤科"},
+        {"text": "皮肤性病科", "kind": "ROUTING", "specialty": "皮肤科"},
         {"text": "湿疹", "kind": "ROUTING", "specialty": "皮肤科"},
         {"text": "足癣", "kind": "ROUTING", "specialty": "皮肤科"},
         {"text": "白癜风", "kind": "ROUTING", "specialty": "皮肤科"},
@@ -1337,7 +1374,9 @@
         {"text": "脱发", "kind": "ROUTING", "specialty": "皮肤科"},
         {"text": "荨麻疹", "kind": "ROUTING", "specialty": "皮肤科"},
         {"text": "红疹", "kind": "ROUTING", "specialty": "皮肤科"},
-        {"text": "皮疹", "kind": "ROUTING", "specialty": "皮肤科"}
+        {"text": "皮疹", "kind": "ROUTING", "specialty": "皮肤科"},
+        {"text": "瘙痒", "kind": "ROUTING", "specialty": "皮肤科"},
+        {"text": "黄褐斑", "kind": "ROUTING", "specialty": "皮肤科"}
       ]
     },
     {
@@ -1370,7 +1409,7 @@
         {
           "name": "结核病科",
           "treatDesc": "肺结核 肠结核 肝结核",
-          "keywords": ["结核病科", "肺结核", "肠结核", "肝结核"],
+          "keywords": ["结核病科", "肺结核", "肠结核", "肝结核", "结核病"],
           "diseases": ["肺结核", "肠结核", "肝结核"]
         }
       ],
@@ -1390,7 +1429,8 @@
         {"text": "结核病科", "kind": "ROUTING", "specialty": "结核病科"},
         {"text": "肺结核", "kind": "ROUTING", "specialty": "结核病科"},
         {"text": "肠结核", "kind": "ROUTING", "specialty": "结核病科"},
-        {"text": "肝结核", "kind": "ROUTING", "specialty": "结核病科"}
+        {"text": "肝结核", "kind": "ROUTING", "specialty": "结核病科"},
+        {"text": "结核病", "kind": "ROUTING", "specialty": "结核病科"}
       ]
     },
     {
@@ -1417,7 +1457,7 @@
         {
           "name": "小儿眼科",
           "treatDesc": "先天性倒睫 儿童角膜炎 小儿斜视弱视",
-          "keywords": ["小儿眼科", "先天性倒睫", "儿童角膜炎", "小儿斜视弱视"],
+          "keywords": ["小儿眼科", "先天性倒睫", "儿童角膜炎", "小儿斜视弱视", "小儿斜视", "斜视"],
           "diseases": ["儿童角膜炎"]
         },
         {
@@ -1429,7 +1469,7 @@
         {
           "name": "青光眼科",
           "treatDesc": "继发性青光眼 急性闭角型青光眼 慢性闭角型青光眼",
-          "keywords": ["青光眼科", "继发性青光眼", "急性闭角型青光眼", "慢性闭角型青光眼"],
+          "keywords": ["青光眼科", "继发性青光眼", "急性闭角型青光眼", "慢性闭角型青光眼", "青光眼"],
           "diseases": ["继发性青光眼", "急性闭角型青光眼", "慢性闭角型青光眼"]
         },
         {
@@ -1441,7 +1481,7 @@
         {
           "name": "白内障科",
           "treatDesc": "老年性白内障 外伤性白内障 代谢性白内障",
-          "keywords": ["白内障科", "老年性白内障", "外伤性白内障", "代谢性白内障"],
+          "keywords": ["白内障科", "老年性白内障", "外伤性白内障", "代谢性白内障", "白内障"],
           "diseases": ["老年性白内障", "外伤性白内障", "代谢性白内障"]
         },
         {
@@ -1470,6 +1510,8 @@
         {"text": "先天性倒睫", "kind": "ROUTING", "specialty": "小儿眼科"},
         {"text": "儿童角膜炎", "kind": "ROUTING", "specialty": "小儿眼科"},
         {"text": "小儿斜视弱视", "kind": "ROUTING", "specialty": "小儿眼科"},
+        {"text": "小儿斜视", "kind": "ROUTING", "specialty": "小儿眼科"},
+        {"text": "斜视", "kind": "ROUTING", "specialty": "小儿眼科"},
         {"text": "眼底科", "kind": "ROUTING", "specialty": "眼底科"},
         {"text": "眼底病变", "kind": "ROUTING", "specialty": "眼底科"},
         {"text": "视网膜萎缩", "kind": "ROUTING", "specialty": "眼底科"},
@@ -1495,7 +1537,9 @@
         {"text": "视网膜穿孔", "kind": "ROUTING", "specialty": "眼外伤科"},
         {"text": "眼睛干", "kind": "ROUTING", "specialty": "眼科"},
         {"text": "眼睛红", "kind": "ROUTING", "specialty": "眼科"},
-        {"text": "视力模糊", "kind": "ROUTING", "specialty": "眼科"}
+        {"text": "视力模糊", "kind": "ROUTING", "specialty": "眼科"},
+        {"text": "白内障", "kind": "ROUTING", "specialty": "白内障科"},
+        {"text": "青光眼", "kind": "ROUTING", "specialty": "青光眼科"}
       ]
     },
     {
@@ -1510,13 +1554,13 @@
         {
           "name": "精神科",
           "treatDesc": "抑郁症 躁狂症 被害妄想症",
-          "keywords": ["精神科", "抑郁症", "躁狂症", "被害妄想症"],
+          "keywords": ["精神科", "抑郁症", "躁狂症", "被害妄想症", "抑郁"],
           "diseases": ["抑郁症", "躁狂症", "被害妄想症"]
         },
         {
           "name": "心理咨询科",
           "treatDesc": "精神洁癖 回避型人格障碍 轻度抑郁症",
-          "keywords": ["心理咨询科", "精神洁癖", "回避型人格障碍", "轻度抑郁症"],
+          "keywords": ["心理咨询科", "精神洁癖", "回避型人格障碍", "轻度抑郁症", "焦虑"],
           "diseases": ["轻度抑郁症"]
         },
         {
@@ -1538,7 +1582,9 @@
         {"text": "成瘾医学科", "kind": "ROUTING", "specialty": "成瘾医学科"},
         {"text": "吸毒成瘾", "kind": "ROUTING", "specialty": "成瘾医学科"},
         {"text": "酒精依赖症", "kind": "ROUTING", "specialty": "成瘾医学科"},
-        {"text": "戒烟综合症", "kind": "ROUTING", "specialty": "成瘾医学科"}
+        {"text": "戒烟综合症", "kind": "ROUTING", "specialty": "成瘾医学科"},
+        {"text": "抑郁", "kind": "ROUTING", "specialty": "精神科"},
+        {"text": "焦虑", "kind": "ROUTING", "specialty": "心理咨询科"}
       ]
     },
     {
@@ -1627,7 +1673,7 @@
         {
           "name": "放疗科",
           "treatDesc": "肺癌 甲状腺癌 肝癌",
-          "keywords": ["放疗科", "甲状腺癌"],
+          "keywords": ["放疗科", "甲状腺癌", "放疗", "放疗后"],
           "diseases": ["甲状腺癌"]
         },
         {
@@ -1649,6 +1695,8 @@
         {"text": "血管肌纤维母细胞瘤", "kind": "ROUTING", "specialty": "肿瘤外科"},
         {"text": "肌纤维母细胞瘤", "kind": "ROUTING", "specialty": "肿瘤外科"},
         {"text": "放疗科", "kind": "ROUTING", "specialty": "放疗科"},
+        {"text": "放疗", "kind": "ROUTING", "specialty": "放疗科"},
+        {"text": "放疗后", "kind": "ROUTING", "specialty": "放疗科"},
         {"text": "甲状腺癌", "kind": "ROUTING", "specialty": "放疗科"},
         {"text": "肿瘤康复科", "kind": "ROUTING", "specialty": "肿瘤康复科"},
         {"text": "结直肠癌", "kind": "ROUTING", "specialty": "肿瘤康复科"},
@@ -1667,7 +1715,7 @@
         {
           "name": "辅助生殖科",
           "treatDesc": "不孕症 人工授精 胚胎移植",
-          "keywords": ["辅助生殖科", "不孕症", "人工授精", "胚胎移植"],
+          "keywords": ["辅助生殖科", "不孕症", "人工授精", "胚胎移植", "不孕"],
           "diseases": ["不孕症"]
         },
         {
@@ -1693,7 +1741,8 @@
         {"text": "遗传咨询科", "kind": "ROUTING", "specialty": "遗传咨询科"},
         {"text": "产前诊断染色体异常", "kind": "ROUTING", "specialty": "遗传咨询科"},
         {"text": "超雌综合征", "kind": "ROUTING", "specialty": "遗传咨询科"},
-        {"text": "家族遗传病", "kind": "ROUTING", "specialty": "遗传咨询科"}
+        {"text": "家族遗传病", "kind": "ROUTING", "specialty": "遗传咨询科"},
+        {"text": "不孕", "kind": "ROUTING", "specialty": "辅助生殖科"}
       ]
     },
     {
@@ -1791,7 +1840,7 @@
         {
           "name": "理疗科",
           "treatDesc": "病理报告解读",
-          "keywords": ["理疗科", "病理报告解读"],
+          "keywords": ["理疗科", "病理报告解读", "理疗"],
           "diseases": []
         }
       ],
@@ -1801,6 +1850,7 @@
         {"text": "心脏康复", "kind": "ROUTING", "specialty": "康复科"},
         {"text": "脑血管后遗症康复", "kind": "ROUTING", "specialty": "康复科"},
         {"text": "理疗科", "kind": "ROUTING", "specialty": "理疗科"},
+        {"text": "理疗", "kind": "ROUTING", "specialty": "理疗科"},
         {"text": "病理报告解读", "kind": "ROUTING", "specialty": "理疗科"}
       ]
     }

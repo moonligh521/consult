@@ -51,7 +51,7 @@ export function maskPatientName(name) {
 /** 问诊通道。closed 与后端 inquiry.closed 对齐，演示默认开放。 */
 export const INQUIRY = {
   closed: false,
-  matchTimeoutMs: 20000,
+  matchTimeoutMs: 75000,
 }
 
 /** 问诊时长。默认 15 分钟，用户可改。 */

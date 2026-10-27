@@ -58,6 +58,36 @@ public class HttpDoctorAssigner implements DoctorAssigner {
         payload.put("consultationId", consultationId);
         payload.put("orderId", orderId);
         payload.put("consultMinutes", consultMinutes);
+        return postAssign(payload);
+    }
+
+    @Override
+    public AssignedDoctorRes assign(
+            String consultationId,
+            String orderId,
+            ConsultationCardRes card,
+            List<String> canonicalTerms,
+            int consultMinutes,
+            int packageCode,
+            boolean allowUpgrade) {
+        if (card == null) {
+            throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
+        }
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("departmentCode", card.department() == null ? 0 : card.department());
+        payload.put("specialty", card.specialty() == null ? "" : card.specialty());
+        payload.put("complaint", card.description() == null ? "" : card.description());
+        payload.put("symptoms", card.symptoms() == null ? List.of() : card.symptoms());
+        payload.put("canonicalTerms", canonicalTerms == null ? List.of() : canonicalTerms);
+        payload.put("consultationId", consultationId);
+        payload.put("orderId", orderId);
+        payload.put("consultMinutes", consultMinutes);
+        payload.put("packageCode", packageCode);
+        payload.put("allowUpgrade", allowUpgrade);
+        return postAssign(payload);
+    }
+
+    private AssignedDoctorRes postAssign(Map<String, Object> payload) {
         try {
             Result<AssignedDoctorRes> body = client.post()
                     .uri("/internal/doctors/assign")

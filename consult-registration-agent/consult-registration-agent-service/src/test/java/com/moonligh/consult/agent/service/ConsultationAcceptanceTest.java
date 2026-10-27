@@ -47,21 +47,18 @@ class ConsultationAcceptanceTest {
     }
 
     @Test
-    void cardReadyAppendRefreshesDescriptionAndDepartment() {
+    void cardReadyRejectsChatAndKeepsCard() {
         ConsultationRes first = service.acceptMessage(null, "女，32岁，干咳半年");
         assertEquals(ConsultationStatus.CARD_READY, first.status());
         assertEquals("呼吸内科", first.card().specialty());
 
-        ConsultationRes second = service.acceptMessage(first.consultationId(), "运动后加重，夜里也咳");
-        assertEquals(ConsultationStatus.CARD_READY, second.status());
-        assertTrue(second.card().description().contains("干咳半年"));
-        assertTrue(second.card().description().contains("运动后加重"));
-        assertEquals("呼吸内科", second.card().specialty());
-
-        ConsultationRes third = service.acceptMessage(first.consultationId(), "最近还胃痛");
-        assertEquals(ConsultationStatus.CARD_READY, third.status());
-        assertTrue(third.card().description().contains("胃痛"));
-        assertTrue(third.card().symptoms().contains("胃痛") || third.card().symptoms().contains("干咳"));
+        BusinessException error = assertThrows(
+                BusinessException.class,
+                () -> service.acceptMessage(first.consultationId(), "运动后加重，夜里也咳"));
+        assertEquals(ErrorCode.CARD_PENDING_CONFIRMATION, error.getErrorCode());
+        ConsultationRes still = service.confirm(first.consultationId());
+        assertEquals("呼吸内科", still.card().specialty());
+        assertEquals("女，32岁，干咳半年", still.card().description());
     }
 
     @Test

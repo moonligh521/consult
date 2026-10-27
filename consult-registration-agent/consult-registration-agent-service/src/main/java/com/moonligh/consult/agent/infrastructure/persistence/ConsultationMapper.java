@@ -4,6 +4,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,6 +21,7 @@ import com.moonligh.consult.agent.api.res.ConsultationCardRes;
 import com.moonligh.consult.agent.api.res.ConsultationRecordRes;
 import com.moonligh.consult.agent.domain.ConsultOrder;
 import com.moonligh.consult.agent.domain.ConsultationSession;
+import com.moonligh.consult.agent.domain.MatchQueue;
 import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
 import com.moonligh.consult.agent.domain.safety.FallbackReason;
 import com.moonligh.consult.agent.domain.safety.MessageSource;
@@ -56,17 +59,17 @@ public class ConsultationMapper {
                 id, Timestamp.from(now), Timestamp.from(now));
     }
 
-    /** 管理端最近咨询。不含卡片 JSON。 */
-    public List<com.moonligh.consult.agent.api.res.AdminConsultationRes> listRecent() {
+    /** 管理端时间窗内最近咨询，走 idx_consult_session_updated。不含卡片 JSON。 */
+    public List<com.moonligh.consult.agent.api.res.AdminConsultationRes> listRecent(Instant from, Instant to, int limit) {
         return jdbc.query(
                 """
                 SELECT id, business_status, gender, age, patient_id, patient_name, duration, description,
                        DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at,
                        DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at
                 FROM consultation_session
-                WHERE is_deleted = 0
+                WHERE updated_at >= ? AND updated_at < ? AND is_deleted = 0
                 ORDER BY updated_at DESC
-                LIMIT 100
+                LIMIT ?
                 """,
                 (rs, rowNum) -> {
                     String description = rs.getString("description");
@@ -88,23 +91,34 @@ public class ConsultationMapper {
                             description,
                             rs.getString("created_at"),
                             rs.getString("updated_at"));
-                });
+                },
+                Timestamp.from(from),
+                Timestamp.from(to),
+                limit);
     }
 
-    /** 按编号查出会话，并加上行锁。找不到返回 null。 */
+    /** 会话行除诊室快照外的全部列。快照是大字段，加锁办事时用不到。 */
+    private static final String SESSION_COLUMNS = """
+            id, business_status, gender, age, patient_id, patient_name, account_id, title, duration, description,
+            card_json, triage_json, urgent_latched, prompt_evaluation_latched, human_requested_latched,
+            unsuitable_latched, undetermined, fallback_reason, urgent_template_id, notice_template_id,
+            last_message_seq, last_evaluated_seq, created_at, updated_at
+            """;
+
+    /** 按编号查出会话，并加上行锁。不读诊室快照；没改快照时保存也不回写它。找不到返回 null。 */
     public ConsultationSession selectByIdForUpdate(String id) {
         List<ConsultationSession> rows = jdbc.query(
-                "SELECT * FROM consultation_session WHERE id = ? AND is_deleted = 0 FOR UPDATE",
-                this::mapSession,
+                "SELECT " + SESSION_COLUMNS + " FROM consultation_session WHERE id = ? AND is_deleted = 0 FOR UPDATE",
+                (rs, rowNum) -> mapSession(rs, false),
                 id);
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    /** 按编号读会话，不加锁。 */
+    /** 按编号读会话，不加锁，带诊室快照。 */
     public ConsultationSession selectById(String id) {
         List<ConsultationSession> rows = jdbc.query(
-                "SELECT * FROM consultation_session WHERE id = ? AND is_deleted = 0",
-                this::mapSession,
+                "SELECT " + SESSION_COLUMNS + ", transcript_json FROM consultation_session WHERE id = ? AND is_deleted = 0",
+                (rs, rowNum) -> mapSession(rs, true),
                 id);
         return rows.isEmpty() ? null : rows.get(0);
     }
@@ -171,18 +185,10 @@ public class ConsultationMapper {
                 id);
     }
 
-    /** 整行更新会话。原话不在这里改。 */
+    /** 更新会话。诊室快照只在本次改过时回写，平时不重写这个大字段。原话不在这里改。 */
     public void updateSession(ConsultationSession session) {
-        jdbc.update(
-                """
-                UPDATE consultation_session SET
-                  business_status=?, service_type=?, gender=?, age=?, patient_id=?, patient_name=?,
-                  account_id=?, title=?, transcript_json=?, duration=?, description=?, card_json=?, triage_json=?,
-                  urgent_latched=?, prompt_evaluation_latched=?, human_requested_latched=?, unsuitable_latched=?,
-                  undetermined=?, fallback_reason=?, urgent_template_id=?, notice_template_id=?,
-                  last_message_seq=?, last_evaluated_seq=?, updated_at=?
-                WHERE id=? AND is_deleted=0
-                """,
+        boolean transcript = session.isTranscriptDirty();
+        List<Object> args = new ArrayList<>(Arrays.asList(
                 session.getBusinessStatus().getCode(),
                 null,
                 session.getGender() == null ? null : session.getGender().getCode(),
@@ -191,7 +197,6 @@ public class ConsultationMapper {
                 session.getPatientName(),
                 session.getAccountId(),
                 session.getTitle(),
-                session.getTranscript(),
                 session.getDuration(),
                 session.getDescription(),
                 toCardJson(session),
@@ -206,8 +211,22 @@ public class ConsultationMapper {
                 session.getNoticeTemplateId(),
                 session.getLastMessageSeq(),
                 session.getLastEvaluatedSeq(),
-                Timestamp.from(Instant.now()),
-                session.getId());
+                Timestamp.from(Instant.now())));
+        if (transcript) {
+            args.add(session.getTranscript());
+        }
+        args.add(session.getId());
+        jdbc.update(
+                """
+                UPDATE consultation_session SET
+                  business_status=?, service_type=?, gender=?, age=?, patient_id=?, patient_name=?,
+                  account_id=?, title=?, duration=?, description=?, card_json=?, triage_json=?,
+                  urgent_latched=?, prompt_evaluation_latched=?, human_requested_latched=?, unsuitable_latched=?,
+                  undetermined=?, fallback_reason=?, urgent_template_id=?, notice_template_id=?,
+                  last_message_seq=?, last_evaluated_seq=?, updated_at=?%s
+                WHERE id=? AND is_deleted=0
+                """.formatted(transcript ? ", transcript_json=?" : ""),
+                args.toArray());
     }
 
     /** 追加一条原话。旧行不更新。 */
@@ -336,7 +355,7 @@ public class ConsultationMapper {
     }
 
     /** 把会话表的一行填进内存对象。可空整型要先取值，再看 wasNull。 */
-    private ConsultationSession mapSession(ResultSet rs, int rowNum) throws SQLException {
+    private ConsultationSession mapSession(ResultSet rs, boolean withTranscript) throws SQLException {
         ConsultationSession session = new ConsultationSession(rs.getString("id"));
         session.setBusinessStatus(ConsultationStatus.fromCode(rs.getInt("business_status")));
         int gender = rs.getInt("gender");
@@ -349,7 +368,9 @@ public class ConsultationMapper {
         session.setPatientName(rs.getString("patient_name"));
         session.setAccountId(rs.getString("account_id"));
         session.setTitle(rs.getString("title"));
-        session.setTranscript(rs.getString("transcript_json"));
+        if (withTranscript) {
+            session.restoreTranscript(rs.getString("transcript_json"));
+        }
         session.setDuration(rs.getString("duration"));
         session.setDescription(rs.getString("description"));
         String cardJson = rs.getString("card_json");
@@ -519,13 +540,33 @@ public class ConsultationMapper {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    /** 未确认卡片挂着该二级科的会话数。近似。 */
+    /** 已支付还没派上医生的单，按支付时间先进先出。 */
+    public List<MatchQueue.Entry> listUnmatchedPaid(int limit) {
+        int size = Math.max(1, Math.min(limit, 5000));
+        return jdbc.query(
+                """
+                SELECT s.id AS consultation_id, o.id AS order_id, o.paid_at, o.package_code, s.card_specialty
+                FROM consult_order o
+                JOIN consultation_session s ON s.id = o.consultation_id AND s.is_deleted = 0
+                WHERE o.is_deleted = 0 AND o.doctor_id IS NULL AND o.ended_at IS NULL
+                ORDER BY o.paid_at ASC, o.id ASC
+                LIMIT ?
+                """,
+                (rs, rowNum) -> new MatchQueue.Entry(
+                        rs.getString("consultation_id"),
+                        rs.getString("order_id"),
+                        rs.getTimestamp("paid_at") == null ? null : rs.getTimestamp("paid_at").toInstant(),
+                        rs.getInt("package_code"),
+                        rs.getString("card_specialty")),
+                size);
+    }
+
+    /** 未确认卡片挂着该二级科的会话数。近似。card_specialty 是 card_json 的生成列，走 idx_consult_session_card。 */
     public int countCardReady(String specialty) {
         Integer n = jdbc.queryForObject(
                 """
                 SELECT COUNT(*) FROM consultation_session
-                WHERE is_deleted = 0 AND business_status = 4
-                  AND JSON_UNQUOTE(JSON_EXTRACT(card_json, '$.specialty')) = ?
+                WHERE business_status = 4 AND card_specialty = ? AND is_deleted = 0
                 """,
                 Integer.class,
                 specialty);
@@ -537,8 +578,7 @@ public class ConsultationMapper {
         Integer n = jdbc.queryForObject(
                 """
                 SELECT COUNT(*) FROM consultation_session s
-                WHERE s.is_deleted = 0 AND s.business_status = 5
-                  AND JSON_UNQUOTE(JSON_EXTRACT(s.card_json, '$.specialty')) = ?
+                WHERE s.business_status = 5 AND s.card_specialty = ? AND s.is_deleted = 0
                   AND NOT EXISTS (
                     SELECT 1 FROM consult_order o
                     WHERE o.consultation_id = s.id AND o.is_deleted = 0

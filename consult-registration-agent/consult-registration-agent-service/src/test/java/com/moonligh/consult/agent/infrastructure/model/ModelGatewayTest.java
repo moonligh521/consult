@@ -33,6 +33,11 @@ class ModelGatewayTest {
     }
 
     private ModelGateway gateway(int status, String content, long delayMs, int timeoutMs) throws IOException {
+        return gateway(status, content, delayMs, timeoutMs, ModelQuota.NONE);
+    }
+
+    private ModelGateway gateway(int status, String content, long delayMs, int timeoutMs, ModelQuota quota)
+            throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/chat/completions", exchange -> {
             hits.incrementAndGet();
@@ -54,7 +59,44 @@ class ModelGatewayTest {
         props.setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
         props.getComplaint().setTimeoutMs(timeoutMs);
         props.getSafety().setTimeoutMs(timeoutMs);
-        return new ModelGateway(props, null, new SimpleMeterRegistry());
+        return new ModelGateway(props, null, new SimpleMeterRegistry(), quota);
+    }
+
+    @Test
+    void globalQuotaExhaustedIsBusyWithoutRequest() throws IOException {
+        ModelQuota exhausted = new ModelQuota() {
+            @Override
+            public Permit acquire(ModelPurpose purpose, long waitMs) {
+                return null;
+            }
+
+            @Override
+            public void release(Permit permit) {
+            }
+        };
+        ModelReply reply = gateway(200, "{}", 0, 2000, exhausted).chat(ModelPurpose.SAFETY, "s", "u", null, 0);
+        assertEquals(ModelStatus.BUSY, reply.status());
+        assertEquals(0, hits.get());
+    }
+
+    @Test
+    void globalPermitIsReleasedAfterCall() throws IOException {
+        AtomicInteger held = new AtomicInteger();
+        ModelQuota counting = new ModelQuota() {
+            @Override
+            public Permit acquire(ModelPurpose purpose, long waitMs) {
+                held.incrementAndGet();
+                return new Permit(purpose, "p");
+            }
+
+            @Override
+            public void release(Permit permit) {
+                held.decrementAndGet();
+            }
+        };
+        ModelGateway gateway = gateway(500, "x", 0, 2000, counting);
+        gateway.chat(ModelPurpose.COMPLAINT, "s", "u", null, 0);
+        assertEquals(0, held.get());
     }
 
     private static String quote(String text) {

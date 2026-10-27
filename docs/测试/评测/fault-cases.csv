@@ -1,0 +1,12 @@
+case_id,line,priority,turns,expect_status,expect_error,expect_shadow,expect_model_called,expect_order_count,forbid_prompt_contains,remark
+F1-TIMEOUT,fault,P0,胸口闷,7,1111,,true,0,,安全模型超时
+F1-UNAVAILABLE,fault,P0,胸口闷,7,1111,,true,0,,安全模型不可用
+F1-INVALID,fault,P0,胸口闷,7,1111,,true,0,,安全模型非法输出
+F2-SKIP,fault,P0,"女，32岁，干咳半年，运动后加重",4,,,false,0,,未触发不调安全模型
+F3-UNAVAILABLE,fault,P0,"女，32岁，头晕乏力一周",4,,,,0,,主诉模型不可用则不编造科室
+F4-ENGINE,fault,P0,"女，32岁，干咳半年，运动后加重",7,,,,0,,规则引擎抛错则安全降级
+F5-DUP,fault,P0,"女，32岁，干咳半年，运动后加重",5,1117,,,1,,重复下单不产生第二张订单
+F5-RELEASE,fault,P0,"女，32岁，干咳半年，运动后加重",5,,,,1,,重复释放只减一次
+F6-NONE,fault,P0,"女，32岁，干咳半年，运动后加重",5,1305,,,0,,派单候选人空
+F7-CLOSED,fault,P0,"女，32岁，干咳半年，运动后加重",4,1118,,,0,,问诊关闭
+F8-NO-RECALL,fault,P0,"男，50岁，高血压，头晕三天",5,,,false,1,,出卡后下单不再调模型

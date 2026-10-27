@@ -11,6 +11,7 @@ import com.moonligh.consult.framework.ErrorCode;
 import com.moonligh.consult.identity.api.AssignDoctorReq;
 import com.moonligh.consult.identity.api.AssignDoctorRes;
 import com.moonligh.consult.identity.api.DoctorAdminRes;
+import com.moonligh.consult.identity.domain.DoctorGrade;
 import com.moonligh.consult.identity.domain.DoctorMatcher;
 import com.moonligh.consult.identity.domain.OccupancyRow;
 import com.moonligh.consult.identity.domain.OccupancyService;
@@ -40,18 +41,40 @@ public class DoctorAssignService {
             return existing;
         }
         String text = haystack(req);
-        List<DoctorMatcher.Candidate> onDuty = doctors.listOnDuty();
+        List<DoctorMatcher.Candidate> onDuty = doctors.listOnDuty(req.specialty(), req.departmentCode());
+        List<Integer> grades = DoctorGrade.searchOrder(req.packageCode(), Boolean.TRUE.equals(req.allowUpgrade()));
         List<String> failedScheduleIds = new ArrayList<>();
+        if (grades == null) {
+            AssignDoctorRes hit = occupyFirst(onDuty, failedScheduleIds, req, text);
+            if (hit != null) {
+                return hit;
+            }
+            throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
+        }
+        for (int grade : grades) {
+            AssignDoctorRes hit = occupyFirst(DoctorGrade.ofGrade(onDuty, grade), failedScheduleIds, req, text);
+            if (hit != null) {
+                return hit;
+            }
+        }
+        throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
+    }
+
+    /** 当前档里按擅长选人并占坑。这一档没人就返回 null，让调用方试下一档。 */
+    private AssignDoctorRes occupyFirst(
+            List<DoctorMatcher.Candidate> pool,
+            List<String> failedScheduleIds,
+            AssignDoctorReq req,
+            String text) {
         while (true) {
-            List<DoctorMatcher.Candidate> remain = leftover(onDuty, failedScheduleIds);
+            List<DoctorMatcher.Candidate> remain = leftover(pool, failedScheduleIds);
             DoctorMatcher.Pick pick = DoctorMatcher.pick(
                     remain, req.specialty(), req.departmentCode(), text, req.canonicalTerms());
             if (pick == null) {
-                throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
+                return null;
             }
             DoctorMatcher.Candidate doctor = pick.doctor();
             if (!doctors.occupy(doctor.id(), doctor.scheduleId())) {
-                // 并发把这个号占满了，换下一个
                 failedScheduleIds.add(doctor.scheduleId());
                 continue;
             }

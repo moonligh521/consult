@@ -2,7 +2,6 @@ package com.moonligh.consult.agent.infrastructure.persistence;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,8 +14,10 @@ import com.moonligh.consult.agent.api.res.ConsultationRecordRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.domain.ConsultationRepository;
 import com.moonligh.consult.agent.domain.ConsultationSession;
+import com.moonligh.consult.agent.domain.MatchQueue;
 import com.moonligh.consult.agent.domain.SessionAction;
 import com.moonligh.consult.agent.domain.SessionWorkResult;
+import com.moonligh.consult.agent.domain.TimeOrderedIds;
 import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
 import com.moonligh.consult.agent.domain.safety.SafetyDecisionAudit;
 import com.moonligh.consult.framework.BusinessException;
@@ -61,7 +62,7 @@ public class JdbcConsultationRepository implements ConsultationRepository {
             SessionAction action) {
         // 没传编号就是新开一轮。
         boolean creating = consultationId == null || consultationId.isBlank();
-        String id = creating ? UUID.randomUUID().toString() : consultationId;
+        String id = creating ? TimeOrderedIds.next() : consultationId;
         if (creating) {
             mapper.insertBlank(id);
         }
@@ -108,6 +109,7 @@ public class JdbcConsultationRepository implements ConsultationRepository {
     /** 写回会话。原话和审计只追加本轮新增的。 */
     private void save(ConsultationSession session) {
         mapper.updateSession(session);
+        session.markTranscriptPersisted();
         for (ConsultationMessage message : session.newMessages()) {
             mapper.insertMessage(session.getId(), message);
         }
@@ -144,5 +146,10 @@ public class JdbcConsultationRepository implements ConsultationRepository {
     @Override
     public long countMine(String accountId, Instant from) {
         return mapper.countMine(accountId, from);
+    }
+
+    @Override
+    public List<MatchQueue.Entry> listUnmatchedPaid(int limit) {
+        return mapper.listUnmatchedPaid(limit);
     }
 }

@@ -80,10 +80,44 @@ public class ConsultationSession {
     private ConsultOrder order;
     /** 这次请求新写下单，保存时要插入。 */
     private boolean orderDirty;
+    /** 这次请求改过诊室快照，保存时才回写这个大字段。 */
+    private boolean transcriptDirty;
 
     /** 新建一轮咨询。编号由仓储生成或调用方传入。 */
     public ConsultationSession(String id) {
         this.id = id;
+    }
+
+    /** 锁外预演用的副本。待写审计和决策不带过去，改副本不影响原会话。 */
+    public ConsultationSession copy() {
+        ConsultationSession copy = new ConsultationSession(id);
+        copy.businessStatus = businessStatus;
+        copy.gender = gender;
+        copy.age = age;
+        copy.patientId = patientId;
+        copy.patientName = patientName;
+        copy.accountId = accountId;
+        copy.title = title;
+        copy.transcript = transcript;
+        copy.duration = duration;
+        copy.description = description;
+        copy.card = card;
+        copy.urgentLatched = urgentLatched;
+        copy.promptEvaluationLatched = promptEvaluationLatched;
+        copy.humanRequestedLatched = humanRequestedLatched;
+        copy.unsuitableLatched = unsuitableLatched;
+        copy.undetermined = undetermined;
+        copy.fallbackReason = fallbackReason;
+        copy.urgentTemplateId = urgentTemplateId;
+        copy.noticeTemplateId = noticeTemplateId;
+        copy.restoreMessages(messages());
+        copy.lastMessageSeq = lastMessageSeq;
+        copy.lastEvaluatedSeq = lastEvaluatedSeq;
+        copy.createdAt = createdAt;
+        copy.updatedAt = updatedAt;
+        copy.triage = triage;
+        copy.restoreOrder(order);
+        return copy;
     }
 
     public String getId() {
@@ -154,7 +188,22 @@ public class ConsultationSession {
 
     public void setTranscript(String transcript) {
         this.transcript = transcript;
+        this.transcriptDirty = true;
         this.updatedAt = Instant.now();
+    }
+
+    /** 从数据库装回诊室快照。不算改动。 */
+    public void restoreTranscript(String transcript) {
+        this.transcript = transcript;
+        this.transcriptDirty = false;
+    }
+
+    public boolean isTranscriptDirty() {
+        return transcriptDirty;
+    }
+
+    public void markTranscriptPersisted() {
+        this.transcriptDirty = false;
     }
 
     public String getDuration() {

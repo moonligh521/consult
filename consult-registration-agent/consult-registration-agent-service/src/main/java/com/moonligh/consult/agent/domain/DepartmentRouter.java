@@ -62,16 +62,17 @@ public class DepartmentRouter {
         String haystack = SpokenNormalizer.forMatch(description, snapshot);
         Hit override = firstOverride(haystack, snapshot, false);
         if (override != null) {
-            Hit inner = firstRouting(haystack, snapshot, snapshot.recordOf(override.dept.code()), null);
+            Hit inner = firstRouting(haystack, snapshot, snapshot.recordOf(override.dept.code()), null, true);
             return clamp(snapshot, inner != null ? inner : override);
         }
         Integer resolvedAge = age != null ? age : parseAge(haystack);
         Gender resolvedGender = gender != null ? gender : parseGender(haystack);
+        boolean child = isChild(snapshot, haystack, resolvedAge);
         Hit pediatric = pediatricHit(haystack, snapshot, resolvedAge, resolvedGender, null);
         if (pediatric != null) {
             return clamp(snapshot, pediatric);
         }
-        Hit best = firstRouting(haystack, snapshot, null, resolvedGender);
+        Hit best = firstRouting(haystack, snapshot, null, resolvedGender, child);
         if (best == null) {
             return fallbackAdvice(snapshot);
         }
@@ -92,12 +93,16 @@ public class DepartmentRouter {
         String haystack = SpokenNormalizer.forMatch(description, snapshot);
         Gender gender = in.gender() != null ? in.gender() : parseGender(haystack);
         Integer age = in.age() != null ? in.age() : parseAge(haystack);
+        boolean child = isChild(snapshot, haystack, age);
         List<CanonTerm> terms = new ArrayList<>();
         List<SpecialtyRef> termRefs = new ArrayList<>();
         if (canon != null) {
             for (CanonTerm term : canon.terms()) {
                 SpecialtyRef ref = snapshot.diseaseIndex().get(term.term());
                 if (ref == null || skipByGender(snapshot.recordOf(ref.departmentCode()), gender)) {
+                    continue;
+                }
+                if (!child && pediatricNamed(ref.specialty())) {
                     continue;
                 }
                 terms.add(term);
@@ -115,7 +120,7 @@ public class DepartmentRouter {
                 }
             }
             if (inner == null) {
-                inner = firstRouting(haystack, snapshot, rec, null);
+                inner = firstRouting(haystack, snapshot, rec, null, true);
             }
             return decided(clamp(snapshot, inner != null ? inner : override), RouteDecision.OVERRIDE);
         }
@@ -132,11 +137,15 @@ public class DepartmentRouter {
                     continue;
                 }
                 for (SpecialtyRef ref : hit.refs()) {
-                    if (!skipByGender(snapshot.recordOf(ref.departmentCode()), gender)) {
-                        clear.add(hit);
-                        clearRefs.add(ref);
-                        break;
+                    if (skipByGender(snapshot.recordOf(ref.departmentCode()), gender)) {
+                        continue;
                     }
+                    if (!child && pediatricNamed(ref.specialty())) {
+                        continue;
+                    }
+                    clear.add(hit);
+                    clearRefs.add(ref);
+                    break;
                 }
             }
         }
@@ -164,6 +173,10 @@ public class DepartmentRouter {
                         ? RouteDecision.AMBIGUOUS_ONLY
                         : RouteDecision.NO_HIT;
                 return undecided(snapshot, reason, snapshot.enabledSpecialtyNames());
+            }
+            Hit named = firstRouting(haystack, snapshot, null, gender, child);
+            if (named != null) {
+                return decided(clamp(snapshot, named), RouteDecision.SINGLE_SPECIALTY);
             }
             return decided(fallbackAdvice(snapshot), RouteDecision.NO_HIT_SHORT);
         }
@@ -252,47 +265,93 @@ public class DepartmentRouter {
         return best;
     }
 
+    private static boolean pediatricNamed(String specialty) {
+        return specialty != null && (specialty.startsWith("小儿") || specialty.startsWith("新生儿"));
+    }
+
+    private static boolean pediatricTerm(String keyword) {
+        return keyword != null && (keyword.startsWith("小儿") || keyword.startsWith("儿童")
+                || keyword.startsWith("新生儿"));
+    }
+
+    private static boolean isChild(DepartmentSnapshot snapshot, String haystack, Integer age) {
+        DepartmentRecord pediatric = pediatricDept(snapshot);
+        if (pediatric == null) {
+            return false;
+        }
+        if (firstOverride(haystack, snapshot, true) != null) {
+            return true;
+        }
+        return age != null && age < pediatric.childAgeLt();
+    }
+
+    private static DepartmentRecord pediatricDept(DepartmentSnapshot snapshot) {
+        for (DepartmentRecord dept : snapshot.enabled()) {
+            if (dept.pediatricCatch()) {
+                return dept;
+            }
+        }
+        return null;
+    }
+
+    private static Hit firstPediatricNamed(String haystack, DepartmentSnapshot snapshot, Gender gender) {
+        Hit best = null;
+        for (DepartmentRecord dept : snapshot.enabled()) {
+            if (skipByGender(dept, gender)) {
+                continue;
+            }
+            for (DepartmentSpecialty spec : dept.specialties()) {
+                boolean namedSpec = pediatricNamed(spec.name());
+                for (String keyword : spec.matchTerms()) {
+                    if (!namedSpec && !pediatricTerm(keyword)) {
+                        continue;
+                    }
+                    Hit hit = considerLonger(best, haystack, dept, spec.name(), keyword);
+                    if (hit != null) {
+                        best = hit;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
     private static Hit pediatricHit(
             String haystack,
             DepartmentSnapshot snapshot,
             Integer age,
             Gender gender,
             String adultHint) {
-        DepartmentRecord pediatric = null;
-        for (DepartmentRecord dept : snapshot.enabled()) {
-            if (dept.pediatricCatch()) {
-                pediatric = dept;
-                break;
-            }
-        }
-        if (pediatric == null) {
+        DepartmentRecord pediatric = pediatricDept(snapshot);
+        if (pediatric == null || !isChild(snapshot, haystack, age)) {
             return null;
         }
-        boolean child = false;
-        Hit marker = firstOverride(haystack, snapshot, true);
-        if (marker != null) {
-            child = true;
+        Hit named = firstPediatricNamed(haystack, snapshot, gender);
+        if (named != null) {
+            return named;
         }
-        if (age != null && age < pediatric.childAgeLt()) {
-            child = true;
-        }
-        if (!child) {
-            return null;
-        }
-        Hit routing = firstRouting(haystack, snapshot, pediatric, gender);
+        Hit routing = firstRouting(haystack, snapshot, pediatric, gender, true);
         if (routing != null) {
             return routing;
         }
+        Hit marker = firstOverride(haystack, snapshot, true);
         if (adultHint != null) {
-            return new Hit(pediatric, mapToPediatric(pediatric, adultHint), 0, adultHint);
+            String mapped = mapToPediatric(pediatric, adultHint);
+            if (pediatric.hasSpecialty(mapped) && (!mapped.equals(pediatric.defaultSpecialty())
+                    || pediatric.hasSpecialty(adultHint))) {
+                return new Hit(pediatric, mapped, 0, adultHint);
+            }
         }
-        Hit adult = firstRouting(haystack, snapshot, null, gender);
+        Hit adult = firstRouting(haystack, snapshot, null, gender, true);
         if (adult != null) {
-            return new Hit(
-                    pediatric,
-                    mapToPediatric(pediatric, adult.specialty()),
-                    adult.at,
-                    adult.keyword);
+            String mapped = mapToPediatric(pediatric, adult.specialty());
+            if (pediatric.hasSpecialty(mapped) && !mapped.equals(pediatric.defaultSpecialty())) {
+                return new Hit(pediatric, mapped, adult.at, adult.keyword);
+            }
+            if (pediatric.hasSpecialty(adult.specialty())) {
+                return new Hit(pediatric, adult.specialty(), adult.at, adult.keyword);
+            }
+            return adult;
         }
         if (marker != null) {
             return marker;
@@ -304,7 +363,8 @@ public class DepartmentRouter {
             String haystack,
             DepartmentSnapshot snapshot,
             DepartmentRecord only,
-            Gender gender) {
+            Gender gender,
+            boolean child) {
         Hit best = null;
         for (DepartmentRecord dept : snapshot.enabled()) {
             if (only != null && dept.code() != only.code()) {
@@ -315,8 +375,12 @@ public class DepartmentRouter {
             }
             Set<String> used = new HashSet<>();
             for (DepartmentSpecialty spec : dept.specialties()) {
+                boolean skipNamed = !child && only == null && pediatricNamed(spec.name());
                 for (String keyword : spec.matchTerms()) {
                     used.add(keyword);
+                    if (skipNamed) {
+                        continue;
+                    }
                     Hit hit = consider(best, haystack, dept, spec.name(), keyword);
                     if (hit != null) {
                         best = hit;
@@ -326,6 +390,9 @@ public class DepartmentRouter {
             String fallbackSpec = dept.defaultSpecialty();
             for (String keyword : dept.routingKeywords()) {
                 if (used.contains(keyword)) {
+                    continue;
+                }
+                if (!child && only == null && dept.pediatricCatch()) {
                     continue;
                 }
                 Hit hit = consider(best, haystack, dept, fallbackSpec, keyword);
@@ -354,6 +421,24 @@ public class DepartmentRouter {
             return null;
         }
         if (best == null || at < best.at || (at == best.at && keyword.length() > best.keyword.length())) {
+            return new Hit(dept, specialty, at, keyword);
+        }
+        return null;
+    }
+
+    /** 跨科儿童二级：更长的小儿病名优先于更早出现的短症状。 */
+    private static Hit considerLonger(
+            Hit best,
+            String haystack,
+            DepartmentRecord dept,
+            String specialty,
+            String keyword) {
+        int at = haystack.indexOf(keyword);
+        if (at < 0) {
+            return null;
+        }
+        if (best == null || keyword.length() > best.keyword.length()
+                || (keyword.length() == best.keyword.length() && at < best.at)) {
             return new Hit(dept, specialty, at, keyword);
         }
         return null;

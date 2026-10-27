@@ -22,6 +22,12 @@ class SpokenNormalizerTest {
     }
 
     @Test
+    void traditionalChineseMapsToSimplifiedForRouting() {
+        assertEquals("头痛两天", SpokenNormalizer.forMatch("頭痛两天"));
+        assertEquals("腹泻三天", SpokenNormalizer.forMatch("腹瀉三天"));
+    }
+
+    @Test
     void doesNotChangeSafetyCompactForDraftChestPainTypo() {
         assertEquals("胸疼", CompactText.of("胸疼"));
         assertFalse(CompactText.of("胸疼").contains("胸痛"));

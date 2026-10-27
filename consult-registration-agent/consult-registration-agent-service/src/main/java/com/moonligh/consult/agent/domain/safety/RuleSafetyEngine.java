@@ -36,6 +36,10 @@ public class RuleSafetyEngine {
      */
     private static final String[] NEGATIONS = {"没有", "并非", "不是", "否认", "没", "无", "不", "未"};
     /**
+     * 别名后面的否定，只认「不是/并非」，避免「转人工不好用」被「不」误伤。
+     */
+    private static final String[] TRAILING_NEGATIONS = {"不是", "并非"};
+    /**
      * 已经缓解的说法。
      */
     private static final String[] RESOLVED_WORDS = {"已经好了", "缓解了", "不疼了", "消失了", "现在没事"};
@@ -147,8 +151,9 @@ public class RuleSafetyEngine {
         String sentenceText = sentence.normalized();
         // 否定只看别名前面 6 个字，避免「没有发烧，但胸痛」把胸痛否掉。
         String window = preceding(sentenceText, match.normalizedStart, 6);
+        String after = following(sentenceText, match.normalizedEnd, 6);
         boolean unclear = containsAny(sentenceText, DOUBLE_NEGATIONS) || containsAny(sentenceText, UNCERTAIN_WORDS);
-        boolean negated = containsAny(window, NEGATIONS);
+        boolean negated = containsAny(window, NEGATIONS) || containsAny(after, TRAILING_NEGATIONS);
         boolean resolved = containsAny(sentenceText, RESOLVED_WORDS);
         PolicyAction hitAction;
         if (unclear) {
@@ -372,6 +377,14 @@ public class RuleSafetyEngine {
             counted++;
         }
         return text.substring(from, start);
+    }
+
+    /**
+     * 取出别名后面若干个字，用来看有没有「不是转人」这类后置否定。
+     */
+    private static String following(String text, int start, int chars) {
+        int to = Math.min(text.length(), start + chars);
+        return text.substring(start, to);
     }
 
     /**

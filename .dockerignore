@@ -1,7 +1,16 @@
 .git
 .github
-target
+.idea
+**/target
+**/node_modules
 docs
 *.md
 .env
 .env.*
+config
+logs
+scripts
+deploy
+loadtest
+consult-admin-web
+consult-registration-web

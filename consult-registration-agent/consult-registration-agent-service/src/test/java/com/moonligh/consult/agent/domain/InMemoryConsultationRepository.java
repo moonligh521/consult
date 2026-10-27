@@ -148,6 +148,29 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
         return owned(accountId, from).size();
     }
 
+    @Override
+    public List<MatchQueue.Entry> listUnmatchedPaid(int limit) {
+        return sessions.values().stream()
+                .filter(session -> session.getOrder() != null)
+                .filter(session -> session.getOrder().doctor() == null)
+                .filter(session -> !session.getOrder().isEnded())
+                .sorted((left, right) -> MatchQueue.compareFifo(entry(left), entry(right)))
+                .limit(Math.max(0, limit))
+                .map(InMemoryConsultationRepository::entry)
+                .toList();
+    }
+
+    private static MatchQueue.Entry entry(ConsultationSession session) {
+        ConsultOrder order = session.getOrder();
+        String specialty = session.getCard() == null ? "" : session.getCard().specialty();
+        return new MatchQueue.Entry(
+                session.getId(),
+                order.orderId(),
+                order.paidAt(),
+                order.packageCode(),
+                specialty == null ? "" : specialty);
+    }
+
     private List<ConsultationSession> owned(String accountId, Instant from) {
         if (accountId == null || accountId.isBlank()) {
             return List.of();

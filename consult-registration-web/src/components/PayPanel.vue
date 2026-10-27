@@ -17,12 +17,35 @@ const packages = computed(() => store.packages)
 const active = computed(() => packages.value.find((item) => item.code === activeCode.value) || null)
 const paid = computed(() => store.order)
 const catalogOpen = computed(() => visible.value && !paid.value)
+const autoOpened = ref(false)
 
 watch(
   catalogOpen,
   async (show) => {
     if (show && !store.packages.length) {
       await store.loadPackages()
+    }
+  },
+  { immediate: true },
+)
+
+watch(
+  () => store.activeId,
+  () => {
+    autoOpened.value = false
+  },
+)
+
+watch(
+  () => [store.status, packages.value.length, catalogOpen.value],
+  () => {
+    if (autoOpened.value || !catalogOpen.value || store.status !== STATUS.CARD_READY || !packages.value.length) {
+      return
+    }
+    autoOpened.value = true
+    const preferred = packages.value.find((item) => item.badge) || packages.value[0]
+    if (preferred) {
+      openCheckout(preferred)
     }
   },
   { immediate: true },
@@ -37,15 +60,9 @@ function openDetail(item) {
   sheet.value = 'detail'
 }
 
-async function openCheckout(item) {
-  if (paid.value || store.paying || store.sending) {
+function openCheckout(item) {
+  if (paid.value || store.paying || store.sending || !item) {
     return
-  }
-  if (store.status === STATUS.CARD_READY) {
-    await store.confirm()
-    if (store.status !== STATUS.CONFIRMED) {
-      return
-    }
   }
   checkoutPkg.value = item
   activeCode.value = item.code
@@ -72,6 +89,12 @@ function close() {
 async function confirmPay() {
   if (!checkoutPkg.value) {
     return
+  }
+  if (store.status === STATUS.CARD_READY) {
+    await store.confirm()
+    if (store.status !== STATUS.CONFIRMED) {
+      return
+    }
   }
   const ok = await store.pay(checkoutPkg.value, channel.value)
   if (ok) {

@@ -1,10 +1,17 @@
 # -*- coding: utf-8 -*-
-"""生成科室种子、前端目录和 db/seed.sql。表结构在 db/schema.sql。"""
+"""生成科室种子、前端目录和 db/seed.sql。表结构在 db/schema.sql。
+
+默认从 科室目录.json 重写 catalog-seed.json（会丢掉手工补的挂词）。
+只把现有 catalog-seed.json 灌进 db/seed.sql：
+
+    python docs/对齐/generate_department_catalog.py --sql-only
+"""
 
 from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -182,6 +189,107 @@ def head_seed() -> dict:
     return json.loads(raw.decode("utf-8"))
 
 
+def dump_sql(seed: dict) -> str:
+    """从已写好的 catalog-seed.json 灌 db/seed.sql，不回读 科室目录.json。"""
+    departments = seed["departments"]
+    lines = [
+        "-- 科室目录数据。先执行 schema.sql。本文件可重复跑：先清空匹配词和二级科再灌入。",
+        "-- 不改咨询会话、原话、审计、订单。执行后延时双删 consult:dept:catalog。",
+        "",
+        "DELETE FROM consult_department_keyword;",
+        "DELETE FROM consult_department_specialty;",
+        "",
+    ]
+    for dept in departments:
+        child = "NULL" if dept.get("childAgeLt") is None else str(dept["childAgeLt"])
+        lines.append(
+            "INSERT IGNORE INTO consult_department "
+            "(code, name, enabled, sort_no, fallback, gender_scope, child_age_lt, treat_desc, remark) VALUES "
+            "({code}, {name}, 1, {sort}, {fallback}, {gender}, {child}, {treat}, {remark});".format(
+                code=dept["code"],
+                name=sql_str(dept["name"]),
+                sort=dept["sort"],
+                fallback=1 if dept.get("fallback") else 0,
+                gender=dept.get("genderScope", 0),
+                child=child,
+                treat=sql_str(dept.get("treatDesc") or ""),
+                remark=sql_str("分科目录"),
+            )
+        )
+        lines.append(
+            "UPDATE consult_department SET name = {name}, enabled = 1, sort_no = {sort}, "
+            "fallback = {fallback}, gender_scope = {gender}, child_age_lt = {child}, "
+            "treat_desc = {treat}, remark = {remark} WHERE code = {code} AND is_deleted = 0;".format(
+                name=sql_str(dept["name"]),
+                sort=dept["sort"],
+                fallback=1 if dept.get("fallback") else 0,
+                gender=dept.get("genderScope", 0),
+                child=child,
+                treat=sql_str(dept.get("treatDesc") or ""),
+                remark=sql_str("分科目录"),
+                code=dept["code"],
+            )
+        )
+    spec_sql = []
+    sort_no = 0
+    for dept in departments:
+        for spec in dept["specialties"]:
+            sort_no += 1
+            spec_sql.append(
+                "({code}, {name}, {desc}, {sort}, {remark})".format(
+                    code=dept["code"],
+                    name=sql_str(spec["name"]),
+                    desc=sql_str(spec.get("treatDesc") or ""),
+                    sort=sort_no,
+                    remark=sql_str("二级科"),
+                )
+            )
+    lines.append("")
+    lines.append("INSERT INTO consult_department_specialty (department_code, name, treat_desc, sort_no, remark) VALUES")
+    lines.append(",\n".join(spec_sql) + ";")
+    kw_sql = []
+    for dept in departments:
+        for kw in dept.get("keywords") or []:
+            kind = 2 if kw.get("kind") == "OVERRIDE" else 1
+            spec = "NULL" if not kw.get("specialty") else sql_str(kw["specialty"])
+            kw_sql.append(
+                "({code}, {word}, {spec}, {kind}, {remark})".format(
+                    code=dept["code"],
+                    word=sql_str(kw["text"]),
+                    spec=spec,
+                    kind=kind,
+                    remark=sql_str("分科描述"),
+                )
+            )
+    lines.append("")
+    lines.append(
+        "INSERT INTO consult_department_keyword "
+        "(department_code, keyword, specialty_name, kind, remark) VALUES"
+    )
+    lines.append(",\n".join(kw_sql) + ";")
+    lines.append("")
+    for item in seed.get("typos") or []:
+        lines.append(
+            "INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES "
+            "({frm}, {to}, {remark});".format(
+                frm=sql_str(item["from"]),
+                to=sql_str(item["to"]),
+                remark=sql_str("匹配错字"),
+            )
+        )
+    lines.append("")
+    for marker in seed.get("uncertain") or []:
+        lines.append(
+            "INSERT IGNORE INTO consult_uncertain_marker (marker, remark) VALUES "
+            "({marker}, {remark});".format(
+                marker=sql_str(marker),
+                remark=sql_str("不确定定科"),
+            )
+        )
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
 def dump_seed(seed: dict) -> str:
     lines = ["{", f'  "version": {json.dumps(seed["version"], ensure_ascii=False)},']
     lines.append('  "typos": [')
@@ -200,6 +308,13 @@ def dump_seed(seed: dict) -> str:
     uncertain = seed.get("uncertain") or []
     for i, item in enumerate(uncertain):
         comma = "," if i < len(uncertain) - 1 else ""
+        lines.append("    {0}{1}".format(json.dumps(item, ensure_ascii=False), comma))
+    lines.append("  ],")
+    lines.append('  "ambiguous": {0},'.format(json.dumps(seed.get("ambiguous") or [], ensure_ascii=False)))
+    lines.append('  "synonyms": [')
+    synonyms = seed.get("synonyms") or []
+    for i, item in enumerate(synonyms):
+        comma = "," if i < len(synonyms) - 1 else ""
         lines.append("    {0}{1}".format(json.dumps(item, ensure_ascii=False), comma))
     lines.append("  ],")
     lines.append('  "departments": [')
@@ -224,11 +339,13 @@ def dump_seed(seed: dict) -> str:
                 "        {{\n"
                 '          "name": {name},\n'
                 '          "treatDesc": {desc},\n'
-                '          "keywords": {kws}\n'
+                '          "keywords": {kws},\n'
+                '          "diseases": {dis}\n'
                 "        }}{comma}".format(
                     name=json.dumps(spec["name"], ensure_ascii=False),
-                    desc=json.dumps(spec["treatDesc"], ensure_ascii=False),
+                    desc=json.dumps(spec.get("treatDesc") or "", ensure_ascii=False),
                     kws=json.dumps(spec.get("keywords") or [], ensure_ascii=False),
+                    dis=json.dumps(spec.get("diseases") or [], ensure_ascii=False),
                     comma=comma,
                 )
             )
@@ -509,4 +626,17 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "--sql-only":
+        seed = json.loads(SEED.read_text(encoding="utf-8"))
+        SQL.write_text(dump_sql(seed), encoding="utf-8")
+        depts = seed["departments"]
+        print(
+            "sql-only l1",
+            len(depts),
+            "l2",
+            sum(len(d["specialties"]) for d in depts),
+            "kw",
+            sum(len(d.get("keywords") or []) for d in depts),
+        )
+    else:
+        main()

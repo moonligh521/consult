@@ -9,7 +9,7 @@ import com.moonligh.consult.identity.domain.OccupancyService;
 import com.xxl.job.core.handler.annotation.XxlJob;
 
 /**
- * 调度中心唯一入口。任务名 occupancyReapJob，每次最多释放 200 条，剩下的等下一拍。
+ * 超时占坑只走调度中心，没有 @Scheduled。任务名 occupancyReapJob，每次最多释放 200 条。
  */
 @Component
 public class OccupancyReapJob {

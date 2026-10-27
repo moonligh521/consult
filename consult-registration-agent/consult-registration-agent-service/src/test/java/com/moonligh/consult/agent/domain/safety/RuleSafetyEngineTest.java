@@ -12,6 +12,19 @@ import org.junit.jupiter.api.Test;
 class RuleSafetyEngineTest {
 
     @Test
+    void trailingNotAfterHumanAliasDoesNotEscalate() {
+        SafetyCatalog catalog = CatalogLoader.loadDefault(DraftMode.SHADOW);
+        RuleSafetyEngine engine = new RuleSafetyEngine();
+        SafetyAssessment view = engine.evaluate(
+                List.of(message(1, "转人工不是转人")),
+                new Demographics(null, null),
+                catalog,
+                true);
+        assertFalse(view.humanRequested());
+        assertFalse(view.matchedRuleIds().contains("HUMAN-BASE-001"));
+    }
+
+    @Test
     void sf22DoubleNegationIsUndeterminedAndLaterPainEscalates() {
         SafetyCatalog catalog = CatalogLoader.load("/safety/ambiguity-catalog.json", DraftMode.SHADOW);
         RuleSafetyEngine engine = new RuleSafetyEngine();

@@ -268,8 +268,8 @@ export const useConsultationStore = defineStore('consultation', {
         await this.sendClinic(sentence)
         return
       }
-      // 卡片待确认允许补主诉；已确认且未进诊室不再打分诊接口
-      if (this.status === STATUS.CONFIRMED) {
+      // 出卡后不能再对话补述；已确认且未进诊室也不再打分诊接口
+      if (this.status === STATUS.CARD_READY || this.status === STATUS.CONFIRMED) {
         return
       }
       this.sending = true
@@ -475,6 +475,21 @@ export const useConsultationStore = defineStore('consultation', {
     lastMatchCard() {
       return [...this.messages].reverse().find((item) => item.kind === 'match') || null
     },
+    async refreshOrder() {
+      if (!this.activeId) {
+        return
+      }
+      try {
+        const result = await getConsultation(this.activeId)
+        const view = result.code === 200 ? result.data?.view : null
+        if (view) {
+          this.latest = view
+          this.payOrder = view.order || this.payOrder
+        }
+      } catch {
+        // 排队轮询失败下一拍再试
+      }
+    },
     async joinDoctor() {
       if (this.doctorOnline || this.assigningDoctor || !this.order || this.consultEnded) {
         return
@@ -497,6 +512,12 @@ export const useConsultationStore = defineStore('consultation', {
       this.remember()
       try {
         const match = this.lastMatchCard()
+        const deadline = Date.now() + INQUIRY.matchTimeoutMs
+        while (!doctorFromOrder(this.order) && Date.now() < deadline && !this.consultEnded && !this.doctorOnline) {
+          await waitMs(2000)
+          await this.refreshOrder()
+        }
+        this.doctor = doctorFromOrder(this.order)
         if (!this.doctor) {
           this.matchPhase = 'timeout'
           if (match) {
@@ -506,15 +527,12 @@ export const useConsultationStore = defineStore('consultation', {
           this.remember()
           return
         }
-        const result = await Promise.race([
-          waitForDoctorAssign().then(() => 'ok'),
-          waitMs(INQUIRY.matchTimeoutMs).then(() => 'timeout'),
-        ])
-        if (result === 'timeout' || !this.doctor) {
+        await waitForDoctorAssign()
+        if (!this.doctor) {
           this.matchPhase = 'timeout'
           if (match) {
             match.phase = 'timeout'
-            match.text = this.doctor ? '匹配超时，您可以重试或转人工。' : '当前暂无合适医生，请稍后再试。'
+            match.text = '匹配超时，您可以重试或转人工。'
           }
           this.remember()
           return

@@ -3,7 +3,6 @@ package com.moonligh.consult.agent.domain;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.UUID;
 
 import com.moonligh.consult.agent.api.enums.PayStatus;
 import com.moonligh.consult.agent.api.res.AssignedDoctorRes;
@@ -38,7 +37,7 @@ public record ConsultOrder(
         Instant now = Instant.now();
         int length = ConsultMinutes.of(minutes);
         return new ConsultOrder(
-                UUID.randomUUID().toString(),
+                TimeOrderedIds.next(),
                 pkg.code(),
                 pkg.name(),
                 pkg.originPrice(),

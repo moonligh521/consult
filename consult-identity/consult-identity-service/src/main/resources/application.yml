@@ -5,14 +5,21 @@ spring:
     import:
       - optional:file:./config/application-local.yml
       - optional:file:../../config/application-local.yml
+  threads:
+    virtual:
+      enabled: ${VIRTUAL_THREADS:true}
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai
+    # 和挂号服务共用一个库（派单直接 JOIN 科室目录表），两边实例数 × 连接池之和要小于 max_connections
+    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai&sessionVariables=innodb_lock_wait_timeout=5
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:your_password}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: 10
-      minimum-idle: 2
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:3000}
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
@@ -21,7 +28,25 @@ spring:
       timeout: 2s
 server:
   port: 18082
-  address: 127.0.0.1
+  # 本机开发只监听回环；容器里设 SERVER_ADDRESS=0.0.0.0，靠 NetworkPolicy 只放行网关和挂号服务
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  shutdown: graceful
+  tomcat:
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:10000}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:500}
+    connection-timeout: 5s
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
 consult:
   auth:
     jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}

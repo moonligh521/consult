@@ -24,7 +24,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 
 /**
- * 所有大模型调用的唯一出口：按用途限流、熔断、超时，可选 Redis 缓存。不打印原话和密钥。
+ * 所有大模型调用的唯一出口：按用途限流（单实例信号量 + 可选全局配额）、熔断、超时，可选 Redis 缓存。不打印原话和密钥。
  * 缓存只存调用方校验过的回复，由调用方 {@link #remember} 写入。
  */
 public class ModelGateway {
@@ -38,11 +38,17 @@ public class ModelGateway {
     private final HttpClient http;
     private final Map<ModelPurpose, Semaphore> limiters = new EnumMap<>(ModelPurpose.class);
     private final Map<ModelPurpose, CircuitBreaker> breakers = new EnumMap<>(ModelPurpose.class);
+    private final ModelQuota quota;
 
     public ModelGateway(ModelProperties props, StringRedisTemplate redis, MeterRegistry meters) {
+        this(props, redis, meters, ModelQuota.NONE);
+    }
+
+    public ModelGateway(ModelProperties props, StringRedisTemplate redis, MeterRegistry meters, ModelQuota quota) {
         this.props = props;
         this.redis = redis;
         this.meters = meters;
+        this.quota = quota == null ? ModelQuota.NONE : quota;
         int connect = Math.max(props.getSafety().getTimeoutMs(), props.getComplaint().getTimeoutMs());
         this.http = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(connect)).build();
         for (ModelPurpose purpose : ModelPurpose.values()) {
@@ -94,7 +100,15 @@ public class ModelGateway {
             count(purpose, ModelStatus.BUSY, false);
             return ModelReply.failed(ModelStatus.BUSY, elapsed(started), props.getModelName());
         }
+        // 本实例和全局共用一个等待预算，总等待不超过 acquireWaitMs
+        ModelQuota.Permit permit = quota.acquire(purpose, lane.getAcquireWaitMs() - elapsed(started));
+        if (permit == null) {
+            limiter.release();
+            count(purpose, ModelStatus.BUSY, false);
+            return ModelReply.failed(ModelStatus.BUSY, elapsed(started), props.getModelName());
+        }
         if (!breaker.tryPass()) {
+            quota.release(permit);
             limiter.release();
             count(purpose, ModelStatus.BREAKER_OPEN, false);
             return ModelReply.failed(ModelStatus.BREAKER_OPEN, 0, props.getModelName());
@@ -110,6 +124,7 @@ public class ModelGateway {
                     .record(Duration.ofMillis(reply.latencyMs()));
             return reply;
         } finally {
+            quota.release(permit);
             limiter.release();
         }
     }

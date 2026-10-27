@@ -24,7 +24,7 @@ public record ConsultationRes(
         String safetyNotice,
         /** 有卡片时的交接性质；安全停止态为 null。 */
         Handoff handoff,
-        /** 卡片已确认时给出四档咨询；其它状态为 null。 */
+        /** 出卡后给出四档咨询；其它状态为 null。 */
         List<PayPackageRes> packages,
         /** 已经落下的订单；还没下单为 null。 */
         ConsultOrderRes order) {

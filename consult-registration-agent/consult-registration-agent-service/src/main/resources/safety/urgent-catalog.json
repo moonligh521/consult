@@ -124,7 +124,7 @@
       "disposition": "HUMAN",
       "patientMessageTemplateId": "HUMAN-DEFAULT",
       "positiveCases": ["转人工", "找人工", "人工客服", "接人工客服", "转接人工", "客服在哪", "有人工吗"],
-      "negativeCases": ["不要转人工，干咳半年", "人工智能导诊，干咳半年"],
+      "negativeCases": ["不要转人工，干咳半年", "人工智能导诊，干咳半年", "转人工不是转人"],
       "clinicalReviewer": null,
       "reviewDate": null,
       "evidenceReference": "V0.2 交付基线"

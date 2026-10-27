@@ -34,8 +34,11 @@ CREATE TABLE IF NOT EXISTS consultation_session (
     created_at                  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     updated_at                  DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
     is_deleted                  BIGINT       NOT NULL DEFAULT 0 COMMENT '删除标记。0未删除；删除后写入非0唯一值，保证业务唯一键能再用',
+    card_specialty              VARCHAR(32)  GENERATED ALWAYS AS (JSON_UNQUOTE(JSON_EXTRACT(card_json, '$.specialty'))) VIRTUAL COMMENT '卡片二级科，生成列。停科影响面按它走索引',
     PRIMARY KEY (id),
-    KEY idx_consult_session_account (account_id, updated_at)
+    KEY idx_consult_session_account (account_id, updated_at),
+    KEY idx_consult_session_updated (updated_at),
+    KEY idx_consult_session_card (business_status, card_specialty)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='咨询会话。一行一轮，FOR UPDATE 锁这一行';
 
 CREATE TABLE IF NOT EXISTS consultation_message (
@@ -288,7 +291,8 @@ CREATE TABLE IF NOT EXISTS consult_match_decision (
     PRIMARY KEY (decision_id),
     KEY idx_match_consultation (consultation_id),
     KEY idx_match_run (run_id),
-    KEY idx_match_node_time (node, decision_time)
+    KEY idx_match_node_time (node, decision_time),
+    KEY idx_match_time (decision_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='挂号链路逐节点决策。不含病情原文';
 
 CREATE TABLE IF NOT EXISTS consult_label_task (

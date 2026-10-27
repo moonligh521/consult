@@ -12,9 +12,11 @@ public class SlotParser {
 
     /** 例如「32岁」。超出 1～120 当作没抽到。 */
     private static final Pattern AGE = Pattern.compile("(\\d{1,3})岁");
-    /** 例如「半年」「3天」。 */
+    /** 例如「半年」「3天」「好几天」「半个多月」。英文天数只收数字，不收 three days。 */
     private static final Pattern DURATION =
-            Pattern.compile("(\\d+|[一二三四五六七八九十两半]+)(小时|天|周|个月|月|年)");
+            Pattern.compile("好几天|半个多月|一个多月|两个多月|两三天|三四天|三五天"
+                    + "|(\\d+|[一二三四五六七八九十两半]+)(个多)?(小时|天|周|个月|月|年)"
+                    + "|\\d+\\s*days?");
 
     /** 同时出现「男」「女」时取先出现的。 */
     public Gender gender(String sentence) {

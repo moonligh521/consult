@@ -26,4 +26,7 @@ public interface ConsultationRepository {
     List<ConsultationRecordRes> listMine(String accountId, Instant from, int offset, int limit);
 
     long countMine(String accountId, Instant from);
+
+    /** 已支付还没医生的单，按支付时间先进先出。 */
+    List<MatchQueue.Entry> listUnmatchedPaid(int limit);
 }

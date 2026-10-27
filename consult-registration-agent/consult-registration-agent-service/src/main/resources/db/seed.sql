@@ -193,6 +193,7 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (1, '慢性感染', '普内科', 1, '分科描述'),
 (1, '慢性疾病', '普内科', 1, '分科描述'),
 (1, '基础病', '普内科', 1, '分科描述'),
+(1, '慢性病调药', '普内科', 1, '分科描述'),
 (1, '消化内科', '消化内科', 1, '分科描述'),
 (1, '胃溃疡', '消化内科', 1, '分科描述'),
 (1, '胰腺炎', '消化内科', 1, '分科描述'),
@@ -301,6 +302,9 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (1, '呼吸', '普内科', 1, '分科描述'),
 (1, '咳', '呼吸内科', 1, '分科描述'),
 (1, '喘', '呼吸内科', 1, '分科描述'),
+(1, '头疼', '神经内科', 1, '分科描述'),
+(1, '水肿', '肾内科', 1, '分科描述'),
+(1, '过敏', '过敏反应科', 1, '分科描述'),
 (2, '普外科', '普外科', 1, '分科描述'),
 (2, '过敏性休克', '普外科', 1, '分科描述'),
 (2, '淋巴结节', '普外科', 1, '分科描述'),
@@ -362,6 +366,10 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (2, '拆线', '普外科', 1, '分科描述'),
 (2, '换药', '普外科', 1, '分科描述'),
 (2, '乳腺', '普外科', 1, '分科描述'),
+(2, '便血', '肛肠外科', 1, '分科描述'),
+(2, '肾结石', '泌尿外科', 1, '分科描述'),
+(2, '淋巴结肿大', '普外科', 1, '分科描述'),
+(2, '黄疸', '肝胆外科', 1, '分科描述'),
 (3, '男科', '男科', 1, '分科描述'),
 (3, '前列腺炎', '男科', 1, '分科描述'),
 (3, '早泄', '男科', 1, '分科描述'),
@@ -509,11 +517,15 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (7, '儿童牙病', '小儿口腔科', 1, '分科描述'),
 (7, '儿童口腔溃疡', '小儿口腔科', 1, '分科描述'),
 (7, '儿童口炎', '小儿口腔科', 1, '分科描述'),
+(7, '口腔溃疡', '小儿口腔科', 1, '分科描述'),
+(7, '孩子口腔溃疡', '小儿口腔科', 1, '分科描述'),
 (7, '口腔预防科', '口腔预防科', 1, '分科描述'),
 (7, '龋齿', '口腔预防科', 1, '分科描述'),
 (7, '蛀牙', '口腔预防科', 1, '分科描述'),
 (7, '窝沟封闭', '口腔预防科', 1, '分科描述'),
 (7, '种植科', '种植科', 1, '分科描述'),
+(7, '种植牙', '种植科', 1, '分科描述'),
+(7, '种牙', '种植科', 1, '分科描述'),
 (7, '牙缺失的种植与修复', '种植科', 1, '分科描述'),
 (7, '牙痛', '口腔科', 1, '分科描述'),
 (7, '牙疼', '口腔科', 1, '分科描述'),
@@ -615,6 +627,7 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (8, '小儿康复科', '小儿康复科', 1, '分科描述'),
 (8, '儿童阑尾炎', '小儿康复科', 1, '分科描述'),
 (8, '儿童骨折', '小儿康复科', 1, '分科描述'),
+(8, '骨折康复', '小儿康复科', 1, '分科描述'),
 (8, '小孩', NULL, 2, '分科描述'),
 (8, '孩子', NULL, 2, '分科描述'),
 (8, '宝宝', NULL, 2, '分科描述'),
@@ -649,6 +662,7 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (9, '声音哑', '耳鼻咽喉科', 1, '分科描述'),
 (9, '耳朵嗡嗡', '耳鼻咽喉科', 1, '分科描述'),
 (9, '鼻出血', '耳鼻咽喉科', 1, '分科描述'),
+(9, '打鼾', '耳鼻咽喉科', 1, '分科描述'),
 (10, '中医科', '中医科', 1, '分科描述'),
 (10, '外感风寒', '中医科', 1, '分科描述'),
 (10, '肝肾两虚', '中医科', 1, '分科描述'),
@@ -660,6 +674,7 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (10, '肾阳虚', '中医肾内科', 1, '分科描述'),
 (10, '肾阴虚', '中医肾内科', 1, '分科描述'),
 (10, '针灸科', '针灸科', 1, '分科描述'),
+(10, '针灸', '针灸科', 1, '分科描述'),
 (10, '中医消化科', '中医消化科', 1, '分科描述'),
 (10, '胃虚', '中医消化科', 1, '分科描述'),
 (10, '肝经湿热', '中医消化科', 1, '分科描述'),
@@ -718,6 +733,7 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (10, '针灸', NULL, 2, '分科描述'),
 (10, '艾灸', NULL, 2, '分科描述'),
 (11, '皮肤科', '皮肤科', 1, '分科描述'),
+(11, '皮肤性病科', '皮肤科', 1, '分科描述'),
 (11, '湿疹', '皮肤科', 1, '分科描述'),
 (11, '足癣', '皮肤科', 1, '分科描述'),
 (11, '白癜风', '皮肤科', 1, '分科描述'),
@@ -731,6 +747,8 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (11, '荨麻疹', '皮肤科', 1, '分科描述'),
 (11, '红疹', '皮肤科', 1, '分科描述'),
 (11, '皮疹', '皮肤科', 1, '分科描述'),
+(11, '瘙痒', '皮肤科', 1, '分科描述'),
+(11, '黄褐斑', '皮肤科', 1, '分科描述'),
 (12, '感染病科', '感染病科', 1, '分科描述'),
 (12, '水痘', '感染病科', 1, '分科描述'),
 (12, '狂犬病', '感染病科', 1, '分科描述'),
@@ -747,6 +765,7 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (12, '肺结核', '结核病科', 1, '分科描述'),
 (12, '肠结核', '结核病科', 1, '分科描述'),
 (12, '肝结核', '结核病科', 1, '分科描述'),
+(12, '结核病', '结核病科', 1, '分科描述'),
 (13, '眼科', '眼科', 1, '分科描述'),
 (13, '飞蚊症', '眼科', 1, '分科描述'),
 (13, '结膜炎', '眼科', 1, '分科描述'),
@@ -759,6 +778,8 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (13, '先天性倒睫', '小儿眼科', 1, '分科描述'),
 (13, '儿童角膜炎', '小儿眼科', 1, '分科描述'),
 (13, '小儿斜视弱视', '小儿眼科', 1, '分科描述'),
+(13, '小儿斜视', '小儿眼科', 1, '分科描述'),
+(13, '斜视', '小儿眼科', 1, '分科描述'),
 (13, '眼底科', '眼底科', 1, '分科描述'),
 (13, '眼底病变', '眼底科', 1, '分科描述'),
 (13, '视网膜萎缩', '眼底科', 1, '分科描述'),
@@ -785,6 +806,8 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (13, '眼睛干', '眼科', 1, '分科描述'),
 (13, '眼睛红', '眼科', 1, '分科描述'),
 (13, '视力模糊', '眼科', 1, '分科描述'),
+(13, '白内障', '白内障科', 1, '分科描述'),
+(13, '青光眼', '青光眼科', 1, '分科描述'),
 (14, '精神科', '精神科', 1, '分科描述'),
 (14, '抑郁症', '精神科', 1, '分科描述'),
 (14, '躁狂症', '精神科', 1, '分科描述'),
@@ -797,6 +820,8 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (14, '吸毒成瘾', '成瘾医学科', 1, '分科描述'),
 (14, '酒精依赖症', '成瘾医学科', 1, '分科描述'),
 (14, '戒烟综合症', '成瘾医学科', 1, '分科描述'),
+(14, '抑郁', '精神科', 1, '分科描述'),
+(14, '焦虑', '心理咨询科', 1, '分科描述'),
 (15, '整形外科', '整形外科', 1, '分科描述'),
 (15, '瘢痕增生', '整形外科', 1, '分科描述'),
 (15, '面部整形', '整形外科', 1, '分科描述'),
@@ -820,6 +845,8 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (17, '血管肌纤维母细胞瘤', '肿瘤外科', 1, '分科描述'),
 (17, '肌纤维母细胞瘤', '肿瘤外科', 1, '分科描述'),
 (17, '放疗科', '放疗科', 1, '分科描述'),
+(17, '放疗', '放疗科', 1, '分科描述'),
+(17, '放疗后', '放疗科', 1, '分科描述'),
 (17, '甲状腺癌', '放疗科', 1, '分科描述'),
 (17, '肿瘤康复科', '肿瘤康复科', 1, '分科描述'),
 (17, '结直肠癌', '肿瘤康复科', 1, '分科描述'),
@@ -834,6 +861,7 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (18, '产前诊断染色体异常', '遗传咨询科', 1, '分科描述'),
 (18, '超雌综合征', '遗传咨询科', 1, '分科描述'),
 (18, '家族遗传病', '遗传咨询科', 1, '分科描述'),
+(18, '不孕', '辅助生殖科', 1, '分科描述'),
 (19, '疼痛科', '疼痛科', 1, '分科描述'),
 (19, '神经痛', '疼痛科', 1, '分科描述'),
 (19, '骨痛', '疼痛科', 1, '分科描述'),
@@ -853,6 +881,7 @@ INSERT INTO consult_department_keyword (department_code, keyword, specialty_name
 (22, '心脏康复', '康复科', 1, '分科描述'),
 (22, '脑血管后遗症康复', '康复科', 1, '分科描述'),
 (22, '理疗科', '理疗科', 1, '分科描述'),
+(22, '理疗', '理疗科', 1, '分科描述'),
 (22, '病理报告解读', '理疗科', 1, '分科描述');
 
 INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('刻嗽', '咳嗽', '匹配错字');
@@ -865,6 +894,27 @@ INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('孝�
 INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('藕吐', '呕吐', '匹配错字');
 INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('头运', '头晕', '匹配错字');
 INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('饿心', '恶心', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('该嗽', '咳嗽', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('头痌', '头痛', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('头庝', '头疼', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('腹写', '腹泻', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('腹痌', '腹痛', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('笑喘', '哮喘', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('温疹', '湿疹', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('显疹', '湿疹', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('瘙氧', '瘙痒', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('瘙养', '瘙痒', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('志疮', '痔疮', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('治疮', '痔疮', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('鼻焱', '鼻炎', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('鼻严', '鼻炎', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('咽焱', '咽炎', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('咽严', '咽炎', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('牙庝', '牙疼', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('牙痌', '牙痛', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('水种', '水肿', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('打憨', '打鼾', '匹配错字');
+INSERT IGNORE INTO consult_match_typo (from_word, to_word, remark) VALUES ('打酣', '打鼾', '匹配错字');
 
 INSERT IGNORE INTO consult_uncertain_marker (marker, remark) VALUES ('不知道挂哪个科', '不确定定科');
 INSERT IGNORE INTO consult_uncertain_marker (marker, remark) VALUES ('不知道挂什么科', '不确定定科');

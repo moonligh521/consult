@@ -140,7 +140,7 @@ async function save() {
         <span class="k">咨询科室：</span>{{ consultDepartmentLabel(store.card) }}
         <span v-if="store.card?.departmentSource === 'MODEL'" class="source-tag">AI 辅助推荐</span>
       </p>
-      <p v-if="store.card?.stale" class="source-note">该科室已停诊，请改科或继续对话重新分诊。</p>
+      <p v-if="store.card?.stale" class="source-note">该科室已停诊，请在卡片上改科。</p>
       <p v-if="store.card?.departmentSource === 'FALLBACK'" class="source-note">建议先由全科医生评估</p>
       <p v-if="store.card?.departmentEvidence"><span class="k">分诊依据：</span>{{ store.card.departmentEvidence }}</p>
       <p><span class="k">主诉：</span>{{ store.card?.description }}</p>

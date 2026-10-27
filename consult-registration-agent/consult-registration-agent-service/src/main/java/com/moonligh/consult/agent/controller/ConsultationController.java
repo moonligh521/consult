@@ -2,6 +2,8 @@ package com.moonligh.consult.agent.controller;
 
 import java.util.List;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +27,7 @@ import com.moonligh.consult.agent.api.res.ConsultationDetailRes;
 import com.moonligh.consult.agent.api.res.ConsultationPageRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.api.res.PayPackageRes;
+import com.moonligh.consult.agent.service.ConsultationGuard;
 import com.moonligh.consult.agent.service.ConsultationService;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.Result;
@@ -40,9 +43,20 @@ import jakarta.servlet.http.HttpServletRequest;
 public class ConsultationController {
 
     private final ConsultationService service;
+    private final ConsultationGuard guard;
 
     public ConsultationController(ConsultationService service) {
+        this(service, ConsultationGuard.NONE);
+    }
+
+    @Autowired
+    public ConsultationController(ConsultationService service, ObjectProvider<ConsultationGuard> guard) {
+        this(service, guard.getIfAvailable(() -> ConsultationGuard.NONE));
+    }
+
+    private ConsultationController(ConsultationService service, ConsultationGuard guard) {
         this.service = service;
+        this.guard = guard;
     }
 
     /**
@@ -55,8 +69,8 @@ public class ConsultationController {
         if (request == null) {
             return Result.ok(service.acceptMessage(null, null, "", accountId));
         }
-        return Result.ok(service.acceptMessage(
-                request.consultationId(), request.messageId(), request.text(), accountId));
+        return Result.ok(guard.exclusive(request.consultationId(), () -> service.acceptMessage(
+                request.consultationId(), request.messageId(), request.text(), accountId)));
     }
 
     /**
@@ -106,7 +120,7 @@ public class ConsultationController {
         if (request == null) {
             return Result.ok(service.reassign(null));
         }
-        return Result.ok(service.reassign(request.consultationId()));
+        return Result.ok(guard.exclusive(request.consultationId(), () -> service.reassign(request.consultationId())));
     }
 
     /**
@@ -114,7 +128,10 @@ public class ConsultationController {
      */
     @PatchMapping("/card")
     public Result<ConsultationRes> updateCard(@RequestBody CardPatchReq request) {
-        return Result.ok(service.updateCard(request));
+        if (request == null) {
+            return Result.ok(service.updateCard(null));
+        }
+        return Result.ok(guard.exclusive(request.consultationId(), () -> service.updateCard(request)));
     }
 
     /**
@@ -136,7 +153,9 @@ public class ConsultationController {
         if (request == null) {
             return Result.ok(service.bindPatient(null, null, AccountIds.of(http)));
         }
-        return Result.ok(service.bindPatient(request.consultationId(), request.patientId(), AccountIds.of(http)));
+        String accountId = AccountIds.of(http);
+        return Result.ok(guard.exclusive(request.consultationId(),
+                () -> service.bindPatient(request.consultationId(), request.patientId(), accountId)));
     }
 
     /**
@@ -147,7 +166,8 @@ public class ConsultationController {
         if (request == null) {
             return Result.ok(service.placeOrder(null, null));
         }
-        return Result.ok(service.placeOrder(request.consultationId(), request.packageCode(), request.consultMinutes()));
+        return Result.ok(guard.exclusive(request.consultationId(),
+                () -> service.placeOrder(request.consultationId(), request.packageCode(), request.consultMinutes())));
     }
 
     /**

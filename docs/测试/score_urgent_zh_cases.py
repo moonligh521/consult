@@ -158,8 +158,17 @@ def load_csv() -> tuple[Path, list[dict]]:
         path = FALLBACK_CSV
     else:
         path = CSV_PATH
-    with path.open(encoding="utf-8-sig", newline="") as handle:
-        return path, list(csv.DictReader(handle))
+    raw = path.read_bytes()
+    text = None
+    for encoding in ("utf-8-sig", "gb18030"):
+        try:
+            text = raw.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        text = raw.decode("utf-8-sig", errors="replace")
+    return path, list(csv.DictReader(text.splitlines()))
 
 
 def main() -> None:
