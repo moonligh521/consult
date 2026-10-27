@@ -35,7 +35,7 @@ safety:
 model:
   api-key: ${DEEPSEEK_API_KEY:}
   base-url: https://api.deepseek.com
-  model-name: deepseek-chat
+  model-name: deepseek-v4-flash
   cache-ttl-hours: 168
   safety:
     timeout-ms: 2500

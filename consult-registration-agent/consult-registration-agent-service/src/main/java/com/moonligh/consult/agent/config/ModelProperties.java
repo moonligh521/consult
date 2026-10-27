@@ -13,7 +13,7 @@ public class ModelProperties {
     /** 密钥。不要打进日志。 */
     private String apiKey = "";
     private String baseUrl = "https://api.deepseek.com";
-    private String modelName = "deepseek-chat";
+    private String modelName = "deepseek-v4-flash";
     /** 模型结果缓存小时数。 */
     private int cacheTtlHours = 168;
     private final Lane safety = new Lane(2500, 32, 50, 1);
