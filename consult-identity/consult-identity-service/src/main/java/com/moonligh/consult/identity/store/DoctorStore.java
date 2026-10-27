@@ -10,6 +10,7 @@ import com.moonligh.consult.identity.api.DoctorAdminRes;
 import com.moonligh.consult.identity.api.DoctorCoverageRes;
 import com.moonligh.consult.identity.api.DoctorSaveReq;
 import com.moonligh.consult.identity.domain.DoctorMatcher;
+import com.moonligh.consult.identity.domain.ScheduleWindows;
 
 /**
  * 医生档案。一级科室、二级科室、擅长分列。
@@ -59,7 +60,8 @@ public class DoctorStore {
                 SELECT COUNT(DISTINCT d.id)
                 FROM consult_doctor d
                 JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
-                  AND s.remain_num > 0 AND s.visit_date = CURDATE()
+                  AND s.remain_num > 0
+                """ + ScheduleWindows.LIVE_SQL + """
                 WHERE d.is_deleted = 0 AND d.status = 1 AND d.department_code = ? AND d.specialty = ?
                   AND d.in_flight < d.concurrent_limit
                 """,
@@ -230,7 +232,7 @@ public class DoctorStore {
                  AND spec.department_code = d.department_code AND spec.name = d.specialty
                 JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
                   AND s.remain_num > 0
-                  AND s.visit_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 6 DAY)
+                """ + ScheduleWindows.LIVE_SQL + """
                 WHERE d.is_deleted = 0 AND d.status = 1 AND d.in_flight < d.concurrent_limit
                 """ + scope;
         try {
@@ -243,7 +245,7 @@ public class DoctorStore {
                     FROM consult_doctor d
                     JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
                       AND s.remain_num > 0
-                      AND s.visit_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 6 DAY)
+                    """ + ScheduleWindows.LIVE_SQL + """
                     WHERE d.is_deleted = 0 AND d.status = 1 AND d.in_flight < d.concurrent_limit
                     """ + scope,
                     this::mapCandidate,

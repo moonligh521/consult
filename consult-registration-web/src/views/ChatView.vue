@@ -117,7 +117,9 @@ const lockComposer = computed(() => (
 
 const canSend = computed(() => !lockComposer.value && !!draft.value.trim() && !store.sending)
 
-const showHumanShortcuts = computed(() => store.humanOnline && !store.sending && !store.doctorOnline)
+const showHumanShortcuts = computed(() => (
+  store.humanOnline && !store.sending && !store.doctorOnline && !store.consultEnded
+))
 
 const showDescriptionExamples = computed(() => (
   store.status === STATUS.NEED_DESCRIPTION
@@ -155,6 +157,15 @@ const typingText = computed(() => {
   }
   return '正在帮您分析'
 })
+
+watch(
+  () => store.messages.length,
+  (count) => {
+    if (count === 0) {
+      draft.value = ''
+    }
+  },
+)
 
 watch(draft, async () => {
   await nextTick()
@@ -226,6 +237,7 @@ function editLastUser() {
 }
 
 function goHome() {
+  draft.value = ''
   store.startNew()
   showRecords.value = false
 }
@@ -343,7 +355,10 @@ function initialOf(name) {
           <div v-else-if="item.phase === 'served' && store.doctor" class="avatar md match-face">{{ initialOf(store.doctor.name) }}</div>
           <h2>{{ item.phase === 'timeout' ? '匹配超时' : item.phase === 'served' ? `${store.doctor?.name || ''}医生为您服务` : '正在为您匹配医生' }}</h2>
           <p>{{ item.text }}</p>
-          <div v-if="item.phase === 'timeout'" class="match-actions">
+          <div
+            v-if="item.phase === 'timeout' && !store.humanOnline && !store.consultEnded"
+            class="match-actions"
+          >
             <button class="match-retry" type="button" @click="store.retryMatch()">重试匹配</button>
             <button class="match-human" type="button" @click="store.handoffAfterMatch()">转人工</button>
           </div>

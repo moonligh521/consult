@@ -195,6 +195,13 @@ public class ConsultationService {
         this.mqSender = mqSender;
     }
 
+    @jakarta.annotation.PostConstruct
+    void logMq() {
+        if (mqSender == null) {
+            log.info("未接 RocketMQ，订单指派只写本库并通过身份服务 HTTP 占坑");
+        }
+    }
+
     /** 简写入口：不传 messageId。 */
     public ConsultationRes acceptMessage(String consultationId, String text) {
         return acceptMessage(consultationId, null, text);
@@ -365,30 +372,47 @@ public class ConsultationService {
             return true;
         }
         List<String> terms = canonicalTerms(snapshot);
+        int grade = entry.queuedGrade() <= 0 ? order.packageCode() : entry.queuedGrade();
+        AssignedDoctorRes assigned = tryAssign(snapshot, order, terms, grade, false);
+        if (assigned == null) {
+            assigned = tryAssign(snapshot, order, terms, grade, true);
+        }
+        if (assigned == null) {
+            return false;
+        }
+        AssignedDoctorRes doctor = assigned;
+        AtomicReference<Release> release = new AtomicReference<>();
+        AtomicReference<AssignedDoctorRes> attached = new AtomicReference<>();
+        repository.runLocked(
+                snapshot.getId(),
+                session -> attachDoctorLocked(session, order.orderId(), doctor, terms, release, attached));
+        Release pending = release.get();
+        if (pending != null) {
+            doctorAssigner.release(pending.orderId(), pending.reason());
+        } else {
+            syncAssigned(snapshot.getId(), order.orderId(), attached.get());
+        }
+        return true;
+    }
+
+    private AssignedDoctorRes tryAssign(
+            ConsultationSession snapshot,
+            ConsultOrder order,
+            List<String> terms,
+            int grade,
+            boolean allowUpgrade) {
         try {
-            AssignedDoctorRes doctor = doctorAssigner.assign(
+            return doctorAssigner.assign(
                     snapshot.getId(),
                     order.orderId(),
                     snapshot.getCard(),
                     terms,
                     order.consultMinutes(),
-                    entry.queuedGrade() <= 0 ? order.packageCode() : entry.queuedGrade(),
-                    false);
-            AtomicReference<Release> release = new AtomicReference<>();
-            AtomicReference<AssignedDoctorRes> attached = new AtomicReference<>();
-            repository.runLocked(
-                    snapshot.getId(),
-                    session -> attachDoctorLocked(session, order.orderId(), doctor, terms, release, attached));
-            Release pending = release.get();
-            if (pending != null) {
-                doctorAssigner.release(pending.orderId(), pending.reason());
-            } else {
-                syncAssigned(snapshot.getId(), order.orderId(), attached.get());
-            }
-            return true;
+                    grade,
+                    allowUpgrade);
         } catch (BusinessException error) {
             if (error.getErrorCode() == ErrorCode.DOCTOR_UNAVAILABLE) {
-                return false;
+                return null;
             }
             throw error;
         }
@@ -425,12 +449,27 @@ public class ConsultationService {
 
     /**
      * 先在锁内落订单（订单号就此固定），提交后再到锁外派医生。
-     * 派单失败时订单已在库里，再次下同一档或调重派都用同一个订单号，身份服务按订单号幂等，不会重复占坑。
+     * 当前时段没号不收款。派单失败时订单已在库里，再次下同一档或调重派都用同一个订单号。
      */
     public ConsultationRes placeOrder(String consultationId, Integer packageCode, Integer consultMinutes) {
+        rejectIfNoDuty(consultationId, packageCode);
         ConsultationRes placed = repository.runLocked(
                 consultationId, session -> placeOrderLocked(session, packageCode, consultMinutes));
         return assignDoctor(placed);
+    }
+
+    private void rejectIfNoDuty(String consultationId, Integer packageCode) {
+        if (doctorAssigner == null || consultationId == null || consultationId.isBlank()) {
+            return;
+        }
+        ConsultationSession session = repository.get(consultationId);
+        if (session == null || session.getOrder() != null) {
+            return;
+        }
+        int code = packageCode == null ? 0 : packageCode;
+        if (!doctorAssigner.hasOnDuty(session.getCard(), code)) {
+            throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
+        }
     }
 
     /** 患者结束问诊，释放医生占坑。结束态先提交，释放在锁外做。 */
@@ -778,17 +817,16 @@ public class ConsultationService {
             return latest == null ? placed : buildResponse(latest);
         }
         List<String> terms = canonicalTerms(snapshot);
-        AssignedDoctorRes doctor;
-        try {
-            doctor = doctorAssigner.assign(
-                    consultationId, order.orderId(), snapshot.getCard(), terms, order.consultMinutes(),
-                    order.packageCode(), false);
-        } catch (BusinessException error) {
-            if (error.getErrorCode() == ErrorCode.DOCTOR_UNAVAILABLE) {
-                return placed;
-            }
-            throw error;
+        ConsultOrder sessionOrder = snapshot.getOrder();
+        int grade = sessionOrder.packageCode();
+        AssignedDoctorRes assigned = tryAssign(snapshot, sessionOrder, terms, grade, false);
+        if (assigned == null) {
+            assigned = tryAssign(snapshot, sessionOrder, terms, grade, true);
         }
+        if (assigned == null) {
+            return placed;
+        }
+        AssignedDoctorRes doctor = assigned;
         AtomicReference<Release> release = new AtomicReference<>();
         AtomicReference<AssignedDoctorRes> attached = new AtomicReference<>();
         ConsultationRes view = repository.runLocked(

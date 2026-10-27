@@ -60,6 +60,27 @@ public class DoctorAssignService {
         throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
     }
 
+    /** 当前时段该科有出诊号才收款。档位空缺由派单提档处理。 */
+    public boolean available(String specialty, Integer departmentCode, Integer packageCode) {
+        List<DoctorMatcher.Candidate> onDuty = doctors.listOnDuty(specialty, departmentCode);
+        if (onDuty == null || onDuty.isEmpty()) {
+            return false;
+        }
+        if (packageCode == null || packageCode < 1 || packageCode > 4) {
+            return true;
+        }
+        List<Integer> grades = DoctorGrade.searchOrder(packageCode, true);
+        if (grades == null) {
+            return true;
+        }
+        for (int grade : grades) {
+            if (!DoctorGrade.ofGrade(onDuty, grade).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** 当前档里按擅长选人并占坑。这一档没人就返回 null，让调用方试下一档。 */
     private AssignDoctorRes occupyFirst(
             List<DoctorMatcher.Candidate> pool,

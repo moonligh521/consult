@@ -42,8 +42,16 @@ function startCooldown() {
 
 onUnmounted(clearTimer)
 
+function validMobile() {
+  return /^1[3-9]\d{9}$/.test((mobile.value || '').trim())
+}
+
 async function sendCode() {
   if (!canSend.value) {
+    return
+  }
+  if (!validMobile()) {
+    message.error('请输入 11 位手机号', { duration: 4000 })
     return
   }
   sending.value = true
@@ -59,6 +67,14 @@ async function sendCode() {
 }
 
 async function submit() {
+  if (!validMobile()) {
+    message.error('请输入 11 位手机号', { duration: 4000 })
+    return
+  }
+  if (!/^\d{6}$/.test((captcha.value || '').trim())) {
+    message.error('请输入 6 位验证码', { duration: 4000 })
+    return
+  }
   logging.value = true
   try {
     await auth.login(mobile.value, captcha.value)

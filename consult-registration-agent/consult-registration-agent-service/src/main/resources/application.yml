@@ -24,6 +24,7 @@ spring:
       minimum-idle: ${DB_POOL_MIN_IDLE:10}
       # 拿不到连接 3 秒就失败，别让请求在池子前排 30 秒把整个实例拖死
       connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:3000}
+      connection-init-sql: SET time_zone = '+08:00'
   data:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
@@ -120,6 +121,7 @@ consult:
     log-path: ./logs/xxl-job
     log-retention-days: 30
 # 配了 name-server 才创建 RocketMQTemplate / ConsultMqSender。
+# 本地不配 Broker 时派单仍走身份服务 HTTP 占坑，只是不同步医生端 MQ。
 # rocketmq:
 #   name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
 #   producer:

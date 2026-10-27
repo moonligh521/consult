@@ -32,6 +32,11 @@ public interface DoctorAssigner {
         return assign(consultationId, orderId, card, canonicalTerms, consultMinutes);
     }
 
+    /** 当前时段该科有号才收款。测试默认有号。 */
+    default boolean hasOnDuty(ConsultationCardRes card, int packageCode) {
+        return true;
+    }
+
     default void release(String orderId, String reason) {
     }
 

@@ -39,7 +39,7 @@ export function waitForDoctor() {
 
 /** 支付后、医生接诊前的助手说明。 */
 export const MATCH_ASSIST =
-  '您好，我是AI医生助手小智，已收到您的问诊资料，正在为您匹配合适的医生，预计 1 分钟内接诊。'
+  '您好，我是AI医生助手小智，已收到您的问诊资料，正在为您匹配合适的医生。当前时段有号才会收款；繁忙时可能需要约 1 分钟。'
 
 /** 接诊打招呼。只说明已看到资料，不给诊断。 */
 export function greetAsDoctor(doctor) {

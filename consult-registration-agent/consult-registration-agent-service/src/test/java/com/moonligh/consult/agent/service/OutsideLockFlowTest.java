@@ -51,6 +51,7 @@ class OutsideLockFlowTest {
     private final List<String> assignedOrderIds = new ArrayList<>();
     private final List<String> releases = new ArrayList<>();
     private boolean failAssign;
+    private boolean onDuty = true;
 
     private final InMemoryConsultationRepository repository =
             new InMemoryConsultationRepository(new ConcurrentHashMap<>(), new InMemorySafetyAuditRecorder()) {
@@ -91,6 +92,11 @@ class OutsideLockFlowTest {
                 }
                 return new AssignedDoctorRes("doc-1", "赵衡", "主治医师", "互联网医院", 1, card.specialty(),
                         "高血压", "高血压", "sch-1", "SKILL_CANON");
+            }
+
+            @Override
+            public boolean hasOnDuty(ConsultationCardRes card, int packageCode) {
+                return onDuty;
             }
 
             @Override
@@ -148,9 +154,21 @@ class OutsideLockFlowTest {
         failAssign = false;
         ConsultationRes retried = service.placeOrder(id, 3);
         assertNotNull(retried.order().doctor());
-        assertEquals(2, assignedOrderIds.size());
+        assertEquals(3, assignedOrderIds.size());
         assertEquals(assignedOrderIds.get(0), assignedOrderIds.get(1));
-        assertEquals(retried.order().orderId(), assignedOrderIds.get(1));
+        assertEquals(assignedOrderIds.get(1), assignedOrderIds.get(2));
+        assertEquals(retried.order().orderId(), assignedOrderIds.get(2));
         assertFalse(retried.order().orderId().isBlank());
+    }
+
+    @Test
+    void placeOrderRejectedWhenNoOneOnDuty() {
+        ConsultationService service = service();
+        String id = service.acceptMessage(null, "男，50岁，高血压，头晕三天").consultationId();
+        service.confirm(id);
+        onDuty = false;
+        BusinessException error = assertThrows(BusinessException.class, () -> service.placeOrder(id, 3));
+        assertEquals(ErrorCode.DOCTOR_UNAVAILABLE, error.getErrorCode());
+        assertNull(repository.getRequired(id).getOrder());
     }
 }

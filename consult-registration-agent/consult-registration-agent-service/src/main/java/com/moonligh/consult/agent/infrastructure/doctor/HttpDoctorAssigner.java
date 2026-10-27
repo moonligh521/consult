@@ -109,6 +109,26 @@ public class HttpDoctorAssigner implements DoctorAssigner {
     }
 
     @Override
+    public boolean hasOnDuty(ConsultationCardRes card, int packageCode) {
+        if (card == null) {
+            return false;
+        }
+        try {
+            Result<Boolean> body = client.get()
+                    .uri("/internal/doctors/available?departmentCode={code}&specialty={spec}&packageCode={pkg}",
+                            card.department() == null ? 0 : card.department(),
+                            card.specialty() == null ? "" : card.specialty(),
+                            packageCode)
+                    .header(AuthTokens.INTERNAL_HEADER, auth.getInternalToken())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<Result<Boolean>>() {});
+            return body != null && body.isSuccess() && Boolean.TRUE.equals(body.getData());
+        } catch (RuntimeException error) {
+            return false;
+        }
+    }
+
+    @Override
     public void release(String orderId, String reason) {
         if (orderId == null || orderId.isBlank()) {
             return;

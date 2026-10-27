@@ -196,7 +196,9 @@ export const useConsultationStore = defineStore('consultation', {
       const index = this.sessions.findIndex((item) => item.id === this.activeId)
       const record = {
         id: this.activeId,
-        title: this.sessions[index]?.title || titleOf(text),
+        title: this.card?.description
+          ? titleOf(this.card.description)
+          : (this.sessions[index]?.title || titleOf(text)),
         updatedAt: Date.now(),
         snapshot: this.latest,
         payOrder: this.payOrder,

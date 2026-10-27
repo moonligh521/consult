@@ -41,6 +41,14 @@ public class InternalDoctorController {
         return Result.ok(doctors.coverage(departmentCode, specialty));
     }
 
+    @GetMapping("/available")
+    public Result<Boolean> available(
+            @RequestParam int departmentCode,
+            @RequestParam String specialty,
+            @RequestParam(defaultValue = "0") int packageCode) {
+        return Result.ok(assign.available(specialty, departmentCode, packageCode));
+    }
+
     @PostMapping("/ensure-demo-coverage")
     public Result<DoctorCoverageRes> ensureDemo(
             @RequestParam int departmentCode, @RequestParam String specialty) {
