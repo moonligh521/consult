@@ -101,6 +101,17 @@ public class ConsultationController {
     }
 
     /**
+     * 等派医生。Authorization 里带 JWT，浏览器 EventSource 带不上所以不用 SSE。
+     */
+    @GetMapping("/{consultationId}/assignment")
+    public Result<ConsultationDetailRes> waitMine(
+            @PathVariable String consultationId,
+            @RequestParam(defaultValue = "10000") long waitMs,
+            HttpServletRequest http) {
+        return Result.ok(service.waitMine(AccountIds.of(http), consultationId, waitMs));
+    }
+
+    /**
      * 把诊室画面存回会话。
      */
     @PutMapping("/transcript")

@@ -54,6 +54,25 @@ public final class MemoryMatchBroker implements MatchBroker {
     }
 
     @Override
+    public boolean contains(String orderId) {
+        return orderId != null && byOrder.containsKey(orderId);
+    }
+
+    @Override
+    public MatchQueue.Entry ensure(MatchQueue.Entry entry, Duration upgradeAfter) {
+        if (entry == null || entry.orderId() == null) {
+            return null;
+        }
+        MatchQueue.Entry current = byOrder.get(entry.orderId());
+        if (current != null) {
+            lane(current.specialty(), current.queuedGrade()).add(current.orderId());
+            return current;
+        }
+        enqueue(entry, upgradeAfter);
+        return byOrder.get(entry.orderId());
+    }
+
+    @Override
     public void complete(String orderId) {
         if (orderId == null) {
             return;

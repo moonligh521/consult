@@ -50,6 +50,14 @@ export function getConsultation(consultationId) {
   return http.get(`/api/consultations/${consultationId}`)
 }
 
+/** 等派医生。服务端最多挂 10 秒，JWT 走 Authorization。 */
+export function waitAssignment(consultationId, waitMs = 10000) {
+  return http.get(`/api/consultations/${consultationId}/assignment`, {
+    params: { waitMs },
+    timeout: waitMs + 8000,
+  })
+}
+
 /** 把诊室画面存回会话。 */
 export function saveTranscript(consultationId, title, transcript) {
   return http.put('/api/consultations/transcript', { consultationId, title, transcript })

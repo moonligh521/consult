@@ -76,6 +76,60 @@ class MatchDispatcherTest {
     }
 
     @Test
+    void reconcilePutsPoppedHeadBackWithoutLosingPlace() {
+        List<String> assigned = new ArrayList<>();
+        MemoryMatchBroker broker = new MemoryMatchBroker();
+        InquiryProperties inquiry = new InquiryProperties();
+        inquiry.setMatchUpgradeAfter(Duration.ofMinutes(1));
+        MatchDispatcher dispatcher = new MatchDispatcher(broker, entry -> {
+            assigned.add(entry.orderId());
+            return true;
+        }, inquiry, Clock.fixed(T0, ZoneOffset.UTC));
+        MatchQueue.Entry first = entry("c1", "o1", T0, 3, 3);
+        MatchQueue.Entry second = entry("c2", "o2", T0.plusSeconds(1), 3, 3);
+        broker.enqueue(first, Duration.ofMinutes(1));
+        broker.enqueue(second, Duration.ofMinutes(1));
+        broker.pop("呼吸内科", 3);
+        dispatcher.reconcile(List.of(first, second));
+        assertEquals(List.of("o1", "o2"), assigned);
+    }
+
+    @Test
+    void reconcileAfterPromoteKeepsUpgradedGrade() {
+        MutableClock clock = new MutableClock(T0);
+        List<Integer> grades = new ArrayList<>();
+        MatchDispatcher dispatcher = dispatcher(clock, entry -> {
+            grades.add(entry.queuedGrade());
+            return false;
+        });
+        dispatcher.offer(entry("c1", "o1", T0, 3, 3));
+        clock.set(T0.plusSeconds(61));
+        dispatcher.promoteDue();
+        grades.clear();
+        dispatcher.reconcile(List.of(new MatchQueue.Entry("c1", "o1", T0, 3, "呼吸内科")));
+        assertEquals(List.of(4), grades);
+    }
+
+    @Test
+    void reconcileDoesNotReenqueueSoUpgradeDeadlineStaysOnPayTime() {
+        MutableClock clock = new MutableClock(T0);
+        List<String> experts = new ArrayList<>();
+        MatchDispatcher dispatcher = dispatcher(clock, entry -> {
+            if (entry.queuedGrade() == 4) {
+                experts.add(entry.orderId());
+                return true;
+            }
+            return false;
+        });
+        MatchQueue.Entry waiting = entry("c1", "o1", T0, 3, 3);
+        dispatcher.offer(waiting);
+        dispatcher.reconcile(List.of(waiting));
+        clock.set(T0.plusSeconds(61));
+        dispatcher.promoteDue();
+        assertEquals(List.of("o1"), experts);
+    }
+
+    @Test
     void afterOneMinuteHeadPromotesAndTakesHigherGradeSlot() {
         MutableClock clock = new MutableClock(T0);
         List<String> experts = new ArrayList<>();

@@ -72,6 +72,25 @@ public final class RedissonMatchBroker implements MatchBroker {
     }
 
     @Override
+    public boolean contains(String orderId) {
+        return orderId != null && Boolean.TRUE.equals(meta(orderId).isExists());
+    }
+
+    @Override
+    public MatchQueue.Entry ensure(MatchQueue.Entry entry, Duration upgradeAfter) {
+        if (entry == null || entry.orderId() == null) {
+            return null;
+        }
+        MatchQueue.Entry current = load(entry.orderId());
+        if (current != null) {
+            lane(current.specialty(), current.queuedGrade()).add(score(current), current.orderId());
+            return current;
+        }
+        enqueue(entry, upgradeAfter);
+        return load(entry.orderId());
+    }
+
+    @Override
     public void complete(String orderId) {
         if (orderId == null) {
             return;

@@ -21,6 +21,15 @@ public interface MatchBroker {
     /** 已派上或已结束：从本档、提档队、元数据里删掉。 */
     void complete(String orderId);
 
+    /** 队里还有这单（对账时已在队则不再入，避免把提档时间清掉）。 */
+    boolean contains(String orderId);
+
+    /**
+     * 对账用：已有元数据则按当前档补回档位队（不改 delay），否则新入队。
+     * 返回队里那条（含已提档后的 queuedGrade）。
+     */
+    MatchQueue.Entry ensure(MatchQueue.Entry entry, Duration upgradeAfter);
+
     /**
      * 取出并删除已经等满 1 分钟的单（延迟集合 score ≤ now）。
      * limit ≤ 0 表示这一分钟到期的全部拿走。

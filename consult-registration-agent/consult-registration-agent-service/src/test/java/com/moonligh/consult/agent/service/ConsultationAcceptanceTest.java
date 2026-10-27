@@ -356,6 +356,11 @@ class ConsultationAcceptanceTest {
         assertEquals("{\"messages\":[]}", detail.transcript());
         BusinessException missing = assertThrows(BusinessException.class, () -> service.getMine("acc-2", view.consultationId()));
         assertEquals(ErrorCode.CONSULTATION_NOT_FOUND, missing.getErrorCode());
+
+        long started = System.currentTimeMillis();
+        var waited = service.waitMine("acc-1", view.consultationId(), 2000);
+        assertEquals(view.consultationId(), waited.view().consultationId());
+        assertTrue(System.currentTimeMillis() - started < 500);
     }
 
     @Test

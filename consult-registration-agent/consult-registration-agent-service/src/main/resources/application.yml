@@ -71,6 +71,7 @@ model:
 inquiry:
   closed: false
   # 本档医生满员先排队；队头等超过该时间只提一档。扫描走 XXL matchUpgradeJob。
+  # 未派已支付对账走 XXL matchReconcileJob（建议 10～30 秒一拍）。
   match-upgrade-after: 1m
 management:
   endpoints:

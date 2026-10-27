@@ -263,6 +263,34 @@ public class ConsultationService {
         return new ConsultationDetailRes(buildResponse(session), title, session.getTranscript());
     }
 
+    /**
+     * 患者等派医生。带 JWT 的长轮询，一次最多 10 秒，避免网关 15 秒超时。
+     * 已派上、已结束、还没订单立刻返回。
+     */
+    public ConsultationDetailRes waitMine(String accountId, String consultationId, long waitMs) {
+        long cap = Math.min(10_000L, Math.max(0L, waitMs));
+        long deadline = System.currentTimeMillis() + cap;
+        ConsultationDetailRes latest = getMine(accountId, consultationId);
+        while (!assignedOrSettled(latest) && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return latest;
+            }
+            latest = getMine(accountId, consultationId);
+        }
+        return latest;
+    }
+
+    private static boolean assignedOrSettled(ConsultationDetailRes detail) {
+        if (detail == null || detail.view() == null || detail.view().order() == null) {
+            return true;
+        }
+        ConsultOrderRes order = detail.view().order();
+        return order.doctor() != null || order.endedAt() != null;
+    }
+
     /** 把诊室画面存回会话。 */
     public ConsultationRes saveTranscript(String consultationId, String accountId, String title, String transcript) {
         if (consultationId == null || consultationId.isBlank()) {
@@ -295,10 +323,18 @@ public class ConsultationService {
 
     /** 启动时把库里未派上的单重新入队。 */
     public void rebuildMatchQueue() {
+        reconcileMatchQueue();
+    }
+
+    /**
+     * 对账：MySQL 已支付未派医生，Redis 队里没有的补进去，再按科/档试占坑。
+     * 覆盖弹出后进程死了、放号消息丢了。
+     */
+    public int reconcileMatchQueue() {
         if (matchDispatcher == null) {
-            return;
+            return 0;
         }
-        matchDispatcher.restoreAll(repository.listUnmatchedPaid(5000));
+        return matchDispatcher.reconcile(repository.listUnmatchedPaid(5000));
     }
 
     /** 队头出队后占坑。没坑返回 false，调用方把单放回队头。 */

@@ -1,7 +1,9 @@
 package com.moonligh.consult.agent.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -66,8 +68,21 @@ class MemoryMatchBrokerTest {
     void completeRemovesFromLane() {
         MemoryMatchBroker broker = new MemoryMatchBroker();
         broker.enqueue(entry("c1", "o1", T0), ONE_MINUTE);
+        assertTrue(broker.contains("o1"));
         broker.complete("o1");
+        assertFalse(broker.contains("o1"));
         assertNull(broker.pop("呼吸内科", 3));
+    }
+
+    @Test
+    void containsStaysTrueAfterPopUntilComplete() {
+        MemoryMatchBroker broker = new MemoryMatchBroker();
+        broker.enqueue(entry("c1", "o1", T0), ONE_MINUTE);
+        assertEquals("o1", broker.pop("呼吸内科", 3).orderId());
+        assertTrue(broker.contains("o1"));
+        MatchQueue.Entry live = broker.ensure(new MatchQueue.Entry("c1", "o1", T0, 3, "呼吸内科"), ONE_MINUTE);
+        assertEquals(3, live.queuedGrade());
+        assertEquals("o1", broker.pop("呼吸内科", 3).orderId());
     }
 
     private static MatchQueue.Entry entry(String consult, String order, Instant paidAt) {

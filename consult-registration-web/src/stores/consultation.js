@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { bindPatient, confirmCard, endConsult as endConsultApi, getConsultation, listConsultations, listPackages, patchCard, placeOrder, reassignDoctor, saveTranscript, sendMessage, setConsultMinutes } from '../api/consultations'
+import { bindPatient, confirmCard, endConsult as endConsultApi, getConsultation, listConsultations, listPackages, patchCard, placeOrder, reassignDoctor, saveTranscript, sendMessage, setConsultMinutes, waitAssignment } from '../api/consultations'
 import { createPatient, listPatients } from '../api/patients'
 import { canShowCard, CONSULT_MINUTES, INQUIRY, isSafetyStop, STATUS } from '../constants/catalog'
 import { doctorFromOrder, firstAskAsDoctor, greetAsDoctor, MATCH_ASSIST, replyAsDoctor, waitForDoctor, waitForDoctorAssign, waitForDoctorServe, waitMs } from '../domain/doctorAgent'
@@ -481,13 +481,28 @@ export const useConsultationStore = defineStore('consultation', {
       }
       try {
         const result = await getConsultation(this.activeId)
-        const view = result.code === 200 ? result.data?.view : null
-        if (view) {
-          this.latest = view
-          this.payOrder = view.order || this.payOrder
-        }
+        this.applyOrderView(result)
       } catch {
         // 排队轮询失败下一拍再试
+      }
+    },
+    async waitOrder(holdMs) {
+      if (!this.activeId || holdMs <= 0) {
+        return
+      }
+      try {
+        const result = await waitAssignment(this.activeId, holdMs)
+        this.applyOrderView(result)
+      } catch {
+        await waitMs(Math.min(2000, holdMs))
+        await this.refreshOrder()
+      }
+    },
+    applyOrderView(result) {
+      const view = result && result.code === 200 ? result.data?.view : null
+      if (view) {
+        this.latest = view
+        this.payOrder = view.order || this.payOrder
       }
     },
     async joinDoctor() {
@@ -514,8 +529,7 @@ export const useConsultationStore = defineStore('consultation', {
         const match = this.lastMatchCard()
         const deadline = Date.now() + INQUIRY.matchTimeoutMs
         while (!doctorFromOrder(this.order) && Date.now() < deadline && !this.consultEnded && !this.doctorOnline) {
-          await waitMs(2000)
-          await this.refreshOrder()
+          await this.waitOrder(Math.min(10000, deadline - Date.now()))
         }
         this.doctor = doctorFromOrder(this.order)
         if (!this.doctor) {

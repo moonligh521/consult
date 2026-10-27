@@ -42,24 +42,37 @@ public class MatchDispatcher {
         dispatch(entry.specialty(), entry.queuedGrade() <= 0 ? entry.packageCode() : entry.queuedGrade());
     }
 
-    /** 启动时把未派上的单灌回队列，再按科/档各出一次队。 */
+    /** 启动或对账：库里未派的单，队里没有才入队，再按科/档出队。 */
     public void restoreAll(Iterable<MatchQueue.Entry> entries) {
-        if (entries == null) {
-            return;
+        reconcile(entries);
+    }
+
+    /**
+     * 已支付未派医生的对账。已在 Redis 队里的不重新入（提档倒计时不能清零），
+     * 只把缺的补上，然后对这些科/档再试占坑。
+     */
+    public int reconcile(Iterable<MatchQueue.Entry> unmatched) {
+        if (unmatched == null) {
+            return 0;
         }
         LinkedHashSet<String> lanes = new LinkedHashSet<>();
-        for (MatchQueue.Entry entry : entries) {
+        for (MatchQueue.Entry entry : unmatched) {
             if (entry == null || entry.orderId() == null) {
                 continue;
             }
-            broker.enqueue(entry, upgradeAfter);
-            int grade = entry.queuedGrade() <= 0 ? entry.packageCode() : entry.queuedGrade();
-            lanes.add((entry.specialty() == null ? "" : entry.specialty()) + "\t" + grade);
+            MatchQueue.Entry live = broker.ensure(entry, upgradeAfter);
+            if (live == null) {
+                continue;
+            }
+            int grade = live.queuedGrade() <= 0 ? live.packageCode() : live.queuedGrade();
+            lanes.add((live.specialty() == null ? "" : live.specialty()) + "\t" + grade);
         }
+        int assigned = 0;
         for (String lane : lanes) {
             int split = lane.lastIndexOf('\t');
-            dispatch(lane.substring(0, split), Integer.parseInt(lane.substring(split + 1)));
+            assigned += dispatch(lane.substring(0, split), Integer.parseInt(lane.substring(split + 1)));
         }
+        return assigned;
     }
 
     /** 该科该档有医生空出来：只消化这一档的队头。 */

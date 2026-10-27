@@ -1,19 +1,25 @@
 package com.moonligh.consult.identity.infrastructure;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import com.moonligh.consult.identity.domain.SlotFreedSink;
 
 /**
- * 占坑释放后通知挂号服务：频道 consult:slot-freed，内容「二级科\\t档位」。
+ * 占坑释放写入 Redis Stream consult:stream:slot-freed，挂号消费组可靠出队。
+ * 不再用 Pub/Sub：发出去不落盘，订阅者重启会丢。
  */
 @Component
 @ConditionalOnBean(StringRedisTemplate.class)
 public class RedisSlotFreedSink implements SlotFreedSink {
 
-    public static final String CHANNEL = "consult:slot-freed";
+    public static final String STREAM = "consult:stream:slot-freed";
+    static final long MAXLEN = 20_000;
 
     private final StringRedisTemplate redis;
 
@@ -27,9 +33,15 @@ public class RedisSlotFreedSink implements SlotFreedSink {
             return;
         }
         try {
-            redis.convertAndSend(CHANNEL, specialty + "\t" + grade);
+            Map<String, String> body = new LinkedHashMap<>();
+            body.put("specialty", specialty);
+            body.put("grade", Integer.toString(grade));
+            RecordId id = redis.opsForStream().add(STREAM, body);
+            if (id != null) {
+                redis.opsForStream().trim(STREAM, MAXLEN);
+            }
         } catch (RuntimeException ignored) {
-            // Redis 短暂不可用时队头等下一拍提档或下次放号
+            // Stream 短暂不可用时靠挂号对账把未派单再出一次队
         }
     }
 }

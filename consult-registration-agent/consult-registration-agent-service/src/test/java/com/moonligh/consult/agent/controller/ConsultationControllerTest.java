@@ -125,6 +125,13 @@ class ConsultationControllerTest {
     }
 
     @Test
+    void waitAssignmentRequiresAccount() throws Exception {
+        mockMvc.perform(get("/api/consultations/c1/assignment").param("waitMs", "1000"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(ErrorCode.LOGIN_REQUIRED.getCode()));
+    }
+
+    @Test
     void createListAndBindPatient() throws Exception {
         PatientRes first = patients.create("demo", new PatientCreateReq("张明", Gender.MALE, 32, "本人"));
         patients.create("demo", new PatientCreateReq("张小童", Gender.MALE, 8, "子女"));
