@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.config.InquiryProperties;
 import com.moonligh.consult.agent.domain.safety.DisabledSignalExtractor;
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.ModelStatus;
 import com.moonligh.consult.agent.domain.safety.RuleSafetyEngine;
 import com.moonligh.consult.agent.domain.safety.SignalExtraction;
 import com.moonligh.consult.agent.domain.triage.ComplaintReply;

@@ -14,8 +14,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import com.moonligh.consult.agent.config.ModelProperties;
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.CircuitBreaker;
+import com.moonligh.consult.framework.model.ModelGateway;
+import com.moonligh.consult.framework.model.ModelProperties;
+import com.moonligh.consult.framework.model.ModelPurpose;
+import com.moonligh.consult.framework.model.ModelQuota;
+import com.moonligh.consult.framework.model.ModelQuota.Permit;
+import com.moonligh.consult.framework.model.ModelReply;
+import com.moonligh.consult.framework.model.ModelStatus;
 import com.sun.net.httpserver.HttpServer;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

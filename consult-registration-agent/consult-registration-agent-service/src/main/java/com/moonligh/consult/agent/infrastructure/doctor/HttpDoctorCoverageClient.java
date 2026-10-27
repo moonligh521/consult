@@ -4,11 +4,11 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Repository;
 import org.springframework.web.client.RestClient;
 
-import com.moonligh.consult.agent.config.IdentityProperties;
 import com.moonligh.consult.agent.domain.department.DoctorCoverage;
 import com.moonligh.consult.agent.domain.department.DoctorCoverageClient;
 import com.moonligh.consult.framework.Result;
 import com.moonligh.consult.security.AuthTokens;
+import com.moonligh.consult.security.ConsultAuthProperties;
 
 /**
  * 身份服务上的覆盖率与演示补人。
@@ -17,11 +17,11 @@ import com.moonligh.consult.security.AuthTokens;
 public class HttpDoctorCoverageClient implements DoctorCoverageClient {
 
     private final RestClient client;
-    private final IdentityProperties properties;
+    private final ConsultAuthProperties auth;
 
-    public HttpDoctorCoverageClient(RestClient identityRestClient, IdentityProperties properties) {
+    public HttpDoctorCoverageClient(RestClient identityRestClient, ConsultAuthProperties auth) {
         this.client = identityRestClient;
-        this.properties = properties;
+        this.auth = auth;
     }
 
     @Override
@@ -30,7 +30,7 @@ public class HttpDoctorCoverageClient implements DoctorCoverageClient {
             Result<DoctorCoverage> body = client.get()
                     .uri("/internal/doctors/coverage?departmentCode={code}&specialty={spec}",
                             departmentCode, specialty)
-                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, auth.getInternalToken())
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<DoctorCoverage>>() {});
             if (body == null || body.getData() == null) {
@@ -48,7 +48,7 @@ public class HttpDoctorCoverageClient implements DoctorCoverageClient {
             Result<DoctorCoverage> body = client.post()
                     .uri("/internal/doctors/ensure-demo-coverage?departmentCode={code}&specialty={spec}",
                             departmentCode, specialty)
-                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, auth.getInternalToken())
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<DoctorCoverage>>() {});
             if (body == null || body.getData() == null) {

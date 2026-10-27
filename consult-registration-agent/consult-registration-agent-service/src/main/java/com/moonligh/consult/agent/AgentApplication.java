@@ -7,9 +7,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
  * 挂号咨询服务启动入口。
- * 放在 agent 根包，Spring 才能扫到下面的 controller、service、config、infrastructure。
+ * 只扫 agent 包。框架靠 AutoConfiguration.imports 装载，不要扫 com.moonligh.consult。
  */
-@SpringBootApplication(scanBasePackages = "com.moonligh.consult")
+@SpringBootApplication(scanBasePackages = "com.moonligh.consult.agent")
 public class AgentApplication {
 
     private static final Logger log = LoggerFactory.getLogger(AgentApplication.class);

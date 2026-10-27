@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.domain.DepartmentRouter;
 import com.moonligh.consult.agent.domain.department.MemoryDepartmentCatalog;
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.ModelStatus;
 
 /** triage_json 存进去能原样读回，派单才能不重算。 */
 class TriageResultJsonTest {

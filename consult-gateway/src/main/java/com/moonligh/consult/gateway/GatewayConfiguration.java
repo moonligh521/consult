@@ -1,6 +1,5 @@
 package com.moonligh.consult.gateway;
 
-import java.time.Duration;
 import java.util.List;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -10,19 +9,12 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 
-import com.moonligh.consult.security.AuthTokens;
-
 /**
- * 令牌、跨域、内部路由。
+ * 跨域。JWT 在 consult-framework-security。
  */
 @Configuration
 @EnableConfigurationProperties(GatewayProperties.class)
 public class GatewayConfiguration {
-
-    @Bean
-    public AuthTokens authTokens(GatewayProperties properties) {
-        return new AuthTokens(properties.getJwtSecret(), Duration.ofHours(properties.getJwtTtlHours()));
-    }
 
     @Bean
     public CorsWebFilter corsWebFilter() {

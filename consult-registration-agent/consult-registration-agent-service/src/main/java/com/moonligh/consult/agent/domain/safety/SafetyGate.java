@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.moonligh.consult.agent.domain.CompactText;
+import com.moonligh.consult.framework.model.ModelStatus;
 
 /**
  * 安全闸门：先用规则匹配，不够确定再让模型补漏。

@@ -1,0 +1,3 @@
+com.moonligh.consult.framework.ConsultWebAutoConfiguration
+com.moonligh.consult.framework.JacksonAutoConfiguration
+com.moonligh.consult.framework.PersistenceAutoConfiguration

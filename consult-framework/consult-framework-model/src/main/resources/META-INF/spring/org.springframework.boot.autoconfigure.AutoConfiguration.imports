@@ -1,0 +1,2 @@
+com.moonligh.consult.framework.model.RedissonModelQuotaAutoConfiguration
+com.moonligh.consult.framework.model.ModelAutoConfiguration

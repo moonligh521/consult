@@ -9,9 +9,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 import com.moonligh.consult.agent.api.enums.Gender;
-import com.moonligh.consult.agent.config.ModelProperties;
+import com.moonligh.consult.framework.model.ModelGateway;
+import com.moonligh.consult.framework.model.ModelProperties;
+import com.moonligh.consult.framework.model.ModelPurpose;
+import com.moonligh.consult.framework.model.ModelReply;
 import com.moonligh.consult.agent.domain.department.MemoryDepartmentCatalog;
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.ModelStatus;
 import com.moonligh.consult.agent.domain.triage.ComplaintReply;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

@@ -1,46 +1,18 @@
 package com.moonligh.consult.agent.config;
 
-import java.util.Arrays;
-
-import org.redisson.api.RedissonClient;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.env.Environment;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.moonligh.consult.agent.domain.department.DepartmentCatalog;
 import com.moonligh.consult.agent.domain.triage.ComplaintModel;
 import com.moonligh.consult.agent.infrastructure.model.DeepSeekComplaintModel;
-import com.moonligh.consult.agent.infrastructure.model.ModelGateway;
-import com.moonligh.consult.agent.infrastructure.model.ModelQuota;
-import com.moonligh.consult.agent.infrastructure.model.RedissonModelQuota;
-
-import io.micrometer.core.instrument.MeterRegistry;
+import com.moonligh.consult.framework.model.ModelGateway;
 
 /**
- * 大模型网关与主诉模型装配。prod 下缺密钥直接起不来。
+ * 主诉模型装配。HTTP 网关在 consult-framework-model。
  */
 @Configuration
-@EnableConfigurationProperties(ModelProperties.class)
 public class ModelConfiguration {
-
-    @Bean
-    public ModelGateway modelGateway(
-            ModelProperties properties,
-            ObjectProvider<StringRedisTemplate> redis,
-            ObjectProvider<RedissonClient> redisson,
-            MeterRegistry meters,
-            Environment environment) {
-        boolean prod = Arrays.asList(environment.getActiveProfiles()).contains("prod");
-        if (prod && (properties.getApiKey() == null || properties.getApiKey().isBlank())) {
-            throw new IllegalStateException("prod 环境必须配置 model.api-key");
-        }
-        RedissonClient client = redisson.getIfAvailable();
-        ModelQuota quota = client == null ? ModelQuota.NONE : new RedissonModelQuota(client, properties, meters);
-        return new ModelGateway(properties, redis.getIfAvailable(), meters, quota);
-    }
 
     @Bean
     public ComplaintModel complaintModel(ModelGateway gateway, DepartmentCatalog catalog) {

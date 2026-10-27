@@ -16,7 +16,7 @@ import com.moonligh.consult.agent.domain.DepartmentRouter;
 import com.moonligh.consult.agent.domain.SpokenNormalizer;
 import com.moonligh.consult.agent.domain.department.DepartmentCatalog;
 import com.moonligh.consult.agent.domain.department.DepartmentSnapshot;
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.ModelStatus;
 
 /**
  * N4 归约 + N6 挂科：规则能定就定；定不了合并成一次主诉模型调用；模型也不行就兜底。

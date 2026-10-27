@@ -35,7 +35,7 @@ import com.moonligh.consult.agent.domain.safety.ExtractedSignal;
 import com.moonligh.consult.agent.domain.safety.FallbackReason;
 import com.moonligh.consult.agent.domain.safety.InMemorySafetyAuditRecorder;
 import com.moonligh.consult.agent.domain.safety.MessageSource;
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.ModelStatus;
 import com.moonligh.consult.agent.domain.safety.RuleSafetyEngine;
 import com.moonligh.consult.agent.domain.safety.SafetyAssessment;
 import com.moonligh.consult.agent.domain.safety.SafetyCatalog;

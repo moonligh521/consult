@@ -6,15 +6,13 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 网关路由到的内部地址、JWT 密钥、限流与过载保护。
+ * 网关路由到的内部地址、限流与过载保护。JWT 在 consult.auth。
  */
 @ConfigurationProperties(prefix = "consult.gateway")
 public class GatewayProperties {
 
     private String identityUri = "http://127.0.0.1:18082";
     private String agentUri = "http://127.0.0.1:18081";
-    private String jwtSecret = "consult-dev-jwt-secret-key-32bytes!";
-    private int jwtTtlHours = 168;
     /** 单个网关实例同时在转发的请求上限，超过直接 503，挡住突发把后端连接池和模型配额一起打满。0 不限。 */
     private int maxInFlight = 4000;
     /**
@@ -50,22 +48,6 @@ public class GatewayProperties {
 
     public void setAgentUri(String agentUri) {
         this.agentUri = agentUri;
-    }
-
-    public String getJwtSecret() {
-        return jwtSecret;
-    }
-
-    public void setJwtSecret(String jwtSecret) {
-        this.jwtSecret = jwtSecret;
-    }
-
-    public int getJwtTtlHours() {
-        return jwtTtlHours;
-    }
-
-    public void setJwtTtlHours(int jwtTtlHours) {
-        this.jwtTtlHours = jwtTtlHours;
     }
 
     public int getMaxInFlight() {

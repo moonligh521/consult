@@ -89,7 +89,7 @@ class OrderStopEvalTest {
                 (description, age, gender, allowTerms, candidates) -> {
                     calls.incrementAndGet();
                     return com.moonligh.consult.agent.domain.triage.ComplaintReply.failed(
-                            com.moonligh.consult.agent.domain.safety.ModelStatus.UNAVAILABLE, 0, null, null);
+                            com.moonligh.consult.framework.model.ModelStatus.UNAVAILABLE, 0, null, null);
                 },
                 null);
         ConsultationRes view = service.acceptMessage(null, "男，50岁，高血压，头晕三天");

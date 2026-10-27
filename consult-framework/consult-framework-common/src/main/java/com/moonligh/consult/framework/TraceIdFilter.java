@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.UUID;
 
 import org.slf4j.MDC;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import jakarta.servlet.FilterChain;
@@ -14,8 +13,8 @@ import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * 为每个请求设置 traceId：沿用请求头 {@code X-Trace-Id}，否则新建，并写入 MDC 与响应头。
+ * 由 {@link ConsultWebAutoConfiguration} 注册，不要再标 {@code @Component}。
  */
-@Component
 public class TraceIdFilter extends OncePerRequestFilter {
 
     public static final String HEADER = "X-Trace-Id";

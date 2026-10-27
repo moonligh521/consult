@@ -3,6 +3,8 @@ package com.moonligh.consult.agent.domain.safety;
 import java.time.Instant;
 import java.util.List;
 
+import com.moonligh.consult.framework.model.ModelStatus;
+
 /**
  * 一次安全决策的审计记录。不含原话文本。
  */

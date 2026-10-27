@@ -1,0 +1,2 @@
+com.moonligh.consult.security.AuthTokensAutoConfiguration
+com.moonligh.consult.security.AuthWebAutoConfiguration

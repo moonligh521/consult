@@ -6,9 +6,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * 登录与就诊人服务。
+ * 登录与就诊人服务。只扫 identity 包。框架靠 AutoConfiguration.imports 装载。
  */
-@SpringBootApplication(scanBasePackages = "com.moonligh.consult")
+@SpringBootApplication(scanBasePackages = "com.moonligh.consult.identity")
 public class IdentityApplication {
 
     private static final Logger log = LoggerFactory.getLogger(IdentityApplication.class);

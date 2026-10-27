@@ -7,6 +7,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.moonligh.consult.framework.model.ModelStatus;
+
 /**
  * 按急症目录匹配患者原话。
  * 步骤：归一 → 分句 → 找别名 → 看否定/时间 → 按规则写出处置。

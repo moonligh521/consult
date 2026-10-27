@@ -48,6 +48,8 @@ management:
     tags:
       application: ${spring.application.name}
 consult:
+  redisson:
+    enabled: false
   auth:
     jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
     jwt-ttl-hours: 168

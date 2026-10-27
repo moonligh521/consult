@@ -7,13 +7,13 @@ import org.springframework.stereotype.Repository;
 import org.springframework.web.client.RestClient;
 
 import com.moonligh.consult.agent.api.res.PatientRes;
-import com.moonligh.consult.agent.config.IdentityProperties;
 import com.moonligh.consult.agent.domain.patient.PatientRecord;
 import com.moonligh.consult.agent.domain.patient.PatientStore;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 import com.moonligh.consult.framework.Result;
 import com.moonligh.consult.security.AuthTokens;
+import com.moonligh.consult.security.ConsultAuthProperties;
 
 /**
  * 向身份服务核对就诊人归属。列表和新建不走咨询服务。
@@ -22,11 +22,11 @@ import com.moonligh.consult.security.AuthTokens;
 public class HttpPersonDirectory implements PatientStore {
 
     private final RestClient client;
-    private final IdentityProperties properties;
+    private final ConsultAuthProperties auth;
 
-    public HttpPersonDirectory(RestClient identityRestClient, IdentityProperties properties) {
+    public HttpPersonDirectory(RestClient identityRestClient, ConsultAuthProperties auth) {
         this.client = identityRestClient;
-        this.properties = properties;
+        this.auth = auth;
     }
 
     @Override
@@ -43,7 +43,7 @@ public class HttpPersonDirectory implements PatientStore {
             Result<PatientRes> body = client.get()
                     .uri("/internal/persons/{id}", patientId)
                     .header(AuthTokens.ACCOUNT_HEADER, accountId)
-                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, auth.getInternalToken())
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<PatientRes>>() {});
             if (body == null || !body.isSuccess() || body.getData() == null) {

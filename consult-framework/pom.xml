@@ -13,11 +13,15 @@
     <artifactId>consult-framework</artifactId>
     <packaging>pom</packaging>
     <name>consult-framework</name>
-    <description>问诊平台脚手架：公共模块，后续按能力再加 starter</description>
+    <description>问诊平台脚手架：BOM 统一版本 + common / 按能力拆分的自动配置模块</description>
 
     <modules>
+        <module>consult-framework-bom</module>
         <module>consult-framework-common</module>
         <module>consult-framework-security</module>
         <module>consult-framework-job</module>
+        <module>consult-framework-redis</module>
+        <module>consult-framework-model</module>
+        <module>consult-framework-mq</module>
     </modules>
 </project>

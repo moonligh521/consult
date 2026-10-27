@@ -15,7 +15,7 @@ import com.moonligh.consult.agent.domain.safety.SafetyGate;
 import com.moonligh.consult.agent.domain.safety.SafetyMetrics;
 import com.moonligh.consult.agent.domain.safety.SignalExtractor;
 import com.moonligh.consult.agent.infrastructure.model.DeepSeekSignalExtractor;
-import com.moonligh.consult.agent.infrastructure.model.ModelGateway;
+import com.moonligh.consult.framework.model.ModelGateway;
 import com.moonligh.consult.agent.infrastructure.safety.JdbcSafetyCatalogReleaseStore;
 
 /**

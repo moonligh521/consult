@@ -9,9 +9,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 import com.moonligh.consult.agent.api.req.PatientCreateReq;
 import com.moonligh.consult.agent.api.res.PatientRes;
-import com.moonligh.consult.agent.domain.patient.AccountIds;
 import com.moonligh.consult.agent.service.PatientService;
 import com.moonligh.consult.framework.Result;
+import com.moonligh.consult.security.AccountIds;
 
 import jakarta.servlet.http.HttpServletRequest;
 

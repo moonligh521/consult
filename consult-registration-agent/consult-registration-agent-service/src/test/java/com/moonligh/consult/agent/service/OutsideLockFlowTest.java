@@ -31,7 +31,7 @@ import com.moonligh.consult.agent.domain.safety.CatalogLoader;
 import com.moonligh.consult.agent.domain.safety.DisabledSignalExtractor;
 import com.moonligh.consult.agent.domain.safety.DraftMode;
 import com.moonligh.consult.agent.domain.safety.InMemorySafetyAuditRecorder;
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.ModelStatus;
 import com.moonligh.consult.agent.domain.safety.RuleSafetyEngine;
 import com.moonligh.consult.agent.domain.safety.SafetyGate;
 import com.moonligh.consult.agent.domain.safety.SafetyMetrics;

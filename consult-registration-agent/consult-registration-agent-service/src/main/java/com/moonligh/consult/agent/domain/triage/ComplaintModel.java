@@ -3,7 +3,7 @@ package com.moonligh.consult.agent.domain.triage;
 import java.util.List;
 
 import com.moonligh.consult.agent.api.enums.Gender;
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.ModelStatus;
 
 /**
  * 主诉模型：一次调用同时给出病名归约（N4）和挂科建议（N6）。只在规则定不了时调用。

@@ -10,12 +10,12 @@ import org.springframework.web.client.RestClient;
 
 import com.moonligh.consult.agent.api.res.AssignedDoctorRes;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
-import com.moonligh.consult.agent.config.IdentityProperties;
 import com.moonligh.consult.agent.domain.DoctorAssigner;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 import com.moonligh.consult.framework.Result;
 import com.moonligh.consult.security.AuthTokens;
+import com.moonligh.consult.security.ConsultAuthProperties;
 
 /**
  * 支付后向身份服务占坑派单。
@@ -24,11 +24,11 @@ import com.moonligh.consult.security.AuthTokens;
 public class HttpDoctorAssigner implements DoctorAssigner {
 
     private final RestClient client;
-    private final IdentityProperties properties;
+    private final ConsultAuthProperties auth;
 
-    public HttpDoctorAssigner(RestClient identityRestClient, IdentityProperties properties) {
+    public HttpDoctorAssigner(RestClient identityRestClient, ConsultAuthProperties auth) {
         this.client = identityRestClient;
-        this.properties = properties;
+        this.auth = auth;
     }
 
     @Override
@@ -92,7 +92,7 @@ public class HttpDoctorAssigner implements DoctorAssigner {
         try {
             Result<AssignedDoctorRes> body = client.post()
                     .uri("/internal/doctors/assign")
-                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, auth.getInternalToken())
                     .body(payload)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<AssignedDoctorRes>>() {});
@@ -119,7 +119,7 @@ public class HttpDoctorAssigner implements DoctorAssigner {
         try {
             client.post()
                     .uri("/internal/doctors/release")
-                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, auth.getInternalToken())
                     .body(payload)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<Void>>() {});
@@ -139,7 +139,7 @@ public class HttpDoctorAssigner implements DoctorAssigner {
         try {
             client.post()
                     .uri("/internal/doctors/extend")
-                    .header(AuthTokens.INTERNAL_HEADER, properties.getInternalToken())
+                    .header(AuthTokens.INTERNAL_HEADER, auth.getInternalToken())
                     .body(payload)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<Void>>() {});

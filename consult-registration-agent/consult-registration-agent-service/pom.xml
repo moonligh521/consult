@@ -22,6 +22,11 @@
         </dependency>
         <dependency>
             <groupId>com.moonligh</groupId>
+            <artifactId>consult-framework-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.moonligh</groupId>
             <artifactId>consult-framework-security</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -54,8 +59,19 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.redisson</groupId>
-            <artifactId>redisson</artifactId>
+            <groupId>com.moonligh</groupId>
+            <artifactId>consult-framework-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.moonligh</groupId>
+            <artifactId>consult-framework-model</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.moonligh</groupId>
+            <artifactId>consult-framework-mq</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>io.github.resilience4j</groupId>

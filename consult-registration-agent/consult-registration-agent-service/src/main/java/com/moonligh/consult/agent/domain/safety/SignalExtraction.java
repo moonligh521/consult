@@ -2,6 +2,8 @@ package com.moonligh.consult.agent.domain.safety;
 
 import java.util.List;
 
+import com.moonligh.consult.framework.model.ModelStatus;
+
 /**
  * 模型补漏的结果。失败时 status 不是 SUCCESS，signals 为空。
  */

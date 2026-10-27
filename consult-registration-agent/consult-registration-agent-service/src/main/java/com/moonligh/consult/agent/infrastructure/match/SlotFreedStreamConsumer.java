@@ -18,26 +18,30 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.StreamOperations;
 
 import com.moonligh.consult.agent.service.MatchDispatcher;
+import com.moonligh.consult.framework.redis.ConsultRedis;
+import com.moonligh.consult.framework.redis.RedisStreams;
 
 /**
  * 消费 Redis Stream 放号。消费组 consult-match，失败不 ACK，对账任务兜底。
  */
 public class SlotFreedStreamConsumer implements SmartLifecycle {
 
-    public static final String STREAM = "consult:stream:slot-freed";
-    public static final String GROUP = "consult-match";
+    public static final String STREAM = ConsultRedis.SLOT_FREED_STREAM;
+    public static final String GROUP = ConsultRedis.SLOT_FREED_GROUP;
 
     private static final Logger log = LoggerFactory.getLogger(SlotFreedStreamConsumer.class);
 
     private final StringRedisTemplate redis;
+    private final RedisStreams streams;
     private final MatchDispatcher dispatcher;
     private final String consumerName;
 
     private volatile boolean running;
     private Thread worker;
 
-    public SlotFreedStreamConsumer(StringRedisTemplate redis, MatchDispatcher dispatcher) {
+    public SlotFreedStreamConsumer(StringRedisTemplate redis, RedisStreams streams, MatchDispatcher dispatcher) {
         this.redis = redis;
+        this.streams = streams;
         this.dispatcher = dispatcher;
         this.consumerName = host() + "-" + UUID.randomUUID().toString().substring(0, 8);
     }
@@ -117,11 +121,7 @@ public class SlotFreedStreamConsumer implements SmartLifecycle {
     }
 
     private void ensureGroup() {
-        try {
-            redis.opsForStream().createGroup(STREAM, ReadOffset.from("0-0"), GROUP);
-        } catch (RuntimeException ignored) {
-            // BUSYGROUP：组已存在
-        }
+        streams.ensureGroup(STREAM, GROUP);
     }
 
     private static String string(Object value) {

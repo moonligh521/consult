@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import com.moonligh.consult.agent.api.req.PatientCreateReq;
 import com.moonligh.consult.agent.api.res.PatientRes;
-import com.moonligh.consult.agent.domain.patient.AccountIds;
 import com.moonligh.consult.agent.domain.patient.PatientRecord;
 import com.moonligh.consult.agent.domain.patient.PatientStore;
 import com.moonligh.consult.framework.BusinessException;
@@ -54,7 +53,10 @@ public class PatientService {
     }
 
     private String accountOf(String accountId) {
-        return AccountIds.orDefault(accountId);
+        if (accountId == null || accountId.isBlank()) {
+            throw new BusinessException(ErrorCode.LOGIN_REQUIRED);
+        }
+        return accountId.trim();
     }
 
     private String relationOf(String relation) {

@@ -2,7 +2,7 @@ package com.moonligh.consult.agent.domain.triage;
 
 import java.util.List;
 
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.ModelStatus;
 
 /**
  * 主诉模型一次回复。terms 与 specialty 是模型原样输出，引擎再校验；校验不过整段丢弃。

@@ -1,15 +1,11 @@
 package com.moonligh.consult.framework;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * 本机 Vue 开发页可以直连服务。生产由网关处理跨域。
+ * 本机 Vue 开发页可以直连服务。生产由网关处理跨域。由 {@link ConsultWebAutoConfiguration} 导入。
  */
-@Configuration
-@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class WebCorsConfiguration implements WebMvcConfigurer {
 
     @Override

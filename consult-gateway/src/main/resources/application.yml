@@ -51,11 +51,12 @@ management:
     tags:
       application: ${spring.application.name}
 consult:
+  auth:
+    jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
+    jwt-ttl-hours: 168
   gateway:
     identity-uri: ${IDENTITY_URI:http://127.0.0.1:18082}
     agent-uri: ${AGENT_URI:http://127.0.0.1:18081}
-    jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
-    jwt-ttl-hours: 168
     # 单实例在途请求上限，超出 503；按 网关实例数 × 本值 ≥ 目标峰值并发 × 1.5 配
     max-in-flight: ${GATEWAY_MAX_IN_FLIGHT:4000}
     # 前面有 SLB / Ingress 时设为代理层数，限流按真实客户端 IP

@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import com.moonligh.consult.agent.api.enums.Department;
 import com.moonligh.consult.agent.domain.department.MemoryDepartmentCatalog;
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.ModelStatus;
 import com.moonligh.consult.agent.domain.triage.ComplaintModel;
 import com.moonligh.consult.agent.domain.triage.ComplaintReply;
 import com.moonligh.consult.agent.domain.triage.DecisionSource;

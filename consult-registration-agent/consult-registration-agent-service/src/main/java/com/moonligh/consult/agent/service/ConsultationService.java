@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +17,7 @@ import com.moonligh.consult.agent.api.enums.ConsultationStatus;
 import com.moonligh.consult.agent.api.enums.Gender;
 import com.moonligh.consult.agent.api.enums.MissingSlot;
 import com.moonligh.consult.agent.api.req.CardPatchReq;
+import com.moonligh.consult.agent.api.event.OrderAssignedEvent;
 import com.moonligh.consult.agent.api.res.AssignedDoctorRes;
 import com.moonligh.consult.agent.api.res.ConsultOrderRes;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
@@ -43,7 +46,7 @@ import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
 import com.moonligh.consult.agent.domain.safety.Demographics;
 import com.moonligh.consult.agent.domain.safety.EvaluationKind;
 import com.moonligh.consult.agent.domain.safety.MessageSource;
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.ModelStatus;
 import com.moonligh.consult.agent.domain.safety.RuleSafetyEngine;
 import com.moonligh.consult.agent.domain.safety.SafetyAssessment;
 import com.moonligh.consult.agent.domain.safety.SafetyCatalog;
@@ -64,12 +67,16 @@ import com.moonligh.consult.agent.domain.triage.TriageResult;
 import com.moonligh.consult.agent.domain.triage.TriageRun;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
+import com.moonligh.consult.framework.mq.ConsultMqSender;
+import com.moonligh.consult.framework.mq.ConsultMqTopics;
 
 /**
  * 咨询编排：先存原话、先做安全评估，再走挂号业务。
  */
 @Service
 public class ConsultationService {
+
+    private static final Logger log = LoggerFactory.getLogger(ConsultationService.class);
 
     /** 当前请求的模型结论暂存。只在 runWithModelsOutsideLock 期间有值。 */
     private static final ThreadLocal<ModelMemo> MEMO = new ThreadLocal<>();
@@ -96,6 +103,8 @@ public class ConsultationService {
     private final DoctorAssigner doctorAssigner;
     /** Redis/内存派单队。测试可不接。 */
     private MatchDispatcher matchDispatcher;
+    /** 派单成功后同步医生端。没配 name-server 时不接。 */
+    private ConsultMqSender mqSender;
 
     public ConsultationService(
             ConsultationRepository repository,
@@ -179,6 +188,11 @@ public class ConsultationService {
     @Autowired(required = false)
     public void setMatchDispatcher(MatchDispatcher matchDispatcher) {
         this.matchDispatcher = matchDispatcher;
+    }
+
+    @Autowired(required = false)
+    public void setMqSender(ConsultMqSender mqSender) {
+        this.mqSender = mqSender;
     }
 
     /** 简写入口：不传 messageId。 */
@@ -361,12 +375,15 @@ public class ConsultationService {
                     entry.queuedGrade() <= 0 ? order.packageCode() : entry.queuedGrade(),
                     false);
             AtomicReference<Release> release = new AtomicReference<>();
+            AtomicReference<AssignedDoctorRes> attached = new AtomicReference<>();
             repository.runLocked(
                     snapshot.getId(),
-                    session -> attachDoctorLocked(session, order.orderId(), doctor, terms, release));
+                    session -> attachDoctorLocked(session, order.orderId(), doctor, terms, release, attached));
             Release pending = release.get();
             if (pending != null) {
                 doctorAssigner.release(pending.orderId(), pending.reason());
+            } else {
+                syncAssigned(snapshot.getId(), order.orderId(), attached.get());
             }
             return true;
         } catch (BusinessException error) {
@@ -773,8 +790,10 @@ public class ConsultationService {
             throw error;
         }
         AtomicReference<Release> release = new AtomicReference<>();
+        AtomicReference<AssignedDoctorRes> attached = new AtomicReference<>();
         ConsultationRes view = repository.runLocked(
-                consultationId, session -> attachDoctorLocked(session, order.orderId(), doctor, terms, release));
+                consultationId,
+                session -> attachDoctorLocked(session, order.orderId(), doctor, terms, release, attached));
         Release pending = release.get();
         if (pending != null) {
             try {
@@ -782,6 +801,8 @@ public class ConsultationService {
             } catch (RuntimeException error) {
                 // 派单途中问诊已结束：占坑交给身份侧超时扫描兜底
             }
+        } else {
+            syncAssigned(consultationId, order.orderId(), attached.get());
         }
         return view;
     }
@@ -802,7 +823,8 @@ public class ConsultationService {
             String orderId,
             AssignedDoctorRes doctor,
             List<String> terms,
-            AtomicReference<Release> release) {
+            AtomicReference<Release> release,
+            AtomicReference<AssignedDoctorRes> attached) {
         ConsultOrder current = session.getOrder();
         if (current == null || !orderId.equals(current.orderId()) || current.doctor() != null) {
             return buildResponse(session);
@@ -812,8 +834,27 @@ public class ConsultationService {
             return buildResponse(session);
         }
         session.setOrder(current.withDoctor(doctor));
+        if (attached != null) {
+            attached.set(doctor);
+        }
         recordAssign(session, orderId, doctor, terms);
         return buildResponse(session);
+    }
+
+    /** 本地已占坑后再通知医生端。没接 Broker 或发送失败不影响患者侧。 */
+    private void syncAssigned(String consultationId, String orderId, AssignedDoctorRes doctor) {
+        if (mqSender == null || doctor == null || orderId == null || orderId.isBlank()) {
+            return;
+        }
+        try {
+            mqSender.syncSendJson(
+                    ConsultMqTopics.orderAssigned(),
+                    new OrderAssignedEvent(
+                            orderId, consultationId, doctor.id(), doctor.specialty(), doctor.scheduleId()),
+                    orderId);
+        } catch (RuntimeException error) {
+            log.warn("订单同步医生端失败 orderId={}", orderId);
+        }
     }
 
     private ConsultationRes endConsultLocked(ConsultationSession session, String reason, AtomicReference<Release> release) {

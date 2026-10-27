@@ -2,6 +2,8 @@ package com.moonligh.consult.agent.domain.safety;
 
 import java.util.List;
 
+import com.moonligh.consult.framework.model.ModelStatus;
+
 /**
  * 一次安全评估的结果。锁存位由 SafetyPolicy.merge 写入会话。
  */

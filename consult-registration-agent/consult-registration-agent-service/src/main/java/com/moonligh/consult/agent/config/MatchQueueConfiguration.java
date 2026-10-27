@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.moonligh.consult.agent.domain.MatchBroker;
+import com.moonligh.consult.framework.redis.RedisStreams;
 import com.moonligh.consult.agent.domain.MemoryMatchBroker;
 import com.moonligh.consult.agent.infrastructure.match.RedissonMatchBroker;
 import com.moonligh.consult.agent.infrastructure.match.SlotFreedStreamConsumer;
@@ -57,10 +58,11 @@ public class MatchQueueConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(StringRedisTemplate.class)
+    @ConditionalOnBean({StringRedisTemplate.class, RedisStreams.class})
     public SlotFreedStreamConsumer slotFreedStreamConsumer(
             StringRedisTemplate redis,
+            RedisStreams streams,
             MatchDispatcher dispatcher) {
-        return new SlotFreedStreamConsumer(redis, dispatcher);
+        return new SlotFreedStreamConsumer(redis, streams, dispatcher);
     }
 }

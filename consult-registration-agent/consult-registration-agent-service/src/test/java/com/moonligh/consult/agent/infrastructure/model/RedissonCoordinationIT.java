@@ -19,7 +19,10 @@ import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
-import com.moonligh.consult.agent.config.ModelProperties;
+import com.moonligh.consult.framework.model.ModelProperties;
+import com.moonligh.consult.framework.model.ModelPurpose;
+import com.moonligh.consult.framework.model.ModelQuota;
+import com.moonligh.consult.framework.model.RedissonModelQuota;
 import com.moonligh.consult.agent.infrastructure.lock.RedissonConsultationGuard;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;

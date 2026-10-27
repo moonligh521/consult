@@ -100,12 +100,15 @@ consult:
   auth:
     jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
     jwt-ttl-hours: 168
+    internal-token: ${AUTH_INTERNAL_TOKEN:consult-internal}
   identity:
     base-url: ${IDENTITY_BASE_URL:http://127.0.0.1:18082}
-    internal-token: ${AUTH_INTERNAL_TOKEN:consult-internal}
     # 单实例同时打身份服务的上限（Resilience4j 舱壁）
     max-concurrency: ${IDENTITY_MAX_CONCURRENCY:200}
     max-wait: 200ms
+  # 问诊订单同步医生端。没配 name-server 时不创建 Sender，本地和单测不连 Broker。
+  mq:
+    enabled: ${ROCKETMQ_ENABLED:true}
   # 执行器。admin-addresses 写调度中心根地址，不要加 /xxl-job-admin。
   xxl:
     enabled: ${XXL_ENABLED:false}
@@ -116,3 +119,8 @@ consult:
     access-token: ${XXL_ACCESS_TOKEN:}
     log-path: ./logs/xxl-job
     log-retention-days: 30
+# 配了 name-server 才创建 RocketMQTemplate / ConsultMqSender。
+# rocketmq:
+#   name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+#   producer:
+#     group: consult-registration-agent-producer

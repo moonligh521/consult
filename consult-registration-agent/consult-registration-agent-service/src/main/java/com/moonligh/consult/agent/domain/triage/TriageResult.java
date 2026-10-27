@@ -2,7 +2,7 @@ package com.moonligh.consult.agent.domain.triage;
 
 import java.util.List;
 
-import com.moonligh.consult.agent.domain.safety.ModelStatus;
+import com.moonligh.consult.framework.model.ModelStatus;
 
 /**
  * 最近一次分诊结论，存在会话 triage_json。派医生只读这里，不再调模型。
