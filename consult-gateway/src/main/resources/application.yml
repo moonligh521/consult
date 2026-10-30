@@ -8,7 +8,7 @@ spring:
       - optional:file:./config/application-local.yml
       - optional:file:../../config/application-local.yml
   lifecycle:
-    timeout-per-shutdown-phase: 30s
+    timeout-per-shutdown-phase: 120s
   data:
     redis:
       host: 127.0.0.1
@@ -23,8 +23,8 @@ spring:
         webflux:
           httpclient:
             connect-timeout: 2000
-            # 盖住一次咨询消息最坏耗时（模型排队 + 安全模型重试 + 主诉模型），超过就 504
-            response-timeout: 15s
+            # 覆盖安全模型重试，以及主诉超时重试后再遇一次无效输出重试的最坏链路
+            response-timeout: 110s
             pool:
               type: fixed
               max-connections: 2000

@@ -81,6 +81,11 @@ public class DeepSeekComplaintModel implements ComplaintModel {
             return ComplaintReply.failed(ModelStatus.INVALID_OUTPUT, raw.latencyMs(), PROMPT_VERSION, raw.modelName());
         }
         ComplaintReply usable = stripIllegalTerms(parsed, allowTerms);
+        if (usable.terms().isEmpty()
+                && (usable.specialty() == null || usable.specialty().isBlank())) {
+            return ComplaintReply.failed(
+                    ModelStatus.INVALID_OUTPUT, raw.latencyMs(), PROMPT_VERSION, raw.modelName());
+        }
         if (!raw.cached()) {
             gateway.remember(key, json);
         }
@@ -145,9 +150,6 @@ public class DeepSeekComplaintModel implements ComplaintModel {
                         continue;
                     }
                     list.add(new ComplaintReply.ModelTerm(node.get("term").asText(), node.get("evidence").asText()));
-                    if (list.size() >= ComplaintCanon.MAX_TERMS) {
-                        break;
-                    }
                 }
             }
             String specialty = payload.hasNonNull("specialty") ? payload.get("specialty").asText() : null;

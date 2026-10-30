@@ -130,14 +130,42 @@ def _compact_view(original: str) -> Tuple[str, List[int], List[int]]:
     return "".join(compact), starts, ends
 
 
-def rewrite_informal(original: str) -> Tuple[str, str]:
-    """口语词表替换。没有命中时 rewritten 为空串。"""
+def _ascii_word(value: str) -> bool:
+    normalized = unicodedata.normalize("NFKC", value or "")
+    return bool(normalized) and all(ord(ch) <= 127 and ch.isalnum() for ch in normalized)
+
+
+def _ascii_boundaries(original: str, start: int, end: int) -> bool:
+    before = original[start - 1] if start > 0 else ""
+    after = original[end] if end < len(original) else ""
+    return not (_ascii_word(before) or _ascii_word(after))
+
+
+def _unsafe_informal_context(original: str, start: int, end: int) -> bool:
+    before = original[max(0, start - 16):start]
+    after = original[end:min(len(original), end + 12)]
+    negation_before = before
+    boundary = 0
+    for marker in ("但是", "但有", "不过", "可是", "然而", "现在有", "目前有", "后来有", "但"):
+        at = before.rfind(marker)
+        if at >= 0:
+            boundary = max(boundary, at + len(marker))
+    negation_before = before[boundary:]
+    return bool(
+        re.search(r"(没有|并非|不是|否认|不算|没|无|未)[^，。；,;.!?]{0,6}$", negation_before)
+        or re.search(r"(既往|以前|曾经|之前|老毛病|一直有)[^，。；,;.!?]{0,8}$", before)
+        or re.search(r"^[^，。；,;.!?]{0,3}(病史|多年|好几年|十几年|吃药控制)", after)
+        or re.search(r"(我妈|我爸|妈妈|爸爸|母亲|父亲|家人|家族)[^，。；,;.!?]{0,4}$", before)
+    )
+
+
+def _rewrite_informal_details(original: str) -> Tuple[str, List[Tuple[int, int, str, str]]]:
     entries = load_informal_entries()
     if not original or not entries:
-        return "", ""
+        return "", []
     compact, starts, ends = _compact_view(original)
     if not compact:
-        return "", ""
+        return "", []
     hits: List[Tuple[int, int, str, str]] = []
     index = 0
     while index < len(compact):
@@ -145,27 +173,39 @@ def rewrite_informal(original: str) -> Tuple[str, str]:
         for src, dst in entries:
             if not src or index + len(src) > len(compact):
                 continue
-            if compact.startswith(src, index) and (best is None or len(src) > len(best[0])):
+            end = index + len(src)
+            if not compact.startswith(src, index):
+                continue
+            if _ascii_word(src) and not _ascii_boundaries(original, starts[index], ends[end - 1]):
+                continue
+            if best is None or len(src) > len(best[0]):
                 best = (src, dst)
         if best is None:
             index += 1
             continue
         end = index + len(best[0])
         orig_start, orig_end = starts[index], ends[end - 1]
-        hits.append((orig_start, orig_end, original[orig_start:orig_end], best[1]))
+        if not _unsafe_informal_context(original, orig_start, orig_end):
+            hits.append((orig_start, orig_end, original[orig_start:orig_end], best[1]))
         index = end
     if not hits:
-        return "", ""
+        return "", []
     rewritten = original
     for orig_start, orig_end, _surface, dst in reversed(hits):
         rewritten = rewritten[:orig_start] + dst + rewritten[orig_end:]
-    return rewritten, hits[0][2]
+    return rewritten, hits
+
+
+def rewrite_informal(original: str) -> Tuple[str, str]:
+    """口语词表替换。没有安全命中时 rewritten 为空串。"""
+    rewritten, hits = _rewrite_informal_details(original)
+    return rewritten, hits[0][2] if hits else ""
 
 
 def lexicon_interpret(description: str, snap: Snapshot, age: Optional[int], gender: Optional[int],
                       candidates: Sequence[str]) -> Optional[RouteDecision]:
-    rewritten, evidence = rewrite_informal(description or "")
-    if not rewritten or not evidence or evidence not in (description or ""):
+    rewritten, hits = _rewrite_informal_details(description or "")
+    if not rewritten or not hits:
         return None
     decoded = canon_rule(rewritten, snap)
     routed = route(rewritten, decoded, snap, age=age, gender=gender)
@@ -174,9 +214,23 @@ def lexicon_interpret(description: str, snap: Snapshot, age: Optional[int], gend
     specialty = routed.advice.specialty
     if not specialty or (candidates and specialty not in candidates):
         return None
+    routed_evidence = routed.advice.evidence or ""
+    evidence = next(
+        (surface for _start, _end, surface, target in hits
+         if routed_evidence and (target in routed_evidence or routed_evidence in target)),
+        "",
+    )
+    if not evidence:
+        return None
     reason = "MODEL_TERM_ROUTED" if decoded.terms else "MODEL_PICK"
+    advice = Advice(
+        routed.advice.department,
+        routed.advice.department_code,
+        routed.advice.specialty,
+        evidence,
+    )
     return RouteDecision(
-        routed.advice, "UNCERTAIN", "MODEL", reason, list(candidates),
+        advice, "UNCERTAIN", "MODEL", reason, list(candidates),
         model_name="informal-lexicon", prompt_version="lexicon-v1")
 
 
@@ -1163,32 +1217,48 @@ class Replica:
         route_final = decision
         canon_final_reason = canon.reason
         canon_final_source = "RULE"
-        if not decision.certain():
-            route_fixed = decision.reason in ("UNCERTAIN_MARKER", "OVERRIDE")
+        route_fixed = decision.reason in ("UNCERTAIN_MARKER", "OVERRIDE")
+        need_model = not decision.certain() or (not canon.certain() and not route_fixed)
+        if need_model:
             if route_fixed and not canon.certain():
                 canon_final_reason = "SKIPPED_BY_ROUTE"
             else:
+                candidates = list(decision.candidates)
+                if decision.certain():
+                    candidates = list(dict.fromkeys(
+                        spec.name
+                        for department in self.snapshot.enabled
+                        for spec in department.specialties
+                    ))
+                    if self.snapshot.fallback.name not in candidates:
+                        candidates.append(self.snapshot.fallback.name)
                 modeled = lexicon_interpret(
-                    transcript or description, self.snapshot, age, gender, decision.candidates)
+                    transcript or description, self.snapshot, age, gender, candidates)
                 if modeled is None:
                     modeled = llm_interpret(
-                        transcript or description, self.snapshot, age, gender, decision.candidates)
+                        transcript or description, self.snapshot, age, gender, candidates)
                 if modeled is not None:
                     if not canon.certain():
                         canon_final_reason = "MODEL_TERMS" if modeled.reason == "MODEL_TERM_ROUTED" else "MODEL_NONE"
                         canon_final_source = "MODEL"
-                    route_final = modeled
+                    if not decision.certain():
+                        route_final = modeled
+                    elif (not canon.certain()
+                          and modeled.reason == "MODEL_TERM_ROUTED"
+                          and modeled.advice.specialty != decision.advice.specialty):
+                        route_final = modeled
                 else:
                     from complaint_llm import last_status, live_enabled
                     suffix = last_status() if live_enabled() else "UNAVAILABLE"
-                    if suffix not in ("UNAVAILABLE", "INVALID_OUTPUT"):
+                    if suffix not in ("TIMEOUT", "UNAVAILABLE", "INVALID_OUTPUT", "BUSY", "BREAKER_OPEN"):
                         suffix = "UNAVAILABLE"
                     if not canon.certain():
                         canon_final_reason = "MODEL_" + suffix
                         canon_final_source = "FALLBACK"
-                    route_final = RouteDecision(
-                        _fallback_advice(self.snapshot), "UNCERTAIN", "FALLBACK",
-                        "MODEL_" + suffix, list(decision.candidates))
+                    if not decision.certain():
+                        route_final = RouteDecision(
+                            _fallback_advice(self.snapshot), "UNCERTAIN", "FALLBACK",
+                            "MODEL_" + suffix, list(decision.candidates))
         symptoms = extract_symptoms(transcript or description, self.snapshot)
 
         gender_out = gender if gender is not None else parse_gender(transcript or description)

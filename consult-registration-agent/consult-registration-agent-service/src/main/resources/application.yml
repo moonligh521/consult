@@ -11,7 +11,8 @@ spring:
     virtual:
       enabled: true
   lifecycle:
-    timeout-per-shutdown-phase: 30s
+    # 最坏链路含安全模型重试，以及主诉超时重试后再遇一次无效输出重试
+    timeout-per-shutdown-phase: 110s
   datasource:
     # 行锁最多等 5 秒就报错，不让同一会话的并发请求排成长队拖住连接；批量写决策改写成多值 INSERT
     # 真实库地址和密码只写 gitignore 的 application-local.yml，本文件不放生产密钥。
@@ -40,7 +41,7 @@ department:
     double-delete-delay-ms: 1000
 server:
   port: 18081
-  # 滚动发布时先摘流量再停：处理中的请求最多再跑 30 秒（盖住模型排队 + 调用 + 派单）
+  # 滚动发布时先摘流量再停：由 spring.lifecycle 的 110 秒预算覆盖完整模型重试与收尾
   shutdown: graceful
   tomcat:
     # 虚拟线程下线程数不是瓶颈，连接数要盖住网关到单实例的峰值长连接

@@ -2,7 +2,8 @@ import axios from 'axios'
 
 /** 走 Vite 代理，开发时不用写后端地址。 */
 export const http = axios.create({
-  timeout: 20000,
+  // 覆盖安全模型与主诉模型的独立超时/无效输出重试，浏览器不能提前中断完整链路。
+  timeout: 115000,
 })
 
 http.interceptors.request.use((config) => {

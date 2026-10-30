@@ -1,6 +1,7 @@
 package com.moonligh.consult.agent.infrastructure.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -45,6 +46,45 @@ class LexiconComplaintModelTest {
         assertEquals(ModelStatus.SUCCESS, reply.status());
         assertEquals("呼吸内科", reply.specialty());
         assertTrue("ke sou，挂什么科啊".contains(reply.specialtyEvidence()));
+    }
+
+    @Test
+    void asciiAliasesOnlyMatchWholeTokens() {
+        InformalLexicon dictionary = InformalLexicon.load();
+        assertFalse(dictionary.rewrite("shivering").hit());
+        assertFalse(dictionary.rewrite("routine check").hit());
+        assertFalse(dictionary.rewrite("ｓhiv").hit());
+        assertFalse(dictionary.rewrite("hivｅ").hit());
+    }
+
+    @Test
+    void negatedHistoricalAndFamilyComplaintsDoNotBecomeCurrentDiseases() {
+        List<String> candidates = List.of("普内科", "全科");
+        assertEquals(ModelStatus.UNAVAILABLE,
+                lexicon.interpret("没有gaoxueya", 32, Gender.FEMALE, List.of("高血压"), candidates).status());
+        assertEquals(ModelStatus.UNAVAILABLE,
+                lexicon.interpret("以前gaoxueya", 32, Gender.FEMALE, List.of("高血压"), candidates).status());
+        assertEquals(ModelStatus.UNAVAILABLE,
+                lexicon.interpret("我妈有gaoxueya", 32, Gender.FEMALE, List.of("高血压"), candidates).status());
+        assertEquals(ModelStatus.UNAVAILABLE,
+                lexicon.interpret("不算gaoxueya", 32, Gender.FEMALE, List.of("高血压"), candidates).status());
+        assertEquals(ModelStatus.SUCCESS,
+                lexicon.interpret("gaoxueya三天", 32, Gender.FEMALE, List.of("高血压"), candidates).status());
+        assertEquals(ModelStatus.SUCCESS,
+                lexicon.interpret("没有发烧但有gaoxueya", 32, Gender.FEMALE, List.of("高血压"), candidates).status());
+    }
+
+    @Test
+    void specialtyEvidenceComesFromTheAliasThatDroveTheRoute() {
+        ComplaintReply reply = lexicon.interpret(
+                "touyun，gaoxueya",
+                32,
+                Gender.FEMALE,
+                List.of("高血压"),
+                List.of("神经内科", "普内科", "全科"));
+        assertEquals(ModelStatus.SUCCESS, reply.status());
+        assertEquals("普内科", reply.specialty());
+        assertEquals("gaoxueya", reply.specialtyEvidence());
     }
 
     @Test

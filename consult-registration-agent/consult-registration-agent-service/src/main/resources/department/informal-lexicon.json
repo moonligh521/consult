@@ -50,10 +50,6 @@
       "to": "失眠"
     },
     {
-      "from": "highbloodsugar",
-      "to": "糖尿病"
-    },
-    {
       "from": "abdominalpain",
       "to": "腹痛"
     },
@@ -292,10 +288,6 @@
     {
       "from": "insomnia",
       "to": "失眠"
-    },
-    {
-      "from": "neckpain",
-      "to": "颈椎病"
     },
     {
       "from": "niaotong",

@@ -4,6 +4,7 @@ import sys
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
+from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
@@ -500,6 +501,7 @@ class ReplicaInformalModelTest(unittest.TestCase):
         self.assertEqual("NO_HIT", result["route_rule_first_pass"]["reason"])
         self.assertEqual("MODEL", result["route"]["source"])
         self.assertEqual("呼吸内科", result["route"]["specialty"])
+        self.assertEqual("kesou", result["route"]["evidence"])
         self.assertNotEqual("MODEL_UNAVAILABLE", result["route"]["reason"])
 
     def test_english_cough_uses_model_slot(self):
@@ -530,6 +532,37 @@ class ReplicaInformalModelTest(unittest.TestCase):
             self.assertEqual("MODEL", result["route"]["source"])
             self.assertEqual("deepseek-v4-flash", result["route"].get("model_name"))
             self.assertNotEqual("全科", result["route"]["specialty"])
+
+    def test_certain_route_with_uncertain_canon_still_enters_model_slot(self):
+        """与 Java needModel 对齐：儿童分流已确定时，归约 NO_HIT 仍需调用模型。"""
+        with patch("rule_replica_v2.llm_interpret", return_value=None) as model:
+            self.replica.run("zzzzzz", gender=1, age=1)
+        model.assert_called_once()
+        candidates = model.call_args.args[-1]
+        self.assertIn("儿科", candidates)
+        self.assertIn("呼吸内科", candidates)
+
+    def test_timeout_failure_reason_is_not_collapsed_to_unavailable(self):
+        with (
+            patch("rule_replica_v2.llm_interpret", return_value=None),
+            patch("complaint_llm.live_enabled", return_value=True),
+            patch("complaint_llm.last_status", return_value="TIMEOUT"),
+        ):
+            result = self.replica.run("zzzzzz", gender=2, age=32)
+        self.assertEqual("MODEL_TIMEOUT", result["route"]["reason"])
+
+    def test_replica_lexicon_uses_ascii_boundaries_and_current_context(self):
+        from rule_replica_v2 import rewrite_informal
+        self.assertEqual(("", ""), rewrite_informal("shivering"))
+        self.assertEqual(("", ""), rewrite_informal("routine check"))
+        self.assertEqual(("", ""), rewrite_informal("ｓhiv"))
+        self.assertEqual(("", ""), rewrite_informal("hivｅ"))
+        self.assertEqual(("", ""), rewrite_informal("没有gaoxueya"))
+        self.assertEqual(("", ""), rewrite_informal("以前gaoxueya"))
+        self.assertEqual(("", ""), rewrite_informal("我妈有gaoxueya"))
+        self.assertEqual(("", ""), rewrite_informal("不算gaoxueya"))
+        self.assertEqual("gaoxueya", rewrite_informal("gaoxueya三天")[1])
+        self.assertEqual("gaoxueya", rewrite_informal("没有发烧但有gaoxueya")[1])
 
 
 class ComplaintLlmParseTest(unittest.TestCase):
@@ -573,6 +606,15 @@ class ComplaintLlmParseTest(unittest.TestCase):
         self.assertEqual([], got["terms"])
         self.assertEqual("呼吸内科", got["specialty"])
         self.assertEqual("kesou", got["evidence"])
+
+    def test_wholly_empty_model_output_is_invalid(self):
+        from complaint_llm import _parse
+        self.assertIsNone(_parse(
+            '{"terms":[],"specialty":"","specialtyEvidence":""}',
+            ["哮喘"],
+            ["呼吸内科", "全科"],
+            "kesou三天",
+        ))
 
 
 class ComplaintPromptTest(unittest.TestCase):

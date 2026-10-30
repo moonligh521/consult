@@ -6,6 +6,7 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +19,14 @@ public final class InformalLexicon {
     public static final String LOCATION = "/department/informal-lexicon.json";
 
     private static final InformalLexicon CACHED = read();
+    private static final Pattern NEGATED_BEFORE = Pattern.compile(
+            "(没有|并非|不是|否认|不算|没|无|未)[^，。；,;.!?]{0,6}$");
+    private static final Pattern HISTORY_BEFORE = Pattern.compile(
+            "(既往|以前|曾经|之前|老毛病|一直有)[^，。；,;.!?]{0,8}$");
+    private static final Pattern HISTORY_AFTER = Pattern.compile(
+            "^[^，。；,;.!?]{0,3}(病史|多年|好几年|十几年|吃药控制)");
+    private static final Pattern FAMILY_BEFORE = Pattern.compile(
+            "(我妈|我爸|妈妈|爸爸|母亲|父亲|家人|家族)[^，。；,;.!?]{0,4}$");
 
     private final List<Entry> entries;
 
@@ -52,7 +61,7 @@ public final class InformalLexicon {
         CompactView view = CompactView.of(original);
         int index = 0;
         while (index < view.compact.length()) {
-            if (longestAt(view.compact, index) != null) {
+            if (longestAt(original, view, index) != null) {
                 return true;
             }
             index++;
@@ -76,7 +85,7 @@ public final class InformalLexicon {
         List<Hit> hits = new ArrayList<>();
         int index = 0;
         while (index < view.compact.length()) {
-            Entry best = longestAt(view.compact, index);
+            Entry best = longestAt(original, view, index);
             if (best == null) {
                 index++;
                 continue;
@@ -84,7 +93,9 @@ public final class InformalLexicon {
             int end = index + best.from().length();
             int origStart = view.origStart[index];
             int origEnd = view.origEnd[end - 1];
-            hits.add(new Hit(origStart, origEnd, original.substring(origStart, origEnd), best.to()));
+            if (!unsafeContext(original, origStart, origEnd)) {
+                hits.add(new Hit(origStart, origEnd, original.substring(origStart, origEnd), best.to()));
+            }
             index = end;
         }
         if (hits.isEmpty()) {
@@ -95,17 +106,25 @@ public final class InformalLexicon {
             Hit hit = hits.get(i);
             rewritten.replace(hit.origStart(), hit.origEnd(), hit.to());
         }
-        return new Rewrite(rewritten.toString(), hits.get(0).surface());
+        List<Match> matches = hits.stream()
+                .map(hit -> new Match(hit.surface(), hit.to(), hit.origStart(), hit.origEnd()))
+                .toList();
+        return new Rewrite(rewritten.toString(), matches);
     }
 
-    private Entry longestAt(String compact, int index) {
+    private Entry longestAt(String original, CompactView view, int index) {
         Entry best = null;
         for (Entry entry : entries) {
             String from = entry.from();
-            if (from.isEmpty() || index + from.length() > compact.length()) {
+            if (from.isEmpty() || index + from.length() > view.compact.length()) {
                 continue;
             }
-            if (!compact.startsWith(from, index)) {
+            if (!view.compact.startsWith(from, index)) {
+                continue;
+            }
+            int end = index + from.length();
+            if (asciiWord(from)
+                    && !asciiBoundaries(original, view.origStart[index], view.origEnd[end - 1])) {
                 continue;
             }
             if (best == null || from.length() > best.from().length()) {
@@ -115,6 +134,56 @@ public final class InformalLexicon {
         return best;
     }
 
+    private static boolean asciiWord(String value) {
+        if (value.isEmpty()) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch > 127 || !Character.isLetterOrDigit(ch)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean asciiBoundaries(String original, int start, int end) {
+        int before = start > 0 ? original.codePointBefore(start) : -1;
+        int after = end < original.length() ? original.codePointAt(end) : -1;
+        return !asciiLetterOrDigit(before) && !asciiLetterOrDigit(after);
+    }
+
+    private static boolean asciiLetterOrDigit(int codePoint) {
+        if (codePoint < 0) {
+            return false;
+        }
+        String normalized = Normalizer.normalize(
+                new String(Character.toChars(codePoint)), Normalizer.Form.NFKC);
+        return !normalized.isEmpty()
+                && normalized.codePoints().allMatch(value ->
+                        value <= 127 && Character.isLetterOrDigit(value));
+    }
+
+    private static boolean unsafeContext(String original, int start, int end) {
+        String before = original.substring(Math.max(0, start - 16), start);
+        String after = original.substring(end, Math.min(original.length(), end + 12));
+        return NEGATED_BEFORE.matcher(afterLastContrast(before)).find()
+                || HISTORY_BEFORE.matcher(before).find()
+                || HISTORY_AFTER.matcher(after).find()
+                || FAMILY_BEFORE.matcher(before).find();
+    }
+
+    private static String afterLastContrast(String text) {
+        int boundary = 0;
+        for (String marker : List.of("但是", "但有", "不过", "可是", "然而", "现在有", "目前有", "后来有", "但")) {
+            int at = text.lastIndexOf(marker);
+            if (at >= 0) {
+                boundary = Math.max(boundary, at + marker.length());
+            }
+        }
+        return text.substring(boundary);
+    }
+
     public record Entry(String from, String to) {
         public Entry {
             from = from == null ? "" : from;
@@ -122,11 +191,22 @@ public final class InformalLexicon {
         }
     }
 
-    public record Rewrite(String rewritten, String evidence) {
-        static final Rewrite NONE = new Rewrite("", "");
+    public record Match(String surface, String target, int start, int end) {
+    }
+
+    public record Rewrite(String rewritten, List<Match> matches) {
+        static final Rewrite NONE = new Rewrite("", List.of());
+
+        public Rewrite {
+            matches = matches == null ? List.of() : List.copyOf(matches);
+        }
 
         public boolean hit() {
             return rewritten != null && !rewritten.isEmpty();
+        }
+
+        public String evidence() {
+            return matches.isEmpty() ? "" : matches.get(0).surface();
         }
     }
 

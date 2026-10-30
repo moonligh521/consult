@@ -130,6 +130,53 @@ class DeepSeekComplaintModelPromptTest {
     }
 
     @Test
+    void whollyEmptyOutputIsRetriedAndOnlyUsableOutputIsCached() {
+        AtomicInteger calls = new AtomicInteger();
+        AtomicInteger remembers = new AtomicInteger();
+        ModelGateway gateway = new ModelGateway(new ModelProperties(), null, new SimpleMeterRegistry()) {
+            @Override
+            public ModelReply chat(ModelPurpose purpose, String systemPrompt, String user, String cacheKey, int maxTokens) {
+                if (calls.incrementAndGet() == 1) {
+                    return new ModelReply(ModelStatus.SUCCESS,
+                            "{\"terms\":[],\"specialty\":\"\",\"specialtyEvidence\":\"\"}",
+                            1, "stub", false);
+                }
+                return new ModelReply(ModelStatus.SUCCESS,
+                        "{\"terms\":[],\"specialty\":\"呼吸内科\",\"specialtyEvidence\":\"kesou\"}",
+                        1, "stub", false);
+            }
+
+            @Override
+            public void remember(String cacheKey, String content) {
+                remembers.incrementAndGet();
+            }
+        };
+        ComplaintReply reply = new DeepSeekComplaintModel(gateway, MemoryDepartmentCatalog.seed())
+                .interpret("kesou三天", 32, Gender.FEMALE, List.of("哮喘"), List.of("呼吸内科", "全科"));
+        assertEquals(2, calls.get());
+        assertEquals(1, remembers.get());
+        assertEquals(ModelStatus.SUCCESS, reply.status());
+    }
+
+    @Test
+    void termLimitIsAppliedAfterIllegalTermsAreRemoved() {
+        AtomicReference<String> system = new AtomicReference<>();
+        ModelGateway gateway = gatewayReturning(system,
+                """
+                {"terms":[
+                  {"term":"咳嗽","evidence":"kesou"},
+                  {"term":"头痛","evidence":"toutong"},
+                  {"term":"哮喘","evidence":"xiaochuan"}
+                ],"specialty":"呼吸内科","specialtyEvidence":"kesou"}
+                """);
+        ComplaintReply reply = new DeepSeekComplaintModel(gateway, MemoryDepartmentCatalog.seed())
+                .interpret("kesou toutong xiaochuan", 32, Gender.FEMALE,
+                        List.of("哮喘"), List.of("呼吸内科", "全科"));
+        assertEquals(ModelStatus.SUCCESS, reply.status());
+        assertEquals(List.of(new ComplaintReply.ModelTerm("哮喘", "xiaochuan")), reply.terms());
+    }
+
+    @Test
     void complaintCallUsesTwoThousandMaxTokens() {
         AtomicInteger tokens = new AtomicInteger();
         ModelGateway gateway = new ModelGateway(new ModelProperties(), null, new SimpleMeterRegistry()) {

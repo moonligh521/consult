@@ -55,7 +55,7 @@ public class LexiconComplaintModel implements ComplaintModel {
         if (!usable(routed, candidates)) {
             return unavailable();
         }
-        String evidence = originalEvidence(description, rewrite.evidence());
+        String evidence = originalEvidence(description, rewrite, routed.advice().evidence());
         if (evidence == null) {
             return unavailable();
         }
@@ -67,7 +67,12 @@ public class LexiconComplaintModel implements ComplaintModel {
             if (!snapshot.isDisease(term.term())) {
                 continue;
             }
-            String termEvidence = description.contains(term.term()) ? term.term() : evidence;
+            String termEvidence = description.contains(term.term())
+                    ? term.term()
+                    : originalEvidence(description, rewrite, term.term());
+            if (termEvidence == null) {
+                continue;
+            }
             terms.add(new ComplaintReply.ModelTerm(term.term(), termEvidence));
         }
         return new ComplaintReply(
@@ -96,11 +101,20 @@ public class LexiconComplaintModel implements ComplaintModel {
         return candidates == null || candidates.isEmpty() || candidates.contains(specialty);
     }
 
-    private static String originalEvidence(String description, String evidence) {
-        if (description == null || evidence == null || evidence.isBlank() || !description.contains(evidence)) {
+    private static String originalEvidence(
+            String description,
+            InformalLexicon.Rewrite rewrite,
+            String routedEvidence) {
+        if (description == null || rewrite == null || routedEvidence == null || routedEvidence.isBlank()) {
             return null;
         }
-        return evidence;
+        for (InformalLexicon.Match match : rewrite.matches()) {
+            if ((match.target().contains(routedEvidence) || routedEvidence.contains(match.target()))
+                    && description.contains(match.surface())) {
+                return match.surface();
+            }
+        }
+        return null;
     }
 
     private static ComplaintReply unavailable() {
