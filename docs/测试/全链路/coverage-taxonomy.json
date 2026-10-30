@@ -1,0 +1,110 @@
+{
+  "version": "2026.10.29",
+  "coverage_dimensions": {
+    "catalog": "目录中的二级科是否有独立有效金标",
+    "safety": "急症临床大类与表达矩阵是否有临床审核样本",
+    "population": "会影响处置的人群分层是否有独立样本",
+    "expression": "同一医学意图是否覆盖真实表达族",
+    "complexity": "多病、不典型、病程变化与既往史干扰是否覆盖"
+  },
+  "coverage_weights": {
+    "catalog": 0.20,
+    "safety": 0.25,
+    "population": 0.20,
+    "expression": 0.20,
+    "complexity": 0.15
+  },
+  "targets": {
+    "catalog_specialties": 137,
+    "clinical_categories": 12,
+    "population_groups": 7,
+    "expression_families": 11,
+    "complexity_types": 9
+  },
+  "cross_targets": {
+    "safety_category_expression": {
+      "dimensions": ["clinical_category", "expression_family"],
+      "target_cells": 132,
+      "minimum_independent_intents_per_cell": 3
+    },
+    "population_expression": {
+      "dimensions": ["population_group", "expression_family"],
+      "target_cells": 77,
+      "minimum_independent_intents_per_cell": 2
+    },
+    "complexity_population": {
+      "dimensions": ["complexity_type", "population_group"],
+      "target_cells": 63,
+      "minimum_independent_intents_per_cell": 1
+    }
+  },
+  "clinical_categories": {
+    "cardiovascular": "胸痛与心血管",
+    "respiratory": "呼吸危象",
+    "neurological": "卒中、抽搐与意识障碍",
+    "hemorrhage": "严重出血",
+    "allergy_airway": "严重过敏与窒息",
+    "pediatric_emergency": "儿童急症",
+    "obstetric_emergency": "孕产急症",
+    "self_harm_poisoning": "自伤、自杀与过量服药",
+    "trauma": "严重外伤",
+    "poisoning": "中毒",
+    "acute_abdomen": "急腹症",
+    "high_risk_vague": "其他高危含糊表达"
+  },
+  "population_groups": [
+    "infant",
+    "child",
+    "adolescent",
+    "18-39",
+    "40-59",
+    "60-79",
+    "80+"
+  ],
+  "expression_families": [
+    "standard",
+    "colloquial",
+    "dialect",
+    "typo",
+    "pinyin",
+    "english",
+    "asr",
+    "negation",
+    "family_report",
+    "multiturn",
+    "mixed"
+  ],
+  "complexity_types": [
+    "single_typical",
+    "single_atypical",
+    "comorbid_same_department",
+    "comorbid_cross_department",
+    "history_interference",
+    "adverse_drug_reaction",
+    "chronic_acute_exacerbation",
+    "postoperative_or_postpartum",
+    "abnormal_test_without_symptom"
+  ],
+  "minimum_independent_intents": {
+    "catalog_specialty": 1,
+    "safety_category_expression_cell": 3,
+    "population_group": 30,
+    "expression_family": 30,
+    "complexity_type": 20,
+    "state_machine_transition": 5
+  },
+  "forbidden_imbalance_rules": {
+    "single_specialty_share_max": 0.05,
+    "single_safety_category_share_max": 0.15,
+    "single_population_group_share_max": 0.25,
+    "single_expression_family_share_max": 0.20,
+    "single_duplicate_cluster_share_max": 0.01,
+    "capacity_rows_contribute_to_coverage": false
+  },
+  "counting_rules": {
+    "raw_rows_are_coverage": false,
+    "duplicate_cluster_contribution": 1,
+    "replica_labels_are_clinical_gold": false,
+    "unknown_population_counts": false
+  }
+}

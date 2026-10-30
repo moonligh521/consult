@@ -10,6 +10,7 @@ import com.moonligh.consult.agent.domain.SpokenNormalizer;
 import com.moonligh.consult.agent.domain.department.CanonSynonym;
 import com.moonligh.consult.agent.domain.department.DepartmentCatalog;
 import com.moonligh.consult.agent.domain.department.DepartmentSnapshot;
+import com.moonligh.consult.agent.domain.department.InformalLexicon;
 import com.moonligh.consult.agent.domain.department.SpecialtyRef;
 import com.moonligh.consult.agent.domain.department.SynonymStatus;
 
@@ -30,7 +31,7 @@ public class ComplaintCanon {
 
     /** 全不中时，紧凑串至少这么长才算「说了具体内容」，交模型。 */
     static final int MIN_MODEL_LENGTH = 6;
-    static final int MAX_TERMS = 2;
+    public static final int MAX_TERMS = 2;
 
     private static final Pattern HISTORY_BEFORE = Pattern.compile("(既往|以前|曾经|之前|老毛病|一直有)[^，。；,;.!?]{0,6}$");
     private static final Pattern HISTORY_AFTER = Pattern.compile("^[^，。；,;.!?]{0,3}(病史|多年|好几年|十几年|吃药控制)");
@@ -97,8 +98,8 @@ public class ComplaintCanon {
         if (ambiguous) {
             return result(terms, history, symptoms, shadows, Certainty.UNCERTAIN, AMBIGUOUS_ONLY);
         }
-        // 拼音/拉丁字母可能是短主诉（kesou、头tong），仍交模型，不因字数不够直接全科
-        if (text.length() >= MIN_MODEL_LENGTH || hasLatinLetter(text)) {
+        // 拼音/拉丁字母/词表能解的短口误（kesou、克嗽）仍交模型，不因字数不够直接全科
+        if (text.length() >= MIN_MODEL_LENGTH || hasLatinLetter(text) || InformalLexicon.load().matches(description)) {
             return result(terms, history, symptoms, shadows, Certainty.UNCERTAIN, NO_HIT);
         }
         return result(terms, history, symptoms, shadows, Certainty.CERTAIN, TOO_SHORT);

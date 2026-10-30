@@ -9,27 +9,28 @@ spring:
   # 请求线程用虚拟线程：等模型、等身份服务时不占平台线程。并发闸门在连接池和模型信号量上。
   threads:
     virtual:
-      enabled: ${VIRTUAL_THREADS:true}
+      enabled: true
   lifecycle:
     timeout-per-shutdown-phase: 30s
   datasource:
     # 行锁最多等 5 秒就报错，不让同一会话的并发请求排成长队拖住连接；批量写决策改写成多值 INSERT
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true&sessionVariables=innodb_lock_wait_timeout=5
-    username: ${MYSQL_USER:root}
-    password: ${MYSQL_PASSWORD:your_password}
+    # 真实库地址和密码只写 gitignore 的 application-local.yml，本文件不放生产密钥。
+    url: jdbc:mysql://127.0.0.1:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true&sessionVariables=innodb_lock_wait_timeout=5
+    username: root
+    password: your_password
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       # 实例数 × 本值 + 身份服务连接数，要小于 MySQL max_connections 并留余量
-      maximum-pool-size: ${DB_POOL_SIZE:30}
-      minimum-idle: ${DB_POOL_MIN_IDLE:10}
+      maximum-pool-size: 30
+      minimum-idle: 10
       # 拿不到连接 3 秒就失败，别让请求在池子前排 30 秒把整个实例拖死
-      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:3000}
+      connection-timeout: 3000
       connection-init-sql: SET time_zone = '+08:00'
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      host: 127.0.0.1
+      port: 6379
+      password: ""
       timeout: 2s
 department:
   cache:
@@ -43,32 +44,34 @@ server:
   shutdown: graceful
   tomcat:
     # 虚拟线程下线程数不是瓶颈，连接数要盖住网关到单实例的峰值长连接
-    max-connections: ${TOMCAT_MAX_CONNECTIONS:10000}
-    accept-count: ${TOMCAT_ACCEPT_COUNT:500}
+    max-connections: 10000
+    accept-count: 500
     connection-timeout: 5s
 safety:
   catalog:
     location: classpath:safety/urgent-catalog.json
     draft-mode: SHADOW
 model:
-  api-key: ${DEEPSEEK_API_KEY:}
+  api-key: ""
   # 压测时指向 loadtest/wiremock 模拟的模型，避免压测流量打到真实账号
-  base-url: ${MODEL_BASE_URL:https://api.deepseek.com}
+  base-url: https://api.deepseek.com
   model-name: deepseek-v4-flash
   cache-ttl-hours: 168
   # max-concurrency 是单实例上限（舱壁）；global-max-concurrency 是全部实例合计（Redisson 配额），按供应商账号并发限额配，0 不启用
   safety:
-    timeout-ms: ${MODEL_SAFETY_TIMEOUT_MS:2500}
-    max-concurrency: ${MODEL_SAFETY_CONCURRENCY:32}
-    global-max-concurrency: ${MODEL_SAFETY_GLOBAL_CONCURRENCY:0}
-    acquire-wait-ms: ${MODEL_SAFETY_ACQUIRE_WAIT_MS:1500}
+    timeout-ms: 2500
+    max-concurrency: 32
+    global-max-concurrency: 0
+    acquire-wait-ms: 1500
     invalid-output-retries: 1
+    timeout-retries: 1
   complaint:
-    timeout-ms: ${MODEL_COMPLAINT_TIMEOUT_MS:2000}
-    max-concurrency: ${MODEL_COMPLAINT_CONCURRENCY:32}
-    global-max-concurrency: ${MODEL_COMPLAINT_GLOBAL_CONCURRENCY:0}
-    acquire-wait-ms: ${MODEL_COMPLAINT_ACQUIRE_WAIT_MS:800}
-    invalid-output-retries: 0
+    timeout-ms: 30000
+    max-concurrency: 32
+    global-max-concurrency: 0
+    acquire-wait-ms: 800
+    invalid-output-retries: 1
+    timeout-retries: 1
 inquiry:
   closed: false
   # 本档医生满员先排队；队头等超过该时间只提一档。扫描走 XXL matchUpgradeJob。
@@ -89,40 +92,40 @@ management:
       application: ${spring.application.name}
 consult:
   redisson:
-    enabled: ${REDISSON_ENABLED:true}
+    enabled: true
     # 哨兵/集群时指向 Redisson YAML；为空用上面 spring.data.redis 单机地址
-    config-file: ${REDISSON_CONFIG_FILE:}
+    config-file: ""
     timeout: 1s
-    pool-size: ${REDISSON_POOL_SIZE:64}
+    pool-size: 64
   guard:
-    lease: ${CONSULT_GUARD_LEASE:20s}
+    lease: 20s
   catalog:
     provision-demo: true
   auth:
-    jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
+    jwt-secret: consult-dev-jwt-secret-key-32bytes!
     jwt-ttl-hours: 168
-    internal-token: ${AUTH_INTERNAL_TOKEN:consult-internal}
+    internal-token: consult-internal
   identity:
-    base-url: ${IDENTITY_BASE_URL:http://127.0.0.1:18082}
+    base-url: http://127.0.0.1:18082
     # 单实例同时打身份服务的上限（Resilience4j 舱壁）
-    max-concurrency: ${IDENTITY_MAX_CONCURRENCY:200}
+    max-concurrency: 200
     max-wait: 200ms
   # 问诊订单同步医生端。没配 name-server 时不创建 Sender，本地和单测不连 Broker。
   mq:
-    enabled: ${ROCKETMQ_ENABLED:true}
+    enabled: true
   # 执行器。admin-addresses 写调度中心根地址，不要加 /xxl-job-admin。
   xxl:
-    enabled: ${XXL_ENABLED:false}
-    admin-addresses: ${XXL_ADMIN_ADDRESSES:http://127.0.0.1:18080}
+    enabled: false
+    admin-addresses: http://127.0.0.1:18080
     appname: consult-registration-agent
-    ip: ${XXL_EXECUTOR_IP:}
-    port: ${XXL_AGENT_EXECUTOR_PORT:19998}
-    access-token: ${XXL_ACCESS_TOKEN:}
+    ip: ""
+    port: 19998
+    access-token: ""
     log-path: ./logs/xxl-job
     log-retention-days: 30
 # 配了 name-server 才创建 RocketMQTemplate / ConsultMqSender。
 # 本地不配 Broker 时派单仍走身份服务 HTTP 占坑，只是不同步医生端 MQ。
 # rocketmq:
-#   name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
+#   name-server: 127.0.0.1:9876
 #   producer:
 #     group: consult-registration-agent-producer

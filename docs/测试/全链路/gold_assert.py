@@ -44,12 +44,12 @@ BY_REF = {
     ("S4-边界-负向", "NB6"): "SLOT:DURATION",
     ("S4-边界-负向", "NB7"): "SLOT:AGE",
     ("S4-边界-负向", "NB8"): "SPECIALTY:耳鼻咽喉科",
-    ("S4-边界-负向", "NB9"): "SPECIALTY:全科;FINAL:MODEL_UNAVAILABLE",
+    ("S4-边界-负向", "NB9"): "SPECIALTY:全科;SPECIALTY:睡眠医学科",
     ("S4-边界-负向", "NB9b"): "SPECIALTY:中医科",
     ("S4-边界-负向", "NB10"): "SPECIALTY:结核病科",
     ("S4-边界-负向", "NB11"): "SPECIALTY:骨科",
     ("S4-边界-负向", "NB12"): "SPECIALTY:普内科;SPECIALTY:全科",
-    ("S4-边界-负向", "NB13"): "SPECIALTY:全科;FINAL:MODEL_UNAVAILABLE",
+    ("S4-边界-负向", "NB13"): "SPECIALTY:全科;SPECIALTY:消化内科;SPECIALTY:口腔科",
     ("S4-边界-负向", "NB14"): "ERROR:1119",
     ("S4-边界-负向", "NB14b"): "ERROR:1119",
     ("S4-边界-负向", "NB15"): "STATUS:URGENT",
@@ -128,7 +128,24 @@ def assert_for(suite: str, case_ref: str, text: str) -> str:
             return "STATUS:URGENT" if word in ("胸痛", "呼吸困难", "意识障碍", "口唇发紫") \
                 else "SAFETY:PASS"
         return "SAFETY:PASS"
-    if suite in ("S13-确认-N7", "S14-派医生-N8", "S15-占坑-N9"):
+    if suite in ("S13-确认-N7", "S14-派医生-N8", "S15-占坑-N9", "S29-多轮-确认取消"):
+        return ""
+    if suite == "S31-安全红旗":
+        if case_ref.startswith("OFF") or case_ref in ("PAD", "OFF-CATALOG"):
+            return ""
+        base = case_ref.split("@")[0].replace("-TURN2", "")
+        if case_ref.endswith("@ENFORCE"):
+            if base.startswith("UNSUITABLE"):
+                return "SAFETY:UNSUITABLE"
+            return "STATUS:URGENT" if base.startswith("URG") else "STATUS:NEED_HUMAN"
+        if base.startswith("URG-BASE"):
+            return "STATUS:URGENT"
+        if base.startswith("HUMAN-BASE"):
+            return "STATUS:NEED_HUMAN"
+        if base.startswith("URG-DRAFT") or base.startswith("UNSUITABLE"):
+            return "SAFETY:PASS"
+        return ""
+    if suite == "S26-多轮-补槽" and case_ref and "对照" not in (text or ""):
         return ""
     return ""
 

@@ -112,7 +112,7 @@ public class ModelGateway {
             return ModelReply.failed(ModelStatus.BREAKER_OPEN, 0, props.getModelName());
         }
         try {
-            ModelReply reply = send(system, user, lane.getTimeoutMs(), maxTokens, started);
+            ModelReply reply = send(purpose, system, user, lane.getTimeoutMs(), maxTokens, started);
             breaker.record(reply.status() == ModelStatus.SUCCESS);
             count(purpose, reply.status(), false);
             Timer.builder("triage_model_latency")
@@ -143,7 +143,7 @@ public class ModelGateway {
         return breakers.get(purpose).isOpen();
     }
 
-    private ModelReply send(String system, String user, int timeoutMs, int maxTokens, long started) {
+    private ModelReply send(ModelPurpose purpose, String system, String user, int timeoutMs, int maxTokens, long started) {
         if (!hasKey()) {
             return ModelReply.failed(ModelStatus.UNAVAILABLE, 0, props.getModelName());
         }
@@ -153,6 +153,9 @@ public class ModelGateway {
             root.put("temperature", 0);
             if (maxTokens > 0) {
                 root.put("max_tokens", maxTokens);
+            }
+            if (purpose == ModelPurpose.COMPLAINT) {
+                root.set("response_format", MAPPER.createObjectNode().put("type", "json_object"));
             }
             var messages = MAPPER.createArrayNode();
             messages.add(MAPPER.createObjectNode().put("role", "system").put("content", system));

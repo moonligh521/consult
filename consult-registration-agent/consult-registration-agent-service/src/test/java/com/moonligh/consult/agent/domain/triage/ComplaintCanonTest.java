@@ -127,6 +127,10 @@ class ComplaintCanonTest {
         CanonResult mixed = canon.rule("头tong", seed);
         assertEquals(ComplaintCanon.NO_HIT, mixed.reason());
         assertFalse(mixed.certain());
+
+        CanonResult typo = canon.rule("克嗽三天", seed);
+        assertEquals(ComplaintCanon.NO_HIT, typo.reason());
+        assertFalse(typo.certain());
     }
 
     @Test

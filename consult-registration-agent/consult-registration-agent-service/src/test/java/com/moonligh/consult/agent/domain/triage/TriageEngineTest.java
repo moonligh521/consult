@@ -72,12 +72,13 @@ class TriageEngineTest {
     }
 
     @Test
-    void termOutsideAllowListDiscardsWholeReply() {
+    void illegalTermsAreDroppedButValidSpecialtyIsKept() {
         TriageResult result = engine((d, a, g, t, c) -> reply(
                 List.of(new ComplaintReply.ModelTerm("脑瘤", "头晕")), "神经内科")).run(in("头晕乏力一周")).result();
-        assertEquals(ModelStatus.INVALID_OUTPUT, result.modelStatus());
+        assertEquals(ModelStatus.SUCCESS, result.modelStatus());
         assertTrue(result.canonicalTerms().isEmpty());
-        assertEquals(Department.GENERAL, result.route().advice().department());
+        assertEquals(RouteDecision.MODEL_PICK, result.route().reason());
+        assertEquals("神经内科", result.route().advice().specialty());
     }
 
     @Test

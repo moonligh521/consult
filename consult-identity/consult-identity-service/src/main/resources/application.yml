@@ -7,34 +7,35 @@ spring:
       - optional:file:../../config/application-local.yml
   threads:
     virtual:
-      enabled: ${VIRTUAL_THREADS:true}
+      enabled: true
   lifecycle:
     timeout-per-shutdown-phase: 20s
   datasource:
     # 和挂号服务共用一个库（派单直接 JOIN 科室目录表），两边实例数 × 连接池之和要小于 max_connections
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai&sessionVariables=innodb_lock_wait_timeout=5
-    username: ${MYSQL_USER:root}
-    password: ${MYSQL_PASSWORD:your_password}
+    # 真实库地址和密码只写 gitignore 的 application-local.yml，本文件不放生产密钥。
+    url: jdbc:mysql://127.0.0.1:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai&sessionVariables=innodb_lock_wait_timeout=5
+    username: root
+    password: your_password
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
-      maximum-pool-size: ${DB_POOL_SIZE:20}
-      minimum-idle: ${DB_POOL_MIN_IDLE:5}
-      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:3000}
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 3000
       connection-init-sql: SET time_zone = '+08:00'
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      host: 127.0.0.1
+      port: 6379
+      password: ""
       timeout: 2s
 server:
   port: 18082
-  # 本机开发只监听回环；容器里设 SERVER_ADDRESS=0.0.0.0，靠 NetworkPolicy 只放行网关和挂号服务
-  address: ${SERVER_ADDRESS:127.0.0.1}
+  # 本机开发只监听回环；容器里在 Nacos / application-local.yml 改成 0.0.0.0，靠 NetworkPolicy 只放行网关和挂号服务
+  address: 127.0.0.1
   shutdown: graceful
   tomcat:
-    max-connections: ${TOMCAT_MAX_CONNECTIONS:10000}
-    accept-count: ${TOMCAT_ACCEPT_COUNT:500}
+    max-connections: 10000
+    accept-count: 500
     connection-timeout: 5s
 management:
   endpoints:
@@ -52,21 +53,21 @@ consult:
   redisson:
     enabled: false
   auth:
-    jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
+    jwt-secret: consult-dev-jwt-secret-key-32bytes!
     jwt-ttl-hours: 168
     sms-ttl-seconds: 300
     sms-interval-seconds: 60
-    sms-dev-code: ${AUTH_SMS_DEV_CODE:000000}
-    internal-token: ${AUTH_INTERNAL_TOKEN:consult-internal}
-    admin-username: ${AUTH_ADMIN_USERNAME:admin}
-    admin-password: ${AUTH_ADMIN_PASSWORD:admin1234}
+    sms-dev-code: "000000"
+    internal-token: consult-internal
+    admin-username: admin
+    admin-password: admin1234
   # 执行器。admin-addresses 写调度中心根地址，不要加 /xxl-job-admin。
   xxl:
-    enabled: ${XXL_ENABLED:false}
-    admin-addresses: ${XXL_ADMIN_ADDRESSES:http://127.0.0.1:18080}
+    enabled: false
+    admin-addresses: http://127.0.0.1:18080
     appname: consult-identity
-    ip: ${XXL_EXECUTOR_IP:}
-    port: ${XXL_EXECUTOR_PORT:19999}
-    access-token: ${XXL_ACCESS_TOKEN:}
+    ip: ""
+    port: 19999
+    access-token: ""
     log-path: ./logs/xxl-job
     log-retention-days: 30

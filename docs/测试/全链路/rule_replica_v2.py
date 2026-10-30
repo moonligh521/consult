@@ -16,7 +16,8 @@
     N4  ComplaintCanon.rule（规则层，不含模型）
     N5  SymptomExtractor.extract
     N6  DepartmentRouter.route（CERTAIN 不调模型）
-    -   TriageEngine.run 的融合顺序（模型不可用时 → source=FALLBACK）
+    -   TriageEngine.run 的融合：NO_HIT 先走 informal-lexicon.json 词表模型，解不出再打 DeepSeek；
+        评测不得关模型，密钥缺失直接失败。
 
 会话状态常量对照 ConsultationStatus：
 1 待描述 NEED_DESCRIPTION / 2 待补槽 NEED_SLOT / 3 急症分流 URGENT /
@@ -35,6 +36,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 AGENT_RES = ROOT / "consult-registration-agent" / "consult-registration-agent-service" / "src" / "main" / "resources"
 CATALOG_JSON = AGENT_RES / "department" / "catalog-seed.json"
+INFORMAL_JSON = AGENT_RES / "department" / "informal-lexicon.json"
 URGENT_JSON = AGENT_RES / "safety" / "urgent-catalog.json"
 
 # ---------------------------------------------------------------- N3 槽位
@@ -90,6 +92,126 @@ def compact_text(original: str) -> str:
     """Java CompactText.of：NFKC → 去空白 → 转小写。"""
     nfkc = unicodedata.normalize("NFKC", original or "")
     return "".join(ch for ch in nfkc if not ch.isspace()).lower()
+
+
+_INFORMAL_ENTRIES: Optional[List[Tuple[str, str]]] = None
+
+
+def load_informal_entries() -> List[Tuple[str, str]]:
+    global _INFORMAL_ENTRIES
+    if _INFORMAL_ENTRIES is None:
+        payload = json.loads(INFORMAL_JSON.read_text(encoding="utf-8"))
+        items = [
+            (str(item.get("from") or ""), str(item.get("to") or ""))
+            for item in payload.get("entries") or []
+            if item.get("from") and item.get("to")
+        ]
+        items.sort(key=lambda pair: (-len(pair[0]), pair[0]))
+        _INFORMAL_ENTRIES = items
+    return _INFORMAL_ENTRIES
+
+
+def _compact_view(original: str) -> Tuple[str, List[int], List[int]]:
+    src = original or ""
+    compact: List[str] = []
+    starts: List[int] = []
+    ends: List[int] = []
+    index = 0
+    while index < len(src):
+        nxt = index + 1
+        ch = src[index]
+        if not ch.isspace():
+            piece = unicodedata.normalize("NFKC", ch)
+            for mapped in piece:
+                compact.append(mapped.lower())
+                starts.append(index)
+                ends.append(nxt)
+        index = nxt
+    return "".join(compact), starts, ends
+
+
+def rewrite_informal(original: str) -> Tuple[str, str]:
+    """口语词表替换。没有命中时 rewritten 为空串。"""
+    entries = load_informal_entries()
+    if not original or not entries:
+        return "", ""
+    compact, starts, ends = _compact_view(original)
+    if not compact:
+        return "", ""
+    hits: List[Tuple[int, int, str, str]] = []
+    index = 0
+    while index < len(compact):
+        best: Optional[Tuple[str, str]] = None
+        for src, dst in entries:
+            if not src or index + len(src) > len(compact):
+                continue
+            if compact.startswith(src, index) and (best is None or len(src) > len(best[0])):
+                best = (src, dst)
+        if best is None:
+            index += 1
+            continue
+        end = index + len(best[0])
+        orig_start, orig_end = starts[index], ends[end - 1]
+        hits.append((orig_start, orig_end, original[orig_start:orig_end], best[1]))
+        index = end
+    if not hits:
+        return "", ""
+    rewritten = original
+    for orig_start, orig_end, _surface, dst in reversed(hits):
+        rewritten = rewritten[:orig_start] + dst + rewritten[orig_end:]
+    return rewritten, hits[0][2]
+
+
+def lexicon_interpret(description: str, snap: Snapshot, age: Optional[int], gender: Optional[int],
+                      candidates: Sequence[str]) -> Optional[RouteDecision]:
+    rewritten, evidence = rewrite_informal(description or "")
+    if not rewritten or not evidence or evidence not in (description or ""):
+        return None
+    decoded = canon_rule(rewritten, snap)
+    routed = route(rewritten, decoded, snap, age=age, gender=gender)
+    if not routed.certain() or routed.reason in ("NO_HIT_SHORT", "UNCERTAIN_MARKER"):
+        return None
+    specialty = routed.advice.specialty
+    if not specialty or (candidates and specialty not in candidates):
+        return None
+    reason = "MODEL_TERM_ROUTED" if decoded.terms else "MODEL_PICK"
+    return RouteDecision(
+        routed.advice, "UNCERTAIN", "MODEL", reason, list(candidates),
+        model_name="informal-lexicon", prompt_version="lexicon-v1")
+
+
+def llm_interpret(description: str, snap: Snapshot, age: Optional[int], gender: Optional[int],
+                  candidates: Sequence[str]) -> Optional[RouteDecision]:
+    from complaint_llm import PROMPT_VERSION, interpret, live_enabled
+    if not live_enabled():
+        return None
+    allow = list(snap.disease_index)
+    got = interpret(
+        description, age, gender, allow, list(candidates or []),
+        catalog_version=snap.version)
+    if not got:
+        return None
+    model_name = got.get("model_name") or ""
+    prompt_version = got.get("prompt_version") or PROMPT_VERSION
+    terms = got.get("terms") or []
+    if terms:
+        canon_model = CanonResult(
+            terms=[(item.get("term") or "", item.get("evidence") or "") for item in terms],
+            certainty="CERTAIN", source="MODEL", reason="MODEL_TERMS")
+        routed = route(description, canon_model, snap, age=age, gender=gender)
+        if routed.certain() and (not candidates or routed.advice.specialty in candidates):
+            return RouteDecision(
+                routed.advice, "UNCERTAIN", "MODEL", "MODEL_TERM_ROUTED", list(candidates),
+                model_name=model_name, prompt_version=prompt_version)
+    ref = snap.ref_of_specialty(got["specialty"])
+    if ref is None:
+        return None
+    if candidates and got["specialty"] not in candidates:
+        return None
+    return RouteDecision(
+        _advice_of(snap, ref, got.get("evidence") or got["specialty"]),
+        "UNCERTAIN", "MODEL", "MODEL_PICK", list(candidates),
+        model_name=model_name, prompt_version=prompt_version)
 
 
 # ---------------------------------------------------------------- 数据载体
@@ -175,6 +297,8 @@ class RouteDecision:
     source: str
     reason: str
     candidates: List[str] = field(default_factory=list)
+    model_name: str = ""
+    prompt_version: str = ""
 
     def certain(self) -> bool:
         return self.certainty == "CERTAIN"
@@ -430,7 +554,9 @@ def canon_rule(description: str, snap: Snapshot) -> CanonResult:
         return CanonResult(symptoms=symptoms, shadows=shadows, certainty="CERTAIN", reason="SYMPTOM_ONLY")
     if ambiguous:
         return CanonResult(symptoms=symptoms, shadows=shadows, certainty="UNCERTAIN", reason="AMBIGUOUS_ONLY")
-    if len(text) >= CANON_MIN_MODEL_LENGTH or any(("a" <= ch <= "z") or ("A" <= ch <= "Z") for ch in text):
+    if (len(text) >= CANON_MIN_MODEL_LENGTH
+            or any(("a" <= ch <= "z") or ("A" <= ch <= "Z") for ch in text)
+            or bool(rewrite_informal(description)[0])):
         return CanonResult(symptoms=symptoms, shadows=shadows, certainty="UNCERTAIN", reason="NO_HIT")
     return CanonResult(symptoms=symptoms, shadows=shadows, certainty="CERTAIN", reason="TOO_SHORT")
 
@@ -1025,33 +1151,49 @@ class Replica:
 
     def run(self, description: str, gender: Optional[int] = None, age: Optional[int] = None,
             turns: int = 1, prior_messages: Optional[Sequence[str]] = None) -> dict:
-        """跑一次完整链路，返回逐节点结论。turns 用于 N2「只追问一次」判定。"""
+        """跑一次完整链路。多轮时安全/挂科/槽位看整段对话，含糊只看当前这句。"""
         messages = list(prior_messages or [])
         messages.append(description)
+        transcript = "，".join(item for item in messages if item and item.strip())
         view = self.safety.evaluate(messages)
-        canon = canon_rule(description, self.snapshot)
-        decision = route(description, canon, self.snapshot, age=age, gender=gender)
+        canon = canon_rule(transcript or description, self.snapshot)
+        decision = route(transcript or description, canon, self.snapshot, age=age, gender=gender)
 
-        # TriageEngine 融合：模型不可用（ComplaintModel.unavailable → ModelStatus.UNAVAILABLE）
+        # TriageEngine 融合：不确定先走词表模型，再走 DeepSeek；两层都解不出才 FALLBACK。
         route_final = decision
         canon_final_reason = canon.reason
         canon_final_source = "RULE"
         if not decision.certain():
             route_fixed = decision.reason in ("UNCERTAIN_MARKER", "OVERRIDE")
-            if canon.certain():
-                canon_final_reason = canon.reason
-            elif route_fixed:
+            if route_fixed and not canon.certain():
                 canon_final_reason = "SKIPPED_BY_ROUTE"
             else:
-                canon_final_reason = "MODEL_UNAVAILABLE"
-                canon_final_source = "FALLBACK"
-            route_final = RouteDecision(_fallback_advice(self.snapshot), "UNCERTAIN", "FALLBACK",
-                                        "MODEL_UNAVAILABLE", list(decision.candidates))
-        symptoms = extract_symptoms(description, self.snapshot)
+                modeled = lexicon_interpret(
+                    transcript or description, self.snapshot, age, gender, decision.candidates)
+                if modeled is None:
+                    modeled = llm_interpret(
+                        transcript or description, self.snapshot, age, gender, decision.candidates)
+                if modeled is not None:
+                    if not canon.certain():
+                        canon_final_reason = "MODEL_TERMS" if modeled.reason == "MODEL_TERM_ROUTED" else "MODEL_NONE"
+                        canon_final_source = "MODEL"
+                    route_final = modeled
+                else:
+                    from complaint_llm import last_status, live_enabled
+                    suffix = last_status() if live_enabled() else "UNAVAILABLE"
+                    if suffix not in ("UNAVAILABLE", "INVALID_OUTPUT"):
+                        suffix = "UNAVAILABLE"
+                    if not canon.certain():
+                        canon_final_reason = "MODEL_" + suffix
+                        canon_final_source = "FALLBACK"
+                    route_final = RouteDecision(
+                        _fallback_advice(self.snapshot), "UNCERTAIN", "FALLBACK",
+                        "MODEL_" + suffix, list(decision.candidates))
+        symptoms = extract_symptoms(transcript or description, self.snapshot)
 
-        gender_out = gender if gender is not None else parse_gender(description)
-        age_out = age if age is not None else parse_age(description)
-        duration_out = parse_duration(description)
+        gender_out = gender if gender is not None else parse_gender(transcript or description)
+        age_out = age if age is not None else parse_age(transcript or description)
+        duration_out = parse_duration(transcript or description)
         missing = next_missing(gender_out, age_out, duration_out)
 
         vague = is_vague(description, self.snapshot)
@@ -1107,6 +1249,8 @@ class Replica:
                 "source": route_final.source,
                 "certainty": route_final.certainty,
                 "candidates": route_final.candidates,
+                "model_name": route_final.model_name,
+                "prompt_version": route_final.prompt_version,
             },
             "route_rule_first_pass": {
                 "reason": decision.reason,

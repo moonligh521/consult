@@ -19,7 +19,7 @@ public class ModelProperties {
      * 模型已在会话锁外调用，排队等一会儿不再占数据库连接，比 50ms 拿不到就判繁忙、整单安全降级划算。
      */
     private final Lane safety = new Lane(2500, 32, 1500, 1);
-    private final Lane complaint = new Lane(2000, 32, 800, 0);
+    private final Lane complaint = new Lane(30000, 32, 800, 1);
 
     public Lane lane(ModelPurpose purpose) {
         return purpose == ModelPurpose.SAFETY ? safety : complaint;
@@ -71,6 +71,8 @@ public class ModelProperties {
         private int maxConcurrency;
         private int acquireWaitMs;
         private int invalidOutputRetries;
+        /** 超时后额外再打的次数，主诉默认 1（总共两次）。 */
+        private int timeoutRetries = 1;
         /** 全部实例合计的并发上限，按供应商账号限额配；0 表示不设全局配额，只靠单实例 maxConcurrency。 */
         private int globalMaxConcurrency;
 
@@ -82,6 +84,7 @@ public class ModelProperties {
             this.maxConcurrency = maxConcurrency;
             this.acquireWaitMs = acquireWaitMs;
             this.invalidOutputRetries = invalidOutputRetries;
+            this.timeoutRetries = 1;
         }
 
         public int getTimeoutMs() {
@@ -114,6 +117,14 @@ public class ModelProperties {
 
         public void setInvalidOutputRetries(int invalidOutputRetries) {
             this.invalidOutputRetries = invalidOutputRetries;
+        }
+
+        public int getTimeoutRetries() {
+            return timeoutRetries;
+        }
+
+        public void setTimeoutRetries(int timeoutRetries) {
+            this.timeoutRetries = timeoutRetries;
         }
 
         public int getGlobalMaxConcurrency() {

@@ -5,7 +5,8 @@ import java.util.List;
 import com.moonligh.consult.framework.model.ModelStatus;
 
 /**
- * 主诉模型一次回复。terms 与 specialty 是模型原样输出，引擎再校验；校验不过整段丢弃。
+ * 主诉模型一次回复。terms 与 specialty 是模型原样输出，引擎再校验；
+ * 非法病名丢掉，挂科合格仍可用。
  */
 public record ComplaintReply(
         ModelStatus status,

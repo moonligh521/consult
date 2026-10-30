@@ -49,3 +49,8 @@ dist/
 # Generated eval overflow and Python cache
 __pycache__/
 *.next.csv
+docs/测试/全链路/.complaint-llm-cache.json
+docs/测试/全链路/.complaint-llm-fails.jsonl
+docs/测试/全链路/_*.csv
+docs/测试/全链路/real-traffic-raw*.csv
+docs/测试/全链路/real-traffic-deidentified*.csv

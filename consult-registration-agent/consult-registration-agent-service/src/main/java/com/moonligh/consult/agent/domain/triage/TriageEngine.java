@@ -24,7 +24,7 @@ import com.moonligh.consult.framework.model.ModelStatus;
  *   <li>规则 CERTAIN 时 {@code needModel=false}，禁止调模型。</li>
  *   <li>N4 失败（resolved=false）时 N6 不信孤立症状，只落全科。</li>
  *   <li>模型给了病名，挂科仍由目录规则映射（规则路由模型输出）。</li>
- *   <li>模型输出任一项不合格，整段丢弃，走 FALLBACK。</li>
+ *   <li>非法病名丢掉；挂科合格仍可用。两者都没有才 FALLBACK。</li>
  * </ul>
  */
 public class TriageEngine {
@@ -74,9 +74,11 @@ public class TriageEngine {
             modelTerms = validTerms(reply, description, haystack, snapshot);
             modelSpecialty = validSpecialty(reply, description, candidates);
             if (modelTerms == null) {
-                status = ModelStatus.INVALID_OUTPUT;
                 modelTerms = List.of();
-                modelSpecialty = null;
+            }
+            if (modelTerms.isEmpty() && modelSpecialty == null
+                    && (reply.specialty() == null || reply.specialty().isBlank())) {
+                status = ModelStatus.INVALID_OUTPUT;
             }
         }
 
@@ -143,22 +145,22 @@ public class TriageEngine {
         return new TriageRun(result, decisions);
     }
 
-    /** 模型病名：必须在允许列表、证据是原话子串、最多两个。任一不合格返回 null。 */
+    /** 模型病名：必须在允许列表、证据是原话子串。不合格的条丢掉，不连坐挂科。 */
     private static List<CanonTerm> validTerms(
             ComplaintReply reply,
             String description,
             String haystack,
             DepartmentSnapshot snapshot) {
-        if (reply.terms().size() > ComplaintCanon.MAX_TERMS) {
-            return null;
-        }
         List<CanonTerm> terms = new ArrayList<>();
         for (ComplaintReply.ModelTerm item : reply.terms()) {
+            if (terms.size() >= ComplaintCanon.MAX_TERMS) {
+                break;
+            }
             if (item.term() == null || !snapshot.isDisease(item.term())) {
-                return null;
+                continue;
             }
             if (item.evidence() == null || item.evidence().isBlank() || !description.contains(item.evidence())) {
-                return null;
+                continue;
             }
             String compact = SpokenNormalizer.forMatch(item.evidence(), snapshot);
             int at = haystack.indexOf(compact);

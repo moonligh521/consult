@@ -1,11 +1,15 @@
 package com.moonligh.consult.agent.infrastructure.model;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,6 +20,7 @@ import com.moonligh.consult.framework.model.ModelGateway;
 import com.moonligh.consult.framework.model.ModelPurpose;
 import com.moonligh.consult.framework.model.ModelReply;
 import com.moonligh.consult.framework.model.ModelStatus;
+import com.moonligh.consult.agent.domain.triage.ComplaintCanon;
 import com.moonligh.consult.agent.domain.triage.ComplaintModel;
 import com.moonligh.consult.agent.domain.triage.ComplaintReply;
 import com.moonligh.consult.agent.domain.triage.TriageEngine;
@@ -26,9 +31,12 @@ import com.moonligh.consult.agent.domain.triage.TriageEngine;
  */
 public class DeepSeekComplaintModel implements ComplaintModel {
 
-    public static final String PROMPT_VERSION = "complaint-v2";
+    public static final String PROMPT_VERSION = "complaint-v3.1";
+    static final String PROMPT_LOCATION = "/model/complaint-prompt.txt";
+    private static final String PROMPT_TEMPLATE = loadPrompt();
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final int MAX_TOKENS = 300;
+    private static final int MAX_TOKENS = 2000;
+    private static final String RETRY_HINT = "\n只输出合法 JSON。症状不要填进 terms，terms 只能是允许病名或 []。";
 
     private final ModelGateway gateway;
     private final DepartmentCatalog catalog;
@@ -49,15 +57,20 @@ public class DeepSeekComplaintModel implements ComplaintModel {
         String user = "age=" + (age == null ? "未知" : age) + " gender=" + (gender == null ? "未知" : gender.name())
                 + "\n主诉：" + description;
         String key = cacheKey(description, age, gender, candidates);
-        int retries = gateway.lane(ModelPurpose.COMPLAINT).getInvalidOutputRetries();
-        ComplaintReply reply = callOnce(system, user, key);
-        while (reply.status() == ModelStatus.INVALID_OUTPUT && retries-- > 0) {
-            reply = callOnce(system, user, key);
+        var lane = gateway.lane(ModelPurpose.COMPLAINT);
+        ComplaintReply reply = callOnce(system, user, key, allowTerms);
+        int timeoutRetries = lane.getTimeoutRetries();
+        if (reply.status() == ModelStatus.TIMEOUT && timeoutRetries > 0) {
+            reply = callOnce(system, user, key, allowTerms);
+        }
+        int invalidRetries = lane.getInvalidOutputRetries();
+        while (reply.status() == ModelStatus.INVALID_OUTPUT && invalidRetries-- > 0) {
+            reply = callOnce(system, user + RETRY_HINT, key, allowTerms);
         }
         return reply;
     }
 
-    private ComplaintReply callOnce(String system, String user, String key) {
+    private ComplaintReply callOnce(String system, String user, String key, List<String> allowTerms) {
         ModelReply raw = gateway.chat(ModelPurpose.COMPLAINT, system, user, key, MAX_TOKENS);
         if (raw.status() != ModelStatus.SUCCESS) {
             return ComplaintReply.failed(raw.status(), raw.latencyMs(), PROMPT_VERSION, raw.modelName());
@@ -67,25 +80,75 @@ public class DeepSeekComplaintModel implements ComplaintModel {
         if (parsed == null) {
             return ComplaintReply.failed(ModelStatus.INVALID_OUTPUT, raw.latencyMs(), PROMPT_VERSION, raw.modelName());
         }
+        ComplaintReply usable = stripIllegalTerms(parsed, allowTerms);
         if (!raw.cached()) {
             gateway.remember(key, json);
         }
-        return parsed;
+        return usable;
+    }
+
+    /** 不在允许列表的病名丢掉；挂科字段原样留下，交给引擎再校验。 */
+    static ComplaintReply stripIllegalTerms(ComplaintReply reply, List<String> allowTerms) {
+        if (reply == null) {
+            return null;
+        }
+        Set<String> allow = new HashSet<>(allowTerms == null ? List.of() : allowTerms);
+        List<ComplaintReply.ModelTerm> kept = new ArrayList<>();
+        for (ComplaintReply.ModelTerm term : reply.terms()) {
+            if (term.term() == null || term.term().isBlank() || !allow.contains(term.term())) {
+                continue;
+            }
+            kept.add(term);
+            if (kept.size() >= ComplaintCanon.MAX_TERMS) {
+                break;
+            }
+        }
+        return new ComplaintReply(
+                reply.status(),
+                kept,
+                reply.specialty(),
+                reply.specialtyEvidence(),
+                reply.latencyMs(),
+                reply.cached(),
+                reply.promptVersion(),
+                reply.modelName());
+    }
+
+    /** 病名必须在允许列表。调用方用这个判断要不要丢掉某一条。 */
+    static boolean termsAllowed(ComplaintReply reply, List<String> allowTerms) {
+        if (reply == null || reply.terms().size() > ComplaintCanon.MAX_TERMS) {
+            return false;
+        }
+        Set<String> allow = new HashSet<>(allowTerms == null ? List.of() : allowTerms);
+        for (ComplaintReply.ModelTerm term : reply.terms()) {
+            if (term.term() == null || term.term().isBlank() || !allow.contains(term.term())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static ComplaintReply parse(String json, ModelReply raw) {
         try {
             JsonNode payload = MAPPER.readTree(json);
             JsonNode terms = payload.get("terms");
-            if (terms == null || !terms.isArray()) {
+            if (terms != null && !terms.isNull() && !terms.isArray()) {
                 return null;
             }
             List<ComplaintReply.ModelTerm> list = new ArrayList<>();
-            for (JsonNode node : terms) {
-                if (!node.hasNonNull("term") || !node.hasNonNull("evidence")) {
-                    return null;
+            if (terms != null && terms.isArray()) {
+                for (JsonNode node : terms) {
+                    if (node == null || !node.hasNonNull("term") || node.get("term").asText().isBlank()) {
+                        continue;
+                    }
+                    if (!node.hasNonNull("evidence") || node.get("evidence").asText().isBlank()) {
+                        continue;
+                    }
+                    list.add(new ComplaintReply.ModelTerm(node.get("term").asText(), node.get("evidence").asText()));
+                    if (list.size() >= ComplaintCanon.MAX_TERMS) {
+                        break;
+                    }
                 }
-                list.add(new ComplaintReply.ModelTerm(node.get("term").asText(), node.get("evidence").asText()));
             }
             String specialty = payload.hasNonNull("specialty") ? payload.get("specialty").asText() : null;
             String evidence = payload.hasNonNull("specialtyEvidence") ? payload.get("specialtyEvidence").asText() : null;
@@ -105,17 +168,21 @@ public class DeepSeekComplaintModel implements ComplaintModel {
         return start < 0 || end < start ? null : content.substring(start, end + 1);
     }
 
-    private static String systemPrompt(List<String> allowTerms, List<String> candidates) {
-        return "你是互联网医院导诊。根据患者主诉，只输出 JSON："
-                + "{\"terms\":[{\"term\":\"\",\"evidence\":\"\"}],\"specialty\":\"\",\"specialtyEvidence\":\"\"}。"
-                + "terms：患者当前这次想看的病，最多 2 个，term 只能从允许病名中原样选；"
-                + "只凭症状推测、没有足够把握时 terms=[]，不要猜。既往史、家人的病不算。"
-                + "主诉里的拼音、口误、同音字、乱标点当噪声理解，不要要求患者改写；"
-                + "evidence 与 specialtyEvidence 必须是主诉原文里连续出现的那一截（可含拼音或错字），不要改写成通顺汉字。"
-                + "specialty：从候选科室中原样选一个最合适的；拿不准就选全科。"
-                + "不要输出 JSON 之外的文字。"
-                + "\n允许病名：" + String.join("、", allowTerms)
-                + "\n候选科室：" + String.join("、", candidates);
+    static String systemPrompt(List<String> allowTerms, List<String> candidates) {
+        return PROMPT_TEMPLATE
+                .replace("{{ALLOW_TERMS}}", String.join("、", allowTerms == null ? List.of() : allowTerms))
+                .replace("{{CANDIDATES}}", String.join("、", candidates == null ? List.of() : candidates));
+    }
+
+    private static String loadPrompt() {
+        try (InputStream in = DeepSeekComplaintModel.class.getResourceAsStream(PROMPT_LOCATION)) {
+            if (in == null) {
+                throw new IllegalStateException("找不到主诉提示词 " + PROMPT_LOCATION);
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException error) {
+            throw new IllegalStateException("读取主诉提示词失败", error);
+        }
     }
 
     private String cacheKey(String description, Integer age, Gender gender, List<String> candidates) {

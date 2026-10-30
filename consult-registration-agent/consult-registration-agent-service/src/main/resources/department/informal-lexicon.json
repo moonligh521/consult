@@ -1,0 +1,993 @@
+{
+  "version": "2026.10.30",
+  "entries": [
+    {
+      "from": "urinarytractinfection",
+      "to": "尿路感染"
+    },
+    {
+      "from": "jiazhuangxianjiejie",
+      "to": "甲状腺结节"
+    },
+    {
+      "from": "periodisnotregular",
+      "to": "月经不调"
+    },
+    {
+      "from": "cannotgetpregnant",
+      "to": "不孕"
+    },
+    {
+      "from": "highbloodpressure",
+      "to": "高血压"
+    },
+    {
+      "from": "hyperthyroidism",
+      "to": "甲亢"
+    },
+    {
+      "from": "irregularperiod",
+      "to": "月经不调"
+    },
+    {
+      "from": "kouqiangkuiyang",
+      "to": "口腔溃疡"
+    },
+    {
+      "from": "linbajiezhongda",
+      "to": "淋巴结肿大"
+    },
+    {
+      "from": "nasalcongestion",
+      "to": "鼻塞"
+    },
+    {
+      "from": "tiredallthetime",
+      "to": "乏力"
+    },
+    {
+      "from": "troublesleeping",
+      "to": "失眠"
+    },
+    {
+      "from": "highbloodsugar",
+      "to": "糖尿病"
+    },
+    {
+      "from": "abdominalpain",
+      "to": "腹痛"
+    },
+    {
+      "from": "yuejingbutiao",
+      "to": "月经不调"
+    },
+    {
+      "from": "constipation",
+      "to": "便秘"
+    },
+    {
+      "from": "guzhishusong",
+      "to": "骨质疏松"
+    },
+    {
+      "from": "heartdisease",
+      "to": "冠心病"
+    },
+    {
+      "from": "hypertension",
+      "to": "高血压"
+    },
+    {
+      "from": "jingzhuibing",
+      "to": "颈椎病"
+    },
+    {
+      "from": "osteoporosis",
+      "to": "骨质疏松"
+    },
+    {
+      "from": "pangguangyan",
+      "to": "膀胱炎"
+    },
+    {
+      "from": "qingguangyan",
+      "to": "青光眼"
+    },
+    {
+      "from": "tangniaobing",
+      "to": "糖尿病"
+    },
+    {
+      "from": "tuberculosis",
+      "to": "结核病"
+    },
+    {
+      "from": "baineizhang",
+      "to": "白内障"
+    },
+    {
+      "from": "cannotsleep",
+      "to": "失眠"
+    },
+    {
+      "from": "guanxinbing",
+      "to": "冠心病"
+    },
+    {
+      "from": "hemorrhoids",
+      "to": "痔疮"
+    },
+    {
+      "from": "infertility",
+      "to": "不孕"
+    },
+    {
+      "from": "kidneystone",
+      "to": "肾结石"
+    },
+    {
+      "from": "nearsighted",
+      "to": "近视"
+    },
+    {
+      "from": "prostatitis",
+      "to": "前列腺炎"
+    },
+    {
+      "from": "qianliexian",
+      "to": "前列腺炎"
+    },
+    {
+      "from": "stomachache",
+      "to": "腹痛"
+    },
+    {
+      "from": "stomachpain",
+      "to": "胃痛"
+    },
+    {
+      "from": "brokenbone",
+      "to": "骨折"
+    },
+    {
+      "from": "depression",
+      "to": "抑郁"
+    },
+    {
+      "from": "guanjieyan",
+      "to": "关节炎"
+    },
+    {
+      "from": "haveacough",
+      "to": "咳嗽"
+    },
+    {
+      "from": "loosestool",
+      "to": "腹泻"
+    },
+    {
+      "from": "loseweight",
+      "to": "肥胖"
+    },
+    {
+      "from": "shenjieshi",
+      "to": "肾结石"
+    },
+    {
+      "from": "sorethroat",
+      "to": "咽痛"
+    },
+    {
+      "from": "stuffynose",
+      "to": "鼻塞"
+    },
+    {
+      "from": "throwingup",
+      "to": "呕吐"
+    },
+    {
+      "from": "arthritis",
+      "to": "关节炎"
+    },
+    {
+      "from": "bellyache",
+      "to": "腹痛"
+    },
+    {
+      "from": "cuochuang",
+      "to": "痤疮"
+    },
+    {
+      "from": "dizziness",
+      "to": "头晕"
+    },
+    {
+      "from": "shuizhong",
+      "to": "水肿"
+    },
+    {
+      "from": "tangshang",
+      "to": "烫伤"
+    },
+    {
+      "from": "toothache",
+      "to": "牙疼"
+    },
+    {
+      "from": "toothpain",
+      "to": "牙疼"
+    },
+    {
+      "from": "vaginitis",
+      "to": "阴道炎"
+    },
+    {
+      "from": "xiaochuan",
+      "to": "哮喘"
+    },
+    {
+      "from": "xunmazhen",
+      "to": "荨麻疹"
+    },
+    {
+      "from": "yindaoyan",
+      "to": "阴道炎"
+    },
+    {
+      "from": "zhichuang",
+      "to": "痔疮"
+    },
+    {
+      "from": "allergic",
+      "to": "过敏"
+    },
+    {
+      "from": "cataract",
+      "to": "白内障"
+    },
+    {
+      "from": "coronary",
+      "to": "冠心病"
+    },
+    {
+      "from": "coughing",
+      "to": "咳嗽"
+    },
+    {
+      "from": "diabetes",
+      "to": "糖尿病"
+    },
+    {
+      "from": "diarrhea",
+      "to": "腹泻"
+    },
+    {
+      "from": "feijiehe",
+      "to": "肺结核"
+    },
+    {
+      "from": "fracture",
+      "to": "骨折"
+    },
+    {
+      "from": "gaoxueya",
+      "to": "高血压"
+    },
+    {
+      "from": "glaucoma",
+      "to": "青光眼"
+    },
+    {
+      "from": "hairloss",
+      "to": "脱发"
+    },
+    {
+      "from": "headache",
+      "to": "头痛"
+    },
+    {
+      "from": "huangdan",
+      "to": "黄疸"
+    },
+    {
+      "from": "insomnia",
+      "to": "失眠"
+    },
+    {
+      "from": "neckpain",
+      "to": "颈椎病"
+    },
+    {
+      "from": "niaotong",
+      "to": "尿痛"
+    },
+    {
+      "from": "niushang",
+      "to": "扭伤"
+    },
+    {
+      "from": "skinrash",
+      "to": "皮疹"
+    },
+    {
+      "from": "tinnitus",
+      "to": "耳鸣"
+    },
+    {
+      "from": "tongjing",
+      "to": "痛经"
+    },
+    {
+      "from": "vomiting",
+      "to": "呕吐"
+    },
+    {
+      "from": "allergy",
+      "to": "过敏"
+    },
+    {
+      "from": "anxiety",
+      "to": "焦虑"
+    },
+    {
+      "from": "bianxie",
+      "to": "便血"
+    },
+    {
+      "from": "bianxue",
+      "to": "便血"
+    },
+    {
+      "from": "dapenti",
+      "to": "打喷嚏"
+    },
+    {
+      "from": "fatigue",
+      "to": "乏力"
+    },
+    {
+      "from": "ganglie",
+      "to": "肛裂"
+    },
+    {
+      "from": "itching",
+      "to": "瘙痒"
+    },
+    {
+      "from": "jiakang",
+      "to": "甲亢"
+    },
+    {
+      "from": "liubiti",
+      "to": "流鼻涕"
+    },
+    {
+      "from": "melasma",
+      "to": "黄褐斑"
+    },
+    {
+      "from": "niaopin",
+      "to": "尿频"
+    },
+    {
+      "from": "obesity",
+      "to": "肥胖"
+    },
+    {
+      "from": "saoyang",
+      "to": "瘙痒"
+    },
+    {
+      "from": "shimian",
+      "to": "失眠"
+    },
+    {
+      "from": "shizhen",
+      "to": "湿疹"
+    },
+    {
+      "from": "snoring",
+      "to": "打鼾"
+    },
+    {
+      "from": "touteng",
+      "to": "头痛"
+    },
+    {
+      "from": "toutong",
+      "to": "头痛"
+    },
+    {
+      "from": "weiteng",
+      "to": "胃痛"
+    },
+    {
+      "from": "weitong",
+      "to": "胃痛"
+    },
+    {
+      "from": "xuanyun",
+      "to": "眩晕"
+    },
+    {
+      "from": "yantong",
+      "to": "咽痛"
+    },
+    {
+      "from": "yaoteng",
+      "to": "腰痛"
+    },
+    {
+      "from": "yaotong",
+      "to": "腰痛"
+    },
+    {
+      "from": "anemia",
+      "to": "贫血"
+    },
+    {
+      "from": "asthma",
+      "to": "哮喘"
+    },
+    {
+      "from": "bianmi",
+      "to": "便秘"
+    },
+    {
+      "from": "eczema",
+      "to": "湿疹"
+    },
+    {
+      "from": "erming",
+      "to": "耳鸣"
+    },
+    {
+      "from": "fashao",
+      "to": "发烧"
+    },
+    {
+      "from": "futeng",
+      "to": "腹痛"
+    },
+    {
+      "from": "futong",
+      "to": "腹痛"
+    },
+    {
+      "from": "guomin",
+      "to": "过敏"
+    },
+    {
+      "from": "jiaolv",
+      "to": "焦虑"
+    },
+    {
+      "from": "jinshi",
+      "to": "近视"
+    },
+    {
+      "from": "kesouu",
+      "to": "咳嗽"
+    },
+    {
+      "from": "myopia",
+      "to": "近视"
+    },
+    {
+      "from": "nausea",
+      "to": "恶心"
+    },
+    {
+      "from": "pinxue",
+      "to": "贫血"
+    },
+    {
+      "from": "pizhen",
+      "to": "皮疹"
+    },
+    {
+      "from": "sprain",
+      "to": "扭伤"
+    },
+    {
+      "from": "touyun",
+      "to": "头晕"
+    },
+    {
+      "from": "yateng",
+      "to": "牙疼"
+    },
+    {
+      "from": "yatong",
+      "to": "牙疼"
+    },
+    {
+      "from": "拉肚子拉得凶",
+      "to": "拉肚子"
+    },
+    {
+      "from": "bisai",
+      "to": "鼻塞"
+    },
+    {
+      "from": "cough",
+      "to": "咳嗽"
+    },
+    {
+      "from": "dahan",
+      "to": "打鼾"
+    },
+    {
+      "from": "dizzy",
+      "to": "头晕"
+    },
+    {
+      "from": "fever",
+      "to": "发热"
+    },
+    {
+      "from": "fuxie",
+      "to": "腹泻"
+    },
+    {
+      "from": "guzhe",
+      "to": "骨折"
+    },
+    {
+      "from": "itchy",
+      "to": "瘙痒"
+    },
+    {
+      "from": "jzxjj",
+      "to": "甲状腺结节"
+    },
+    {
+      "from": "kesou",
+      "to": "咳嗽"
+    },
+    {
+      "from": "lbjzd",
+      "to": "淋巴结肿大"
+    },
+    {
+      "from": "piles",
+      "to": "痔疮"
+    },
+    {
+      "from": "quchi",
+      "to": "龋齿"
+    },
+    {
+      "from": "snore",
+      "to": "打鼾"
+    },
+    {
+      "from": "touyn",
+      "to": "头晕"
+    },
+    {
+      "from": "yayin",
+      "to": "牙龈"
+    },
+    {
+      "from": "淋巴结中大",
+      "to": "淋巴结肿大"
+    },
+    {
+      "from": "淋巴结种大",
+      "to": "淋巴结肿大"
+    },
+    {
+      "from": "眼睛眯缝红",
+      "to": "眼睛红"
+    },
+    {
+      "from": "老窦血压高",
+      "to": "高血压"
+    },
+    {
+      "from": "脚丫子裂了",
+      "to": "足踝外伤"
+    },
+    {
+      "from": "acne",
+      "to": "痤疮"
+    },
+    {
+      "from": "bnzz",
+      "to": "白内障"
+    },
+    {
+      "from": "exin",
+      "to": "恶心"
+    },
+    {
+      "from": "fali",
+      "to": "乏力"
+    },
+    {
+      "from": "fare",
+      "to": "发热"
+    },
+    {
+      "from": "gzss",
+      "to": "骨质疏松"
+    },
+    {
+      "from": "kqky",
+      "to": "口腔溃疡"
+    },
+    {
+      "from": "outu",
+      "to": "呕吐"
+    },
+    {
+      "from": "rash",
+      "to": "皮疹"
+    },
+    {
+      "from": "yiyu",
+      "to": "抑郁"
+    },
+    {
+      "from": "yjbt",
+      "to": "月经不调"
+    },
+    {
+      "from": "前烈腺炎",
+      "to": "前列腺炎"
+    },
+    {
+      "from": "口腔贵疡",
+      "to": "口腔溃疡"
+    },
+    {
+      "from": "口腔馈疡",
+      "to": "口腔溃疡"
+    },
+    {
+      "from": "嗓子眼疼",
+      "to": "咽痛"
+    },
+    {
+      "from": "fjh",
+      "to": "肺结核"
+    },
+    {
+      "from": "gjy",
+      "to": "关节炎"
+    },
+    {
+      "from": "gum",
+      "to": "牙龈"
+    },
+    {
+      "from": "gxb",
+      "to": "冠心病"
+    },
+    {
+      "from": "gxy",
+      "to": "高血压"
+    },
+    {
+      "from": "hiv",
+      "to": "艾滋病"
+    },
+    {
+      "from": "jzb",
+      "to": "颈椎病"
+    },
+    {
+      "from": "lbt",
+      "to": "流鼻涕"
+    },
+    {
+      "from": "pgy",
+      "to": "膀胱炎"
+    },
+    {
+      "from": "qgy",
+      "to": "青光眼"
+    },
+    {
+      "from": "qlx",
+      "to": "前列腺炎"
+    },
+    {
+      "from": "sjs",
+      "to": "肾结石"
+    },
+    {
+      "from": "tnb",
+      "to": "糖尿病"
+    },
+    {
+      "from": "uti",
+      "to": "尿路感染"
+    },
+    {
+      "from": "xmz",
+      "to": "荨麻疹"
+    },
+    {
+      "from": "ydy",
+      "to": "阴道炎"
+    },
+    {
+      "from": "关节严",
+      "to": "关节炎"
+    },
+    {
+      "from": "关节焱",
+      "to": "关节炎"
+    },
+    {
+      "from": "关节言",
+      "to": "关节炎"
+    },
+    {
+      "from": "劲椎病",
+      "to": "颈椎病"
+    },
+    {
+      "from": "白内帳",
+      "to": "白内障"
+    },
+    {
+      "from": "白内章",
+      "to": "白内障"
+    },
+    {
+      "from": "糖鸟病",
+      "to": "糖尿病"
+    },
+    {
+      "from": "肾结食",
+      "to": "肾结石"
+    },
+    {
+      "from": "脑壳痛",
+      "to": "头痛"
+    },
+    {
+      "from": "膀胱严",
+      "to": "膀胱炎"
+    },
+    {
+      "from": "膀胱焱",
+      "to": "膀胱炎"
+    },
+    {
+      "from": "膀胱言",
+      "to": "膀胱炎"
+    },
+    {
+      "from": "荨嘛疹",
+      "to": "荨麻疹"
+    },
+    {
+      "from": "阴道严",
+      "to": "阴道炎"
+    },
+    {
+      "from": "阴道焱",
+      "to": "阴道炎"
+    },
+    {
+      "from": "阴道言",
+      "to": "阴道炎"
+    },
+    {
+      "from": "高学压",
+      "to": "高血压"
+    },
+    {
+      "from": "黄喝斑",
+      "to": "黄褐斑"
+    },
+    {
+      "from": "克嗽",
+      "to": "咳嗽"
+    },
+    {
+      "from": "刻嗽",
+      "to": "咳嗽"
+    },
+    {
+      "from": "咽庝",
+      "to": "咽痛"
+    },
+    {
+      "from": "咽疼",
+      "to": "咽痛"
+    },
+    {
+      "from": "咽痌",
+      "to": "咽痛"
+    },
+    {
+      "from": "头庝",
+      "to": "头痛"
+    },
+    {
+      "from": "头疼",
+      "to": "头痛"
+    },
+    {
+      "from": "头痌",
+      "to": "头痛"
+    },
+    {
+      "from": "头痛",
+      "to": "头疼"
+    },
+    {
+      "from": "孝喘",
+      "to": "哮喘"
+    },
+    {
+      "from": "孩嗽",
+      "to": "咳嗽"
+    },
+    {
+      "from": "尿庝",
+      "to": "尿痛"
+    },
+    {
+      "from": "尿疼",
+      "to": "尿痛"
+    },
+    {
+      "from": "尿痌",
+      "to": "尿痛"
+    },
+    {
+      "from": "庝经",
+      "to": "痛经"
+    },
+    {
+      "from": "座疮",
+      "to": "痤疮"
+    },
+    {
+      "from": "志疮",
+      "to": "痔疮"
+    },
+    {
+      "from": "打憨",
+      "to": "打鼾"
+    },
+    {
+      "from": "打酣",
+      "to": "打鼾"
+    },
+    {
+      "from": "显疹",
+      "to": "湿疹"
+    },
+    {
+      "from": "曲齿",
+      "to": "龋齿"
+    },
+    {
+      "from": "水中",
+      "to": "水肿"
+    },
+    {
+      "from": "水种",
+      "to": "水肿"
+    },
+    {
+      "from": "治疮",
+      "to": "痔疮"
+    },
+    {
+      "from": "温疹",
+      "to": "湿疹"
+    },
+    {
+      "from": "牙庝",
+      "to": "牙疼"
+    },
+    {
+      "from": "牙根",
+      "to": "牙龈"
+    },
+    {
+      "from": "牙疼",
+      "to": "牙痛"
+    },
+    {
+      "from": "牙痌",
+      "to": "牙痛"
+    },
+    {
+      "from": "牙痛",
+      "to": "牙疼"
+    },
+    {
+      "from": "牙银",
+      "to": "牙龈"
+    },
+    {
+      "from": "疼经",
+      "to": "痛经"
+    },
+    {
+      "from": "痌经",
+      "to": "痛经"
+    },
+    {
+      "from": "瘙养",
+      "to": "瘙痒"
+    },
+    {
+      "from": "瘙氧",
+      "to": "瘙痒"
+    },
+    {
+      "from": "瘙洋",
+      "to": "瘙痒"
+    },
+    {
+      "from": "皮珍",
+      "to": "皮疹"
+    },
+    {
+      "from": "皮诊",
+      "to": "皮疹"
+    },
+    {
+      "from": "禹齿",
+      "to": "龋齿"
+    },
+    {
+      "from": "笑喘",
+      "to": "哮喘"
+    },
+    {
+      "from": "肚痛",
+      "to": "肚子疼"
+    },
+    {
+      "from": "胃庝",
+      "to": "胃痛"
+    },
+    {
+      "from": "胃疼",
+      "to": "胃痛"
+    },
+    {
+      "from": "胃痌",
+      "to": "胃痛"
+    },
+    {
+      "from": "腹写",
+      "to": "腹泻"
+    },
+    {
+      "from": "腹庝",
+      "to": "腹痛"
+    },
+    {
+      "from": "腹泄",
+      "to": "腹泻"
+    },
+    {
+      "from": "腹疼",
+      "to": "腹痛"
+    },
+    {
+      "from": "腹痌",
+      "to": "腹痛"
+    },
+    {
+      "from": "要痛",
+      "to": "腰痛"
+    },
+    {
+      "from": "该嗽",
+      "to": "咳嗽"
+    }
+  ]
+}

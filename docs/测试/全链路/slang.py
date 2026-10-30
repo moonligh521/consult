@@ -1,6 +1,18 @@
 # -*- coding: utf-8 -*-
 """口语表：拼音、英文、错别字、数字单位、提问句式、家属代述。"""
 
+LEXICON_VERSION = "2026.10.29"
+
+# 来源与审核状态跟表达内容分开管理。REVIEW_REQUIRED 不能进入临床发布门禁。
+EXPRESSION_METADATA = {
+    "pinyin": {"source": "工程扰动词典", "region": "通用输入法", "review_status": "ENGINEERING_REVIEWED"},
+    "english": {"source": "工程扰动词典", "region": "通用中英混输", "review_status": "ENGINEERING_REVIEWED"},
+    "typo": {"source": "工程扰动词典", "region": "通用输入法", "review_status": "ENGINEERING_REVIEWED"},
+    "dialect": {"source": "临床场景候选", "region": "待标注", "review_status": "REVIEW_REQUIRED"},
+    "asr": {"source": "语音转写候选", "region": "通用普通话", "review_status": "REVIEW_REQUIRED"},
+    "family_report": {"source": "多轮场景候选", "region": "通用", "review_status": "REVIEW_REQUIRED"},
+}
+
 # ---------------------------------------------------------------- ① 拼音
 # canonical 词条 → 患者可能打出的拼音串：全拼连写 / 加空格 / 手滑拼写 / 首字母缩写
 PINYIN_FORMS = {

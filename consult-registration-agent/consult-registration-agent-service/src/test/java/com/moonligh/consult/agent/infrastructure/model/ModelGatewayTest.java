@@ -10,6 +10,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -114,6 +115,35 @@ class ModelGatewayTest {
         ModelReply reply = gateway(200, "{\"terms\":[]}", 0, 2000).chat(ModelPurpose.COMPLAINT, "s", "u", null, 0);
         assertEquals(ModelStatus.SUCCESS, reply.status());
         assertEquals("{\"terms\":[]}", reply.content());
+    }
+
+    @Test
+    void complaintTimeoutIsThirtySeconds() {
+        assertEquals(30000, new ModelProperties().getComplaint().getTimeoutMs());
+    }
+
+    @Test
+    void complaintRequestsJsonObjectModeAndSafetyDoesNot() throws IOException {
+        AtomicReference<String> posted = new AtomicReference<>();
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/chat/completions", exchange -> {
+            posted.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            hits.incrementAndGet();
+            byte[] bytes = "{\"choices\":[{\"message\":{\"content\":\"{\\\"ok\\\":true}\"}}]}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (OutputStream out = exchange.getResponseBody()) {
+                out.write(bytes);
+            }
+        });
+        server.start();
+        ModelProperties props = new ModelProperties();
+        props.setApiKey("test-key");
+        props.setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        ModelGateway gateway = new ModelGateway(props, null, new SimpleMeterRegistry());
+        gateway.chat(ModelPurpose.COMPLAINT, "json", "u", null, 2000);
+        assertTrue(posted.get().contains("\"json_object\""));
+        gateway.chat(ModelPurpose.SAFETY, "s", "u", null, 0);
+        assertFalse(posted.get().contains("\"json_object\""));
     }
 
     @Test

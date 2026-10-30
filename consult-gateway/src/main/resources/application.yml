@@ -11,9 +11,9 @@ spring:
     timeout-per-shutdown-phase: 30s
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      host: 127.0.0.1
+      port: 6379
+      password: ""
       # 限流每个请求都要访问一次 Redis，超时要短；超时后过滤器自动退回本实例内存桶
       timeout: 300ms
       connect-timeout: 1s
@@ -24,10 +24,10 @@ spring:
           httpclient:
             connect-timeout: 2000
             # 盖住一次咨询消息最坏耗时（模型排队 + 安全模型重试 + 主诉模型），超过就 504
-            response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:15s}
+            response-timeout: 15s
             pool:
               type: fixed
-              max-connections: ${GATEWAY_POOL_MAX_CONNECTIONS:2000}
+              max-connections: 2000
               acquire-timeout: 2000
               max-idle-time: 30s
               max-life-time: 5m
@@ -38,7 +38,7 @@ server:
 management:
   # 指标与探针走内部端口，不经网关对外暴露
   server:
-    port: ${GATEWAY_MANAGEMENT_PORT:8081}
+    port: 8081
   endpoints:
     web:
       exposure:
@@ -52,37 +52,37 @@ management:
       application: ${spring.application.name}
 consult:
   auth:
-    jwt-secret: ${AUTH_JWT_SECRET:consult-dev-jwt-secret-key-32bytes!}
+    jwt-secret: consult-dev-jwt-secret-key-32bytes!
     jwt-ttl-hours: 168
   gateway:
-    identity-uri: ${IDENTITY_URI:http://127.0.0.1:18082}
-    agent-uri: ${AGENT_URI:http://127.0.0.1:18081}
+    identity-uri: http://127.0.0.1:18082
+    agent-uri: http://127.0.0.1:18081
     # 单实例在途请求上限，超出 503；按 网关实例数 × 本值 ≥ 目标峰值并发 × 1.5 配
-    max-in-flight: ${GATEWAY_MAX_IN_FLIGHT:4000}
+    max-in-flight: 4000
     # 前面有 SLB / Ingress 时设为代理层数，限流按真实客户端 IP
-    trusted-proxy-hops: ${GATEWAY_TRUSTED_PROXY_HOPS:0}
+    trusted-proxy-hops: 0
     rate-limit:
-      enabled: ${GATEWAY_RATE_LIMIT_ENABLED:true}
+      enabled: true
       # 默认档：按账号，未登录按 IP
-      per-second: ${GATEWAY_RATE_LIMIT_PER_SECOND:5}
-      burst: ${GATEWAY_RATE_LIMIT_BURST:20}
+      per-second: 5
+      burst: 20
       rules:
         # 发验证码：按 IP 防短信轰炸（按手机号的频控在身份服务）。同一出口 IP 下人多时调大
         - name: sms
           paths: [/api/auth/sms]
           key-by: IP
-          per-second: ${GATEWAY_RATE_LIMIT_SMS_PER_SECOND:2}
-          burst: ${GATEWAY_RATE_LIMIT_SMS_BURST:10}
+          per-second: 2
+          burst: 10
         # 登录：按 IP 防撞库
         - name: login
           paths: [/api/auth/login, /api/admin/login]
           key-by: IP
-          per-second: ${GATEWAY_RATE_LIMIT_LOGIN_PER_SECOND:5}
-          burst: ${GATEWAY_RATE_LIMIT_LOGIN_BURST:20}
+          per-second: 5
+          burst: 20
         # 咨询写操作：每次都可能调模型、派医生，最贵，按账号收紧
         - name: consult-write
           paths: [/api/consultations/**]
           methods: [POST, PUT, PATCH]
           key-by: ACCOUNT
-          per-second: ${GATEWAY_RATE_LIMIT_CONSULT_PER_SECOND:2}
-          burst: ${GATEWAY_RATE_LIMIT_CONSULT_BURST:10}
+          per-second: 2
+          burst: 10
