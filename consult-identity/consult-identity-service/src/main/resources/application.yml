@@ -1,0 +1,86 @@
+spring:
+  application:
+    name: consult-identity-service
+  config:
+    import:
+      - optional:file:./config/application-local.yml
+      - optional:file:../../config/application-local.yml
+  threads:
+    virtual:
+      enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    # 和挂号服务共用一个库（派单直接 JOIN 科室目录表），两边实例数 × 连接池之和要小于 max_connections
+    # 真实库地址和密码只写 gitignore 的 application-local.yml，本文件不放生产密钥。
+    url: jdbc:mysql://127.0.0.1:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai&sessionVariables=innodb_lock_wait_timeout=5
+    username: root
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 3000
+      connection-init-sql: SET time_zone = '+08:00'
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      password: ""
+      timeout: 2s
+server:
+  port: 18082
+  # 本机开发只监听回环；容器里在 Nacos / application-local.yml 改成 0.0.0.0，靠 NetworkPolicy 只放行网关和挂号服务
+  address: 127.0.0.1
+  shutdown: graceful
+  tomcat:
+    max-connections: 10000
+    accept-count: 500
+    connection-timeout: 5s
+management:
+  tracing:
+    export:
+      enabled: true
+    sampling:
+      probability: 0.1
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://117.72.43.169:4318/v1/traces
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+consult:
+  observability:
+    enabled: true
+    capture-payloads: true
+  redisson:
+    enabled: false
+  auth:
+    jwt-secret: consult-dev-jwt-secret-key-32bytes!
+    jwt-ttl-hours: 168
+    sms-ttl-seconds: 300
+    sms-interval-seconds: 60
+    sms-dev-code: "000000"
+    internal-token: consult-internal
+    admin-username: admin
+    admin-password: admin1234
+  # 执行器。admin-addresses 写调度中心根地址，不要加 /xxl-job-admin。
+  xxl:
+    enabled: false
+    admin-addresses: http://127.0.0.1:18080
+    appname: consult-identity
+    ip: ""
+    port: 19999
+    access-token: ""
+    log-path: ./logs/xxl-job
+    log-retention-days: 30

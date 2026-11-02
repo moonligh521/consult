@@ -1,0 +1,116 @@
+# 身份服务：登录、就诊人、医生占坑派单。峰值约 40 单/秒派单，2~6 副本足够。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consult-identity
+  namespace: consult
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: consult-identity }
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app: consult-identity }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "18082"
+        prometheus.io/path: /actuator/prometheus
+    spec:
+      terminationGracePeriodSeconds: 40
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: consult-identity }
+      containers:
+        - name: app
+          image: registry.example.com/consult/consult-identity:latest
+          ports:
+            - containerPort: 18082
+          envFrom:
+            - configMapRef: { name: consult-common }
+            - secretRef: { name: consult-secrets }
+          env:
+            - { name: SERVER_ADDRESS, value: 0.0.0.0 }
+            - { name: DB_POOL_SIZE, value: "20" }
+            - { name: DB_POOL_MIN_IDLE, value: "5" }
+            # 不接 XXL 时每个副本都跑本地占坑回收，SKIP LOCKED 保证多副本不重复处理
+            - { name: XXL_ENABLED, value: "false" }
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { cpu: "2", memory: 1Gi }
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: 18082 }
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 18082 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 18082 }
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            # 等 Service 摘掉本 Pod 再开始优雅停机，避免停机瞬间还有新请求打进来
+            preStop:
+              exec: { command: ["sh", "-c", "sleep 10"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consult-identity
+  namespace: consult
+spec:
+  selector: { app: consult-identity }
+  ports:
+    - port: 18082
+      targetPort: 18082
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: consult-identity
+  namespace: consult
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: consult-identity }
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 60 }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: consult-identity
+  namespace: consult
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: consult-identity }
+---
+# /internal/** 只靠内部令牌不够，网络层也只放行网关和挂号服务
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: consult-identity-ingress
+  namespace: consult
+spec:
+  podSelector:
+    matchLabels: { app: consult-identity }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app, operator: In, values: [consult-gateway, consult-agent] }
+        # Prometheus 抓指标
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+      ports:
+        - port: 18082

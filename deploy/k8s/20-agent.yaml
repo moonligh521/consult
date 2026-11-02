@@ -1,0 +1,113 @@
+# 挂号咨询服务：1000 并发的主力。瓶颈在模型并发，不在 CPU，所以：
+#   - 单副本模型上限（舱壁）× 最少副本数 ≥ 全局配额，保证最少副本时也能用满配额；
+#   - 全局配额（Redisson）按 DeepSeek 账号并发限额配，副本扩到再多也不会超；
+#   - HPA 按 CPU 扩，扩容主要为了分摊请求处理和 JSON/规则计算，模型吞吐由全局配额决定。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consult-agent
+  namespace: consult
+spec:
+  replicas: 4
+  selector:
+    matchLabels: { app: consult-agent }
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app: consult-agent }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "18081"
+        prometheus.io/path: /actuator/prometheus
+    spec:
+      # 优雅停机 30s + preStop 10s
+      terminationGracePeriodSeconds: 45
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: consult-agent }
+      containers:
+        - name: app
+          image: registry.example.com/consult/consult-agent:latest
+          ports:
+            - containerPort: 18081
+          envFrom:
+            - configMapRef: { name: consult-common }
+            - secretRef: { name: consult-secrets }
+          env:
+            - { name: IDENTITY_BASE_URL, value: "http://consult-identity:18082" }
+            - { name: CONSULT_CATALOG_PROVISIONDEMO, value: "false" }
+            # 连接只在锁内短事务里占用（约 15ms），30 足够单副本 250 在途请求
+            - { name: DB_POOL_SIZE, value: "30" }
+            - { name: DB_POOL_MIN_IDLE, value: "10" }
+            # 模型：全局配额 = 账号并发限额；单副本上限 = 全局 / 最少副本数 × 1.3
+            - { name: MODEL_SAFETY_GLOBAL_CONCURRENCY, value: "600" }
+            - { name: MODEL_SAFETY_CONCURRENCY, value: "200" }
+            - { name: MODEL_COMPLAINT_GLOBAL_CONCURRENCY, value: "400" }
+            - { name: MODEL_COMPLAINT_CONCURRENCY, value: "130" }
+            - { name: IDENTITY_MAX_CONCURRENCY, value: "100" }
+            - { name: REDISSON_POOL_SIZE, value: "64" }
+          resources:
+            requests: { cpu: "1", memory: 2Gi }
+            limits: { cpu: "2", memory: 2Gi }
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: 18081 }
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: 18081 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: 18081 }
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec: { command: ["sh", "-c", "sleep 10"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consult-agent
+  namespace: consult
+spec:
+  selector: { app: consult-agent }
+  ports:
+    - port: 18081
+      targetPort: 18081
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: consult-agent
+  namespace: consult
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: consult-agent }
+  minReplicas: 4
+  maxReplicas: 12
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 60 }
+  behavior:
+    # 早高峰来得快：扩容不等待；缩容等 10 分钟，避免高峰中途来回抖
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - { type: Percent, value: 100, periodSeconds: 30 }
+    scaleDown:
+      stabilizationWindowSeconds: 600
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: consult-agent
+  namespace: consult
+spec:
+  minAvailable: 3
+  selector:
+    matchLabels: { app: consult-agent }

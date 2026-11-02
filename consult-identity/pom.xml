@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.moonligh</groupId>
+        <artifactId>consult</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>consult-identity</artifactId>
+    <packaging>pom</packaging>
+    <name>consult-identity</name>
+    <description>登录账号与就诊人。一个账号可绑多位，不引用旧 HIS 工程。</description>
+
+    <modules>
+        <module>consult-identity-api</module>
+        <module>consult-identity-service</module>
+    </modules>
+</project>

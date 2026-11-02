@@ -1,0 +1,55 @@
+{
+  "version": "2026.10.29",
+  "total_quota": 200000,
+  "lanes": [
+    {
+      "lane": "catalog_routine",
+      "quota": 50000,
+      "ratio": 0.25,
+      "minimum_independent_intents": 137,
+      "coverage_eligible": true
+    },
+    {
+      "lane": "safety",
+      "quota": 45000,
+      "ratio": 0.225,
+      "minimum_independent_intents": 396,
+      "coverage_eligible": true
+    },
+    {
+      "lane": "population",
+      "quota": 30000,
+      "ratio": 0.15,
+      "minimum_independent_intents": 210,
+      "coverage_eligible": true
+    },
+    {
+      "lane": "expression",
+      "quota": 30000,
+      "ratio": 0.15,
+      "minimum_independent_intents": 330,
+      "coverage_eligible": true
+    },
+    {
+      "lane": "complex_multiturn",
+      "quota": 25000,
+      "ratio": 0.125,
+      "minimum_independent_intents": 180,
+      "coverage_eligible": true
+    },
+    {
+      "lane": "state_machine",
+      "quota": 15000,
+      "ratio": 0.075,
+      "minimum_independent_intents": 25,
+      "coverage_eligible": true
+    },
+    {
+      "lane": "capacity",
+      "quota": 5000,
+      "ratio": 0.025,
+      "minimum_independent_intents": 0,
+      "coverage_eligible": false
+    }
+  ]
+}

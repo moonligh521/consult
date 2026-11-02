@@ -1,0 +1,2 @@
+com.moonligh.consult.framework.redis.RedisStreamsAutoConfiguration
+com.moonligh.consult.framework.redis.RedissonAutoConfiguration

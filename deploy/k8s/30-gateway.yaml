@@ -1,0 +1,97 @@
+# 网关：唯一对外入口。Netty 非阻塞，2 副本即可扛 1000 并发，多给是为了高可用。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consult-gateway
+  namespace: consult
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: consult-gateway }
+  strategy:
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app: consult-gateway }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: /actuator/prometheus
+    spec:
+      terminationGracePeriodSeconds: 45
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app: consult-gateway }
+      containers:
+        - name: app
+          image: registry.example.com/consult/consult-gateway:latest
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: management, containerPort: 8081 }
+          envFrom:
+            - configMapRef: { name: consult-common }
+            - secretRef: { name: consult-secrets }
+          env:
+            - { name: AGENT_URI, value: "http://consult-agent:18081" }
+            - { name: IDENTITY_URI, value: "http://consult-identity:18082" }
+            # 2 副本 × 1500 = 3000 ≥ 目标 1000 并发 × 1.5 的余量，再多就快速 503
+            - { name: GATEWAY_MAX_IN_FLIGHT, value: "1500" }
+            # 前面一层 SLB / Ingress
+            - { name: GATEWAY_TRUSTED_PROXY_HOPS, value: "1" }
+            - { name: GATEWAY_POOL_MAX_CONNECTIONS, value: "2000" }
+          resources:
+            requests: { cpu: 500m, memory: 1Gi }
+            limits: { cpu: "2", memory: 1Gi }
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: management }
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: management }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /actuator/health/liveness, port: management }
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec: { command: ["sh", "-c", "sleep 10"] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consult-gateway
+  namespace: consult
+spec:
+  # 前面接云 SLB / Ingress Controller；换成 LoadBalancer 类型可直接对外
+  selector: { app: consult-gateway }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: consult-gateway
+  namespace: consult
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: consult-gateway }
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 60 }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: consult-gateway
+  namespace: consult
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: consult-gateway }

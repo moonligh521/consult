@@ -1,0 +1,394 @@
+package com.moonligh.consult.agent.domain.triage;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import com.moonligh.consult.agent.api.enums.Gender;
+import com.moonligh.consult.agent.domain.CompactText;
+import com.moonligh.consult.agent.domain.DepartmentRouter;
+import com.moonligh.consult.agent.domain.SpokenNormalizer;
+import com.moonligh.consult.agent.domain.department.DepartmentCatalog;
+import com.moonligh.consult.agent.domain.department.DepartmentSnapshot;
+import com.moonligh.consult.framework.model.ModelStatus;
+import com.moonligh.consult.framework.observability.AgentSpan;
+import com.moonligh.consult.framework.observability.AgentTrace;
+import com.moonligh.consult.framework.observability.AgentTraceContext;
+import com.moonligh.consult.framework.observability.AgentTraceNames;
+
+/**
+ * N4 归约 + N6 挂科：规则能定就定；定不了合并成一次主诉模型调用；模型也不行就兜底。
+ * <ul>
+ *   <li>规则 CERTAIN 时 {@code needModel=false}，禁止调模型。</li>
+ *   <li>N4 失败（resolved=false）时 N6 不信孤立症状，只落全科。</li>
+ *   <li>模型给了病名，挂科仍由目录规则映射（规则路由模型输出）。</li>
+ *   <li>非法病名丢掉；挂科合格仍可用。两者都没有才 FALLBACK。</li>
+ * </ul>
+ */
+public class TriageEngine {
+
+    public static final String MODEL_NONE = "MODEL_NONE";
+    public static final String MODEL_TERMS = "MODEL_TERMS";
+    public static final String SKIPPED_BY_ROUTE = "SKIPPED_BY_ROUTE";
+
+    private final DepartmentCatalog catalog;
+    private final ComplaintCanon canon;
+    private final DepartmentRouter router;
+    private final ComplaintModel model;
+    private final AgentTrace trace;
+
+    public TriageEngine(DepartmentCatalog catalog, DepartmentRouter router, ComplaintModel model) {
+        this(catalog, router, model, AgentTrace.NOOP);
+    }
+
+    public TriageEngine(DepartmentCatalog catalog, DepartmentRouter router, ComplaintModel model, AgentTrace trace) {
+        this.catalog = catalog;
+        this.canon = new ComplaintCanon(catalog);
+        this.router = router;
+        this.model = model == null ? ComplaintModel.unavailable() : model;
+        this.trace = trace == null ? AgentTrace.NOOP : trace;
+    }
+
+    public ComplaintCanon canon() {
+        return canon;
+    }
+
+    public TriageRun run(TriageInput in) {
+        long started = System.nanoTime();
+        DepartmentSnapshot snapshot = catalog.snapshot().forAge(in.age());
+        String runId = UUID.randomUUID().toString();
+        String description = in.description() == null ? "" : in.description();
+        String haystack = SpokenNormalizer.forMatch(description, snapshot);
+        trace.bind(new AgentTraceContext(null, runId, null, null, snapshot.version(), null));
+        try (AgentSpan triage = trace.span(AgentTraceNames.TRIAGE)) {
+            TriageRun run = runInternal(in, snapshot, runId, description, haystack, started);
+            recordTriage(triage, snapshot, haystack, run);
+            return run;
+        } finally {
+            trace.clear();
+        }
+    }
+
+    private TriageRun runInternal(
+            TriageInput in,
+            DepartmentSnapshot snapshot,
+            String runId,
+            String description,
+            String haystack,
+            long started) {
+
+        CanonResult canonRule = canon.rule(description, snapshot);
+        RouteDecision routeRule = router.route(new RouteInput(description, canonRule, in.age(), in.gender()), snapshot);
+        long ruleMs = elapsed(started);
+
+        boolean routeFixed = RouteDecision.UNCERTAIN_MARKER.equals(routeRule.reason())
+                || RouteDecision.OVERRIDE.equals(routeRule.reason());
+        boolean needModel = !routeRule.certain() || (!canonRule.certain() && !routeFixed);
+        List<String> candidates = routeRule.certain() ? withGeneral(snapshot, snapshot.enabledSpecialtyNames()) : routeRule.candidates();
+        ModelPass modelPass = interpretModel(in, snapshot, description, haystack, needModel, candidates);
+        ComplaintReply reply = modelPass.reply();
+        ModelStatus status = modelPass.status();
+        List<CanonTerm> modelTerms = modelPass.terms();
+        String modelSpecialty = modelPass.specialty();
+
+        CanonResult canonFinal = finishCanon(canonRule, routeFixed, status, modelTerms);
+        RouteDecision routeFinal = finishRoute(
+                in, snapshot, description, reply, canonRule, routeRule, canonFinal, status, modelSpecialty);
+
+        String fingerprint = fingerprint(haystack, in.age(), in.gender());
+        String catalogVersion = snapshot.version();
+        TriageResult result = new TriageResult(runId, catalogVersion, reply.promptVersion(), reply.modelName(),
+                fingerprint, canonFinal, routeFinal, status, reply.latencyMs(), reply.cached());
+
+        long total = elapsed(started);
+        List<MatchDecision> decisions = new ArrayList<>();
+        decisions.add(canonDecision(runId, canonRule, canonFinal, needModel ? total : ruleMs)
+                .withModel(needModel ? status : null, needModel ? reply.cached() : null,
+                        needModel ? reply.latencyMs() : null, reply.promptVersion(), reply.modelName())
+                .withVersion(catalogVersion, fingerprint, canonRule.shadowRuleIds()));
+        decisions.add(routeDecision(runId, routeRule, routeFinal, needModel ? total : ruleMs)
+                .withModel(needModel ? status : null, needModel ? reply.cached() : null,
+                        needModel ? reply.latencyMs() : null, reply.promptVersion(), reply.modelName())
+                .withVersion(catalogVersion, fingerprint, List.of()));
+        recordRoute(routeRule, routeFinal);
+        return new TriageRun(result, decisions);
+    }
+
+    private ModelPass interpretModel(
+            TriageInput in,
+            DepartmentSnapshot snapshot,
+            String description,
+            String haystack,
+            boolean needModel,
+            List<String> candidates) {
+        ComplaintReply reply = needModel
+                ? model.interpret(description, in.age(), in.gender(), snapshot.allowedDiseaseTerms(), candidates)
+                : ComplaintReply.notCalled();
+        ModelStatus status = reply.status();
+        List<CanonTerm> modelTerms = List.of();
+        String modelSpecialty = null;
+        List<ValidationReject> rejected = new ArrayList<>();
+        if (status == ModelStatus.SUCCESS) {
+            modelTerms = validTerms(reply, description, haystack, snapshot, rejected);
+            modelSpecialty = validSpecialty(reply, description, candidates, rejected);
+            if (modelTerms == null) {
+                modelTerms = List.of();
+            }
+            if (modelTerms.isEmpty() && modelSpecialty == null
+                    && (reply.specialty() == null || reply.specialty().isBlank())) {
+                status = ModelStatus.INVALID_OUTPUT;
+            }
+            recordRejected(rejected);
+        }
+        return new ModelPass(reply, status, modelTerms, modelSpecialty);
+    }
+
+    private static CanonResult finishCanon(
+            CanonResult canonRule, boolean routeFixed, ModelStatus status, List<CanonTerm> modelTerms) {
+        if (canonRule.certain()) {
+            return canonRule;
+        }
+        if (routeFixed) {
+            return canonRule.with(List.of(), DecisionSource.RULE, SKIPPED_BY_ROUTE, true);
+        }
+        if (status == ModelStatus.SUCCESS) {
+            return canonRule.with(modelTerms, DecisionSource.MODEL, modelTerms.isEmpty() ? MODEL_NONE : MODEL_TERMS, true);
+        }
+        return canonRule.with(List.of(), DecisionSource.FALLBACK, "MODEL_" + status.name(), false);
+    }
+
+    private RouteDecision finishRoute(
+            TriageInput in,
+            DepartmentSnapshot snapshot,
+            String description,
+            ComplaintReply reply,
+            CanonResult canonRule,
+            RouteDecision routeRule,
+            CanonResult canonFinal,
+            ModelStatus status,
+            String modelSpecialty) {
+        if (routeRule.certain()) {
+            RouteDecision routeFinal = routeRule;
+            if (!canonRule.certain() && canonFinal.source() == DecisionSource.MODEL && !canonFinal.terms().isEmpty()) {
+                RouteDecision again = router.route(new RouteInput(description, canonFinal, in.age(), in.gender()), snapshot);
+                if (again.certain() && !sameSpecialty(again.advice(), routeRule.advice())) {
+                    routeFinal = new RouteDecision(again.advice(), Certainty.CERTAIN, DecisionSource.MODEL,
+                            RouteDecision.MODEL_TERM_ROUTED, routeRule.candidates(), again.hit());
+                }
+            }
+            return routeFinal;
+        }
+        RouteDecision routeFinal = null;
+        if (canonFinal.source() == DecisionSource.MODEL && !canonFinal.terms().isEmpty()) {
+            RouteDecision again = router.route(new RouteInput(description, canonFinal, in.age(), in.gender()), snapshot);
+            if (again.certain()) {
+                routeFinal = new RouteDecision(again.advice(), Certainty.UNCERTAIN, DecisionSource.MODEL,
+                        RouteDecision.MODEL_TERM_ROUTED, routeRule.candidates(), again.hit());
+            }
+        }
+        if (routeFinal == null && status == ModelStatus.SUCCESS && modelSpecialty != null) {
+            DepartmentRouter.Advice picked = DepartmentRouter.adviceOf(
+                    snapshot, snapshot.refOfSpecialty(modelSpecialty), evidenceText(reply.specialtyEvidence(), description));
+            routeFinal = new RouteDecision(picked, Certainty.UNCERTAIN, DecisionSource.MODEL,
+                    RouteDecision.MODEL_PICK, routeRule.candidates(), routeRule.hit());
+        }
+        if (routeFinal == null) {
+            String reason = status == ModelStatus.SUCCESS
+                    ? RouteDecision.MODEL_OUT_OF_CANDIDATES
+                    : "MODEL_" + status.name();
+            routeFinal = new RouteDecision(DepartmentRouter.fallbackOf(snapshot), Certainty.UNCERTAIN,
+                    DecisionSource.FALLBACK, reason, routeRule.candidates(), routeRule.hit());
+        }
+        return routeFinal;
+    }
+
+    private record ModelPass(ComplaintReply reply, ModelStatus status, List<CanonTerm> terms, String specialty) {
+    }
+
+    private void recordTriage(AgentSpan span, DepartmentSnapshot snapshot, String haystack, TriageRun run) {
+        TriageResult result = run.result();
+        span.attr("run_id", result.runId())
+                .attr("catalog_version", result.catalogVersion())
+                .attr("audience_view", snapshot.version())
+                .attr("normalized_text", haystack)
+                .attr("canon_reason", result.canon().reason())
+                .attr("canon_source", result.canon().source().name())
+                .attr("route_reason", result.route().reason())
+                .attr("route_source", result.route().source().name())
+                .attr("specialty", result.route().advice().specialty())
+                .attr("candidates", String.join(",", result.route().candidates()))
+                .attr("model_status", result.modelStatus().name())
+                .attr("fallback", result.route().source() == DecisionSource.FALLBACK);
+        AgentTraceZh.triage(span, haystack, result);
+    }
+
+    private void recordRoute(RouteDecision rule, RouteDecision result) {
+        try (AgentSpan span = trace.span(AgentTraceNames.ROUTE)) {
+            RouteHit hit = result.hit() != null ? result.hit() : rule.hit();
+            span.attr("rule_reason", rule.reason())
+                    .attr("final_reason", result.reason())
+                    .attr("specialty", result.advice().specialty())
+                    .attr("candidates", String.join(",", rule.candidates()));
+            if (hit != null) {
+                span.attr("keyword", hit.keyword())
+                        .attr("position", hit.position())
+                        .attr("compared", String.join(",", hit.compared()))
+                        .attr("win_reason", hit.winReason());
+            }
+            AgentTraceZh.route(span, rule, result);
+        }
+    }
+
+    private void recordRejected(List<ValidationReject> rejected) {
+        if (rejected.isEmpty()) {
+            return;
+        }
+        try (AgentSpan span = trace.span(AgentTraceNames.VALIDATE)) {
+            span.attr("rejected_count", rejected.size());
+            for (int i = 0; i < rejected.size(); i++) {
+                ValidationReject item = rejected.get(i);
+                span.attr("reject." + i + ".kind", item.kind())
+                        .attr("reject." + i + ".value", item.value())
+                        .attr("reject." + i + ".reason", item.reason());
+            }
+        }
+    }
+
+    /** 模型病名：必须在允许列表、证据是原话子串。不合格的条丢掉，不连坐挂科。 */
+    private static List<CanonTerm> validTerms(
+            ComplaintReply reply,
+            String description,
+            String haystack,
+            DepartmentSnapshot snapshot,
+            List<ValidationReject> rejected) {
+        List<CanonTerm> terms = new ArrayList<>();
+        for (ComplaintReply.ModelTerm item : reply.terms()) {
+            if (terms.size() >= ComplaintCanon.MAX_TERMS) {
+                break;
+            }
+            if (item.term() == null || item.term().isBlank()) {
+                rejected.add(new ValidationReject(ValidationReject.TERM, item.term(), ValidationReject.INVALID_FORMAT));
+                continue;
+            }
+            if (!snapshot.isDisease(item.term())) {
+                rejected.add(new ValidationReject(ValidationReject.TERM, item.term(), ValidationReject.NOT_IN_CATALOG));
+                continue;
+            }
+            if (item.evidence() == null || item.evidence().isBlank() || !description.contains(item.evidence())) {
+                rejected.add(new ValidationReject(ValidationReject.TERM, item.term(), ValidationReject.EVIDENCE_NOT_SUBSTRING));
+                continue;
+            }
+            String compact = SpokenNormalizer.forMatch(item.evidence(), snapshot);
+            int at = haystack.indexOf(compact);
+            Span span = at < 0 ? null : new Span(at, at + compact.length());
+            boolean duplicate = terms.stream().anyMatch(existing -> existing.term().equals(item.term()));
+            if (!duplicate) {
+                terms.add(new CanonTerm(item.term(), CanonTerm.MODEL, span));
+            }
+        }
+        return terms;
+    }
+
+    /** 模型挂科：必须在候选里，证据若给了必须是原话子串。不合格返回 null。 */
+    private static String validSpecialty(
+            ComplaintReply reply, String description, List<String> candidates, List<ValidationReject> rejected) {
+        String specialty = reply.specialty();
+        if (specialty == null || specialty.isBlank()) {
+            return null;
+        }
+        if (!candidates.contains(specialty)) {
+            rejected.add(new ValidationReject(ValidationReject.SPECIALTY, specialty, ValidationReject.NOT_IN_CANDIDATES));
+            return null;
+        }
+        String evidence = reply.specialtyEvidence();
+        if (evidence != null && !evidence.isBlank() && !description.contains(evidence)) {
+            rejected.add(new ValidationReject(ValidationReject.SPECIALTY, specialty, ValidationReject.EVIDENCE_NOT_SUBSTRING));
+            return null;
+        }
+        return specialty;
+    }
+
+    private static boolean sameSpecialty(DepartmentRouter.Advice left, DepartmentRouter.Advice right) {
+        return left.department() == right.department() && java.util.Objects.equals(left.specialty(), right.specialty());
+    }
+
+    private static String evidenceText(String evidence, String description) {
+        return evidence != null && !evidence.isBlank() && description.contains(evidence) ? evidence : null;
+    }
+
+    private static List<String> withGeneral(DepartmentSnapshot snapshot, List<String> names) {
+        List<String> list = new ArrayList<>(names);
+        String general = snapshot.fallback().defaultSpecialty();
+        if (!list.contains(general)) {
+            list.add(general);
+        }
+        return list;
+    }
+
+    private static MatchDecision canonDecision(String runId, CanonResult rule, CanonResult result, long latencyMs) {
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("terms", result.termNames());
+        List<String> history = new ArrayList<>();
+        for (CanonTerm term : result.historyTerms()) {
+            history.add(term.term());
+        }
+        output.put("historyTerms", history);
+        output.put("ruleReason", rule.reason());
+        output.put("resolved", result.resolved());
+        List<Span> evidence = new ArrayList<>();
+        for (CanonTerm term : result.terms()) {
+            if (term.evidence() != null) {
+                evidence.add(term.evidence());
+            }
+        }
+        return MatchDecision.of(runId, TriageNode.N4_CANON, rule.certainty(), result.source(), result.reason(),
+                output, evidence, latencyMs);
+    }
+
+    private static MatchDecision routeDecision(String runId, RouteDecision rule, RouteDecision result, long latencyMs) {
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("departmentCode", result.advice().departmentCode());
+        output.put("specialty", result.advice().specialty());
+        output.put("ruleReason", rule.reason());
+        output.put("candidates", rule.candidates());
+        if (result.hit() != null) {
+            output.put("keyword", result.hit().keyword());
+            output.put("position", result.hit().position());
+            output.put("compared", result.hit().compared());
+            output.put("winReason", result.hit().winReason());
+        }
+        return MatchDecision.of(runId, TriageNode.N6_DEPARTMENT, rule.certainty(), result.source(), result.reason(),
+                output, List.of(), latencyMs);
+    }
+
+    /** sha256(紧凑原话|年龄段|性别)，同说法聚合与缓存用。 */
+    public static String fingerprint(String compact, Integer age, Gender gender) {
+        String raw = CompactText.of(compact) + "|" + ageBand(age) + "|" + (gender == null ? "" : gender.name());
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(raw.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException(error);
+        }
+    }
+
+    public static String ageBand(Integer age) {
+        if (age == null) {
+            return "";
+        }
+        if (age < 14) {
+            return "child";
+        }
+        return age < 60 ? "adult" : "senior";
+    }
+
+    private static long elapsed(long started) {
+        return (System.nanoTime() - started) / 1_000_000;
+    }
+}

@@ -1,0 +1,99 @@
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Source Han Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  color: #2c3340;
+  background: #f5f7fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.login-page {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: min(400px, 100%);
+  background: #fff;
+  border-radius: 12px;
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 8px 24px rgba(20, 40, 80, 0.08);
+}
+
+.login-card h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.login-card p,
+.hint {
+  margin: 0;
+  color: #8a94a6;
+  font-size: 13px;
+}
+
+.page-pad {
+  padding: 16px 20px 24px;
+}
+
+.page-pad h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.page-head h2 {
+  margin: 0;
+}
+
+.brand {
+  padding: 18px 16px;
+  font-weight: 600;
+}
+
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px 16px;
+}
+
+.side-link {
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #2c3340;
+  text-decoration: none;
+}
+
+.side-link.on {
+  background: #e8f3ff;
+  color: #2488f5;
+  font-weight: 600;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}

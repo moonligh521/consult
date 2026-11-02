@@ -1,0 +1,46 @@
+package com.moonligh.consult.framework.job;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+
+import com.xxl.job.core.executor.impl.XxlJobSpringExecutor;
+
+/** consult.xxl.enabled=true 时，向调度中心报名。 */
+@AutoConfiguration
+@ConditionalOnClass(XxlJobSpringExecutor.class)
+@EnableConfigurationProperties(XxlJobProperties.class)
+public class XxlJobAutoConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(XxlJobAutoConfiguration.class);
+
+    @Bean
+    @ConditionalOnProperty(prefix = "consult.xxl", name = "enabled", havingValue = "true")
+    @ConditionalOnMissingBean
+    public XxlJobSpringExecutor xxlJobExecutor(XxlJobProperties properties) {
+        XxlJobSpringExecutor executor = new XxlJobSpringExecutor();
+        executor.setAdminAddresses(properties.getAdminAddresses());
+        executor.setAppname(properties.getAppname());
+        executor.setPort(properties.getPort());
+        executor.setLogPath(properties.getLogPath());
+        executor.setLogRetentionDays(properties.getLogRetentionDays());
+        if (notBlank(properties.getIp())) {
+            executor.setIp(properties.getIp());
+        }
+        if (notBlank(properties.getAccessToken())) {
+            executor.setAccessToken(properties.getAccessToken());
+        }
+        log.info("XXL-Job 执行器 appname={} port={} admin={}",
+                properties.getAppname(), properties.getPort(), properties.getAdminAddresses());
+        return executor;
+    }
+
+    private static boolean notBlank(String value) {
+        return value != null && !value.isBlank();
+    }
+}
