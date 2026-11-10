@@ -54,6 +54,11 @@ public class InternalDoctorController {
         return Result.ok(doctors.coverage(departmentCode, specialty));
     }
 
+    @GetMapping("/online-specialties")
+    public Result<List<String>> onlineSpecialties() {
+        return Result.ok(doctors.listOnlineSpecialties());
+    }
+
     @GetMapping("/available")
     public Result<Boolean> available(
             @RequestParam int departmentCode,

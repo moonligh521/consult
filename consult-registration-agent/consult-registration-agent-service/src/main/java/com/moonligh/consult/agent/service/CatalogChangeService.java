@@ -18,6 +18,8 @@ import com.moonligh.consult.agent.domain.department.DepartmentRecord;
 import com.moonligh.consult.agent.domain.department.DepartmentSpecialty;
 import com.moonligh.consult.agent.domain.department.DoctorCoverage;
 import com.moonligh.consult.agent.domain.department.DoctorCoverageClient;
+import com.moonligh.consult.agent.domain.SpecialtyGate;
+import com.moonligh.consult.agent.domain.SpecialtyPresence;
 import com.moonligh.consult.agent.infrastructure.persistence.ConsultationMapper;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
@@ -32,6 +34,7 @@ public class CatalogChangeService {
     private final DepartmentCatalogStore store;
     private final DepartmentCatalogWriter writer;
     private final DoctorCoverageClient coverage;
+    private final SpecialtyPresence presence;
     private final CatalogProperties properties;
     private final ConsultationMapper mapper;
 
@@ -40,12 +43,14 @@ public class CatalogChangeService {
             DepartmentCatalogStore store,
             DepartmentCatalogWriter writer,
             DoctorCoverageClient coverage,
+            SpecialtyPresence presence,
             CatalogProperties properties,
             ConsultationMapper mapper) {
         this.catalog = catalog;
         this.store = store;
         this.writer = writer;
         this.coverage = coverage;
+        this.presence = presence;
         this.properties = properties;
         this.mapper = mapper;
     }
@@ -55,6 +60,9 @@ public class CatalogChangeService {
         for (DepartmentRecord dept : catalog.snapshot().forAge(age).enabled()) {
             List<SpecialtyNodeRes> specs = new ArrayList<>();
             for (DepartmentSpecialty spec : dept.specialties()) {
+                if (!SpecialtyGate.accepting(spec.name(), presence)) {
+                    continue;
+                }
                 specs.add(new SpecialtyNodeRes(spec.id(), spec.name(), spec.treatDesc(), true, spec.audience()));
             }
             if (!specs.isEmpty()) {

@@ -47,6 +47,8 @@ import com.moonligh.consult.agent.domain.pay.PaymentCashier;
 import com.moonligh.consult.agent.domain.benefit.BenefitGateway;
 import com.moonligh.consult.agent.domain.DepartmentRouter;
 import com.moonligh.consult.agent.domain.RegistrationAgent;
+import com.moonligh.consult.agent.domain.SpecialtyGate;
+import com.moonligh.consult.agent.domain.SpecialtyPresence;
 import com.moonligh.consult.agent.domain.PayCatalog;
 import com.moonligh.consult.agent.domain.SessionAction;
 import com.moonligh.consult.agent.domain.SlotParser;
@@ -118,6 +120,8 @@ public class ConsultationService {
     private final PatientStore patients;
     /** 支付后按二级科和擅长派医生。测试可不接。 */
     DoctorAssigner doctorAssigner;
+    /** 医生在线驱动二级科能否被推荐。没接时所有已开通的科都可推荐。 */
+    SpecialtyPresence presence = name -> true;
     /** Redis/内存派单队。测试可不接。 */
     MatchDispatcher matchDispatcher;
     /** 派单成功后同步医生端。没配 name-server 时不接。 */
@@ -193,6 +197,13 @@ public class ConsultationService {
         this.patients = patients == null ? new MemoryPatientStore() : patients;
         this.doctorAssigner = doctorAssigner;
         this.orders = new ConsultationOrders(this);
+    }
+
+    @Autowired(required = false)
+    public void setSpecialtyPresence(SpecialtyPresence presence) {
+        if (presence != null) {
+            this.presence = presence;
+        }
     }
 
     @Autowired(required = false)
@@ -767,8 +778,9 @@ public class ConsultationService {
             source = DecisionSource.PATIENT;
             recordPatientRoute(session, picked);
         }
+        Shown shown = show(advice, source);
         ConsultationCardRes card = CardFacts.compose(
-                gender, age, duration, description, symptoms, advice, source,
+                gender, age, duration, description, symptoms, shown.advice(), shown.source(),
                 session.getPatientId(), session.getPatientName());
         session.setCard(card);
         session.setBusinessStatus(ConsultationStatus.CARD_READY);
@@ -902,14 +914,15 @@ public class ConsultationService {
                 advice = triage.route().advice();
                 source = triage.route().source();
             }
+            Shown shown = show(advice, source);
             session.setCard(CardFacts.compose(
                     session.getGender(),
                     session.getAge(),
                     current.duration(),
                     current.description(),
                     current.symptoms(),
-                    advice,
-                    source,
+                    shown.advice(),
+                    shown.source(),
                     session.getPatientId(),
                     session.getPatientName()));
             return buildResponse(session);
@@ -1118,14 +1131,15 @@ public class ConsultationService {
         List<String> symptoms = symptomExtractor.extract(session.getDescription());
         TriageResult triage = runTriage(session, session.getDescription(), session.getAge(), session.getGender(), trigger);
         recordSymptoms(session, triage.runId(), symptoms, trigger);
+        Shown shown = show(triage.route().advice(), triage.route().source());
         session.setCard(CardFacts.compose(
                 session.getGender(),
                 session.getAge(),
                 session.getDuration(),
                 session.getDescription(),
                 symptoms,
-                triage.route().advice(),
-                triage.route().source(),
+                shown.advice(),
+                shown.source(),
                 session.getPatientId(),
                 session.getPatientName()));
         session.setBusinessStatus(ConsultationStatus.CARD_READY);
@@ -1252,6 +1266,28 @@ public class ConsultationService {
                 List.of(decision.withVersion(catalogVersion, fingerprint, decision.shadowIds())), orderId, trigger);
     }
 
+    private Shown show(DepartmentRouter.Advice advice, DecisionSource source) {
+        DepartmentRouter.Advice opened = SpecialtyGate.recommend(advice, presence);
+        if (opened != advice) {
+            return new Shown(opened, DecisionSource.FALLBACK);
+        }
+        return new Shown(advice, source);
+    }
+
+    /** 下单前把没有在线医生的二级科改成全科，并写回会话。 */
+    void openSpecialty(ConsultationSession session) {
+        if (session == null || session.getOrder() != null) {
+            return;
+        }
+        ConsultationCardRes opened = SpecialtyGate.retarget(session.getCard(), presence);
+        if (opened != session.getCard()) {
+            session.setCard(opened);
+        }
+    }
+
+    private record Shown(DepartmentRouter.Advice advice, DecisionSource source) {
+    }
+
     /** 空文本：请重新描述；如果正在补槽，状态仍是待补槽。 */
     private ConsultationRes blankView(ConsultationSession session) {
         if (session.getBusinessStatus() != ConsultationStatus.NEED_SLOT) {
@@ -1268,6 +1304,9 @@ public class ConsultationService {
                 || view.status() == ConsultationStatus.CARD_READY ? PayCatalog.list() : null;
         ConsultOrder order = session.getOrder();
         ConsultationCardRes card = markStaleIfStopped(view.card(), order);
+        if (order == null) {
+            card = SpecialtyGate.retarget(card, presence);
+        }
         String prompt = card != null && card.stale()
                 ? "该科室已停诊，请在卡片上改科。"
                 : view.prompt();

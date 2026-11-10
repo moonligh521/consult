@@ -56,7 +56,6 @@ final class ConsultationOrders {
     }
 
     ConsultationRes placeOrder(String consultationId, Integer packageCode, Integer consultMinutes, String channel) {
-        rejectIfNoDuty(consultationId, packageCode);
         ConsultationRes placed = consult.repository.runLocked(
                 consultationId, session -> placeOrderLocked(session, packageCode, consultMinutes, channel));
         placed = applyBenefit(placed);
@@ -209,23 +208,10 @@ final class ConsultationOrders {
         });
     }
 
-    private void rejectIfNoDuty(String consultationId, Integer packageCode) {
-        if (consult.doctorAssigner == null || consultationId == null || consultationId.isBlank()) {
-            return;
-        }
-        ConsultationSession session = consult.repository.get(consultationId);
-        if (session == null || session.getOrder() != null) {
-            return;
-        }
-        int code = packageCode == null ? 0 : packageCode;
-        if (!consult.doctorAssigner.hasOnDuty(session.getCard(), code)) {
-            throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
-        }
-    }
-
-    /** 已经拿到会话锁之后下单。急症和未确认都不能买。 */
+    /** 已经拿到会话锁之后下单。急症和未确认都不能买。没有在线医生的科先改到全科。 */
     private ConsultationRes placeOrderLocked(
             ConsultationSession session, Integer packageCode, Integer consultMinutes, String channel) {
+        consult.openSpecialty(session);
         SafetyPolicy.rejectIfSafetyStop(session);
         consult.rejectIfInquiryClosed();
         if (session.getBusinessStatus() != ConsultationStatus.CONFIRMED) {

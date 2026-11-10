@@ -117,13 +117,14 @@ public class DoctorAssignService {
         return false;
     }
 
-    /** 医生上线。没有公平队列时只校验医生存在。 */
+    /** 接诊台心跳。只续已经点过上线的医生，不会把下线的人改成在线。 */
     public void heartbeat(String doctorId) {
         doctors.heartbeat(doctorId);
     }
 
+    /** 医生在接诊台点击上线。心跳不会代替这次点击。 */
     public void online(String doctorId) {
-        doctors.heartbeat(doctorId);
+        doctors.goOnline(doctorId);
         DoctorAdminRes doctor = requireDoctor(doctorId);
         if (loadPool == null) {
             return;

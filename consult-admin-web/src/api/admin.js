@@ -80,6 +80,18 @@ export function doctorHeartbeat() {
   return http.post('/api/doctor/heartbeat')
 }
 
+export function doctorPresence() {
+  return http.get('/api/doctor/presence')
+}
+
+export function doctorOnline() {
+  return http.post('/api/doctor/presence/online')
+}
+
+export function doctorOffline() {
+  return http.post('/api/doctor/presence/offline')
+}
+
 export function doctorReply(consultationId, doctorId, text) {
   return http.post('/api/doctor/replies', { consultationId, doctorId, text })
 }

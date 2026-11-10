@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { NButton, NCard, NInput, useMessage } from 'naive-ui'
-import { doctorHeartbeat, doctorInbox, doctorReply } from '../api/admin'
+import { doctorHeartbeat, doctorInbox, doctorOffline, doctorOnline, doctorPresence, doctorReply } from '../api/admin'
 import { useAuthStore } from '../stores/auth'
 
 const message = useMessage()
@@ -11,6 +11,7 @@ const loading = ref(false)
 const activeId = ref('')
 const draft = ref('')
 const sending = ref(false)
+const online = ref(false)
 let timer = 0
 
 onMounted(async () => {
@@ -18,9 +19,10 @@ onMounted(async () => {
   if (!auth.doctorId) {
     return
   }
+  await refreshPresence()
   await load()
   const beat = () => {
-    if (document.hidden || !auth.doctorId) {
+    if (document.hidden || !auth.doctorId || !online.value) {
       return
     }
     doctorHeartbeat().catch(() => {})
@@ -34,6 +36,24 @@ onUnmounted(() => {
     window.clearInterval(timer)
   }
 })
+
+async function refreshPresence() {
+  const result = await doctorPresence()
+  online.value = result.code === 200 && result.data === true
+}
+
+async function setOnline(next) {
+  const result = next ? await doctorOnline() : await doctorOffline()
+  if (result.code === 200) {
+    online.value = next
+    message.success(next ? '已上线，可以接新单' : '已下线，不再接新单')
+    if (next) {
+      doctorHeartbeat().catch(() => {})
+    }
+    return
+  }
+  message.error(result.message || '切换失败')
+}
 
 async function load() {
   if (!auth.doctorId) {
@@ -81,6 +101,9 @@ async function send() {
     <template v-else>
       <div style="display: flex; gap: 12px; align-items: center">
         <span>当前医生 {{ auth.doctorId }}</span>
+        <span>{{ online ? '在线' : '下线' }}</span>
+        <n-button type="primary" :disabled="online" @click="setOnline(true)">上线</n-button>
+        <n-button :disabled="!online" @click="setOnline(false)">下线</n-button>
         <n-button :loading="loading" @click="load">刷新待接箱</n-button>
       </div>
       <n-card v-if="!rows.length" size="small">这个医生还没有待接咨询。</n-card>

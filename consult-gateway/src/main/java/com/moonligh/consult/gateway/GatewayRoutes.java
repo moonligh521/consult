@@ -43,6 +43,7 @@ public class GatewayRoutes {
                 .route("benefit-api", r -> r.path("/api/benefit", "/api/benefit/**").uri(benefit))
                 .route("identity-doctor-inbox", r -> r.path("/api/doctor/inbox", "/api/doctor/inbox/**").uri(identity))
                 .route("identity-doctor-heartbeat", r -> r.path("/api/doctor/heartbeat").uri(identity))
+                .route("identity-doctor-presence", r -> r.path("/api/doctor/presence", "/api/doctor/presence/**").uri(identity))
                 .route("agent-doctor", r -> r.path("/api/doctor", "/api/doctor/**").uri(agent))
                 .route("agent-pay-callback", r -> r.path("/api/pay/callback").uri(agent))
                 .route("agent-consult", r -> r.path("/api/consultations", "/api/consultations/**").uri(agent))

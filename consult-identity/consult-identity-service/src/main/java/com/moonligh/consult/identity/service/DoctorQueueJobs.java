@@ -2,15 +2,13 @@ package com.moonligh.consult.identity.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.moonligh.consult.identity.config.DoctorLoadRebuilder;
-import com.moonligh.consult.identity.store.DoctorStore;
 import com.xxl.job.core.handler.annotation.XxlJob;
 
 /**
- * 出站重投、医生队列按库重铺、心跳超时下线。调度中心不可达时，派单成交不依赖这些任务。
+ * 出站重投、医生队列按库重铺。医生在线只认接诊台按钮，不在这里改。
  */
 @Component
 public class DoctorQueueJobs {
@@ -19,18 +17,10 @@ public class DoctorQueueJobs {
 
     private final AssignmentPublisher publisher;
     private final DoctorLoadRebuilder rebuilder;
-    private final DoctorStore doctors;
-    private final boolean demoHeartbeat;
 
-    public DoctorQueueJobs(
-            AssignmentPublisher publisher,
-            DoctorLoadRebuilder rebuilder,
-            DoctorStore doctors,
-            @Value("${consult.doctor.demo-heartbeat:false}") boolean demoHeartbeat) {
+    public DoctorQueueJobs(AssignmentPublisher publisher, DoctorLoadRebuilder rebuilder) {
         this.publisher = publisher;
         this.rebuilder = rebuilder;
-        this.doctors = doctors;
-        this.demoHeartbeat = demoHeartbeat;
     }
 
     @XxlJob("assignmentOutboxJob")
@@ -51,12 +41,6 @@ public class DoctorQueueJobs {
 
     @XxlJob("doctorPresenceSweepJob")
     public void doctorPresenceSweepJob() {
-        if (demoHeartbeat) {
-            return;
-        }
-        int n = doctors.offlineStale();
-        if (n > 0) {
-            log.info("心跳超时下线 {} 人", n);
-        }
+        // 在线状态只认接诊台的上线、下线。心跳中断不再把医生改成下线。
     }
 }

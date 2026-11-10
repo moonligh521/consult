@@ -87,7 +87,7 @@ class OutsideLockFlowTest {
                     callsInLock.incrementAndGet();
                 }
                 assignedOrderIds.add(orderId);
-                if (failAssign) {
+                if (failAssign || !onDuty) {
                     throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
                 }
                 return new AssignedDoctorRes("doc-1", "赵衡", "主治医师", "互联网医院", 1, card.specialty(),
@@ -162,13 +162,14 @@ class OutsideLockFlowTest {
     }
 
     @Test
-    void placeOrderRejectedWhenNoOneOnDuty() {
+    void placeOrderQueuesWhenNoFreeSlot() {
         ConsultationService service = service();
         String id = service.acceptMessage(null, "男，50岁，高血压，头晕三天").consultationId();
         service.confirm(id);
         onDuty = false;
-        BusinessException error = assertThrows(BusinessException.class, () -> service.placeOrder(id, 3));
-        assertEquals(ErrorCode.DOCTOR_UNAVAILABLE, error.getErrorCode());
-        assertNull(repository.getRequired(id).getOrder());
+        ConsultationRes queued = service.placeOrder(id, 3);
+        assertNotNull(queued.order());
+        assertNull(queued.order().doctor());
+        assertNotNull(repository.getRequired(id).getOrder());
     }
 }

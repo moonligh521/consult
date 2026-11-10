@@ -45,6 +45,21 @@ public class DoctorStore {
         return n == null ? 0 : n;
     }
 
+    /**
+     * 有医生在接诊台点过上线的二级科。只认 presence，不看心跳。号满了仍算在线。
+     */
+    public java.util.List<String> listOnlineSpecialties() {
+        return jdbc.query(
+                """
+                SELECT DISTINCT specialty
+                FROM consult_doctor
+                WHERE is_deleted = 0 AND status = 1 AND presence = 1
+                  AND specialty IS NOT NULL AND specialty <> ''
+                ORDER BY specialty
+                """,
+                (rs, rowNum) -> rs.getString("specialty"));
+    }
+
     /** 某二级科在职医生数。 */
     public DoctorCoverageRes coverage(int departmentCode, String specialty) {
         Integer doctors = jdbc.queryForObject(
@@ -234,7 +249,6 @@ public class DoctorStore {
                   AND s.remain_num > 0
                 """ + ScheduleWindows.LIVE_SQL + """
                 WHERE d.is_deleted = 0 AND d.status = 1 AND d.presence = 1
-                  AND d.last_beat > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR) - INTERVAL 15 SECOND
                   AND d.in_flight < d.concurrent_limit
                 """ + scope;
         try {
@@ -249,8 +263,7 @@ public class DoctorStore {
                       AND s.remain_num > 0
                     """ + ScheduleWindows.LIVE_SQL + """
                     WHERE d.is_deleted = 0 AND d.status = 1 AND d.presence = 1
-                  AND d.last_beat > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR) - INTERVAL 15 SECOND
-                  AND d.in_flight < d.concurrent_limit
+                      AND d.in_flight < d.concurrent_limit
                     """ + scope,
                     this::mapCandidate,
                     args);
@@ -281,7 +294,6 @@ public class DoctorStore {
                     idle_since = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR),
                     updated_at = CURRENT_TIMESTAMP(3)
                 WHERE id = ? AND is_deleted = 0 AND status = 1 AND presence = 1
-                  AND last_beat > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR) - INTERVAL 15 SECOND
                   AND in_flight < concurrent_limit
                 """,
                 doctorId);
@@ -328,8 +340,23 @@ public class DoctorStore {
                 scheduleId);
     }
 
-    /** 医生端心跳。15 秒内没有心跳的人不再领新单。 */
+    /** 接诊台心跳。只给已经点过上线的医生续时间，不会把人标成在线。 */
     public void heartbeat(String doctorId) {
+        if (doctorId == null || doctorId.isBlank()) {
+            return;
+        }
+        jdbc.update(
+                """
+                UPDATE consult_doctor
+                SET last_beat = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR),
+                    updated_at = CURRENT_TIMESTAMP(3)
+                WHERE id = ? AND is_deleted = 0 AND status = 1 AND presence = 1
+                """,
+                doctorId);
+    }
+
+    /** 医生在接诊台点击上线。 */
+    public void goOnline(String doctorId) {
         if (doctorId == null || doctorId.isBlank()) {
             return;
         }
@@ -356,7 +383,7 @@ public class DoctorStore {
                 """);
     }
 
-    /** 启动时把在档医生标成可派，真实心跳接上后由超时扫描下线。 */
+    /** 演示心跳打开时，把在档医生标成已点击上线。生产不走这里。 */
     public int markSeededOnline() {
         return jdbc.update(
                 """
@@ -381,14 +408,23 @@ public class DoctorStore {
                 doctorId);
     }
 
+    /** 在线状态只由接诊台的上线、下线按钮改。心跳中断不在这里把人改成下线。 */
     public int offlineStale() {
-        return jdbc.update(
+        return 0;
+    }
+
+    public boolean isOnline(String doctorId) {
+        if (doctorId == null || doctorId.isBlank()) {
+            return false;
+        }
+        Integer presence = jdbc.queryForObject(
                 """
-                UPDATE consult_doctor
-                SET presence = 0, updated_at = CURRENT_TIMESTAMP(3)
-                WHERE is_deleted = 0 AND presence = 1
-                  AND (last_beat IS NULL OR last_beat <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR) - INTERVAL 15 SECOND)
-                """);
+                SELECT presence FROM consult_doctor
+                WHERE id = ? AND is_deleted = 0 AND status = 1
+                """,
+                Integer.class,
+                doctorId);
+        return presence != null && presence == 1;
     }
 
     public java.util.List<PresentDoctor> listPresent() {
