@@ -1,6 +1,10 @@
 package com.moonligh.consult.identity.controller;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,9 +17,12 @@ import com.moonligh.consult.framework.Result;
 import com.moonligh.consult.identity.api.AssignDoctorReq;
 import com.moonligh.consult.identity.api.AssignDoctorRes;
 import com.moonligh.consult.identity.api.DoctorCoverageRes;
+import com.moonligh.consult.identity.api.DoctorPresenceReq;
 import com.moonligh.consult.identity.api.ExtendDoctorReq;
 import com.moonligh.consult.identity.api.ReleaseDoctorReq;
 import com.moonligh.consult.identity.config.DoctorSeed;
+import com.moonligh.consult.identity.domain.AssignmentNoticeStore;
+import com.moonligh.consult.identity.domain.AssignmentNoticeStore.PendingNotice;
 import com.moonligh.consult.identity.service.DoctorAssignService;
 import com.moonligh.consult.identity.store.DoctorStore;
 
@@ -29,11 +36,17 @@ public class InternalDoctorController {
     private final DoctorAssignService assign;
     private final DoctorStore doctors;
     private final DoctorSeed seed;
+    private final AssignmentNoticeStore notices;
 
-    public InternalDoctorController(DoctorAssignService assign, DoctorStore doctors, DoctorSeed seed) {
+    public InternalDoctorController(
+            DoctorAssignService assign,
+            DoctorStore doctors,
+            DoctorSeed seed,
+            AssignmentNoticeStore notices) {
         this.assign = assign;
         this.doctors = doctors;
         this.seed = seed;
+        this.notices = notices;
     }
 
     @GetMapping("/coverage")
@@ -77,5 +90,39 @@ public class InternalDoctorController {
         }
         assign.extend(req.orderId(), req.consultMinutes());
         return Result.ok();
+    }
+
+    @PostMapping("/online")
+    public Result<Void> online(@RequestBody DoctorPresenceReq req) {
+        assign.online(req == null ? null : req.doctorId());
+        return Result.ok();
+    }
+
+    @PostMapping("/offline")
+    public Result<Void> offline(@RequestBody DoctorPresenceReq req) {
+        assign.offline(req == null ? null : req.doctorId());
+        return Result.ok();
+    }
+
+    @PostMapping("/heartbeat")
+    public Result<Void> heartbeat(@RequestBody DoctorPresenceReq req) {
+        assign.heartbeat(req == null ? null : req.doctorId());
+        return Result.ok();
+    }
+
+    @GetMapping("/{doctorId}/inbox")
+    public Result<List<DoctorInboxItem>> inbox(@PathVariable String doctorId) {
+        List<DoctorInboxItem> rows = new ArrayList<>();
+        for (PendingNotice notice : notices.inbox(doctorId, 50)) {
+            rows.add(new DoctorInboxItem(
+                    notice.orderId(),
+                    notice.consultationId(),
+                    notice.specialty(),
+                    notice.scheduleId()));
+        }
+        return Result.ok(rows);
+    }
+
+    public record DoctorInboxItem(String orderId, String consultationId, String specialty, String scheduleId) {
     }
 }

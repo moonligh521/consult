@@ -24,6 +24,8 @@
         <module>consult-registration-agent</module>
         <module>consult-identity</module>
         <module>consult-gateway</module>
+        <module>consult-payment</module>
+        <module>consult-benefit</module>
     </modules>
 
     <licenses>

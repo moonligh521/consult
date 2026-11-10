@@ -39,7 +39,18 @@ public class DoctorAdminService {
     }
 
     public DoctorAdminRes createDoctor(DoctorSaveReq req) {
-        return doctors.insert(requireDoctor(req));
+        DoctorSaveReq ready = requireDoctor(req);
+        for (DoctorAdminRes row : doctors.list()) {
+            if (row.name().equals(ready.name())
+                    && row.gender() == (ready.gender() == null ? 1 : ready.gender())
+                    && row.title().equals(ready.title())
+                    && row.hospital().equals(ready.hospital())
+                    && row.departmentCode() == ready.departmentCode()
+                    && row.specialty().equals(ready.specialty())) {
+                return row;
+            }
+        }
+        return doctors.insert(ready);
     }
 
     public DoctorAdminRes updateDoctor(String id, DoctorSaveReq req) {

@@ -94,6 +94,16 @@ class DoctorMatcherTest {
     }
 
     @Test
+    void dispatchKeepsCanonMatchesAheadOfPlainText() {
+        DoctorMatcher.Candidate text = candidate("text", "甲", 1, "普内科", "高血压");
+        DoctorMatcher.Candidate canon = candidate("canon", "乙", 1, "普内科", "痛风");
+        DoctorMatcher.Dispatch dispatch = DoctorMatcher.dispatch(
+                List.of(text, canon), "普内科", 1, "高血压，痛风", List.of("痛风"));
+        assertEquals(List.of(canon), dispatch.doctors());
+        assertEquals(null, dispatch.fallback());
+    }
+
+    @Test
     void sourceReflectsFallbackLevel() {
         assertEquals(DoctorMatcher.MatchSource.SKILL_TEXT,
                 DoctorMatcher.pick(List.of(ZHAO, SUN), "普内科", 1, "高血压").source());

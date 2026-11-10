@@ -44,8 +44,11 @@ public class RedissonAutoConfiguration {
             SingleServerConfig server = config.useSingleServer()
                     .setAddress("redis://" + host + ":" + port)
                     .setTimeout((int) timeout.toMillis())
+                    .setRetryAttempts(2)
+                    .setRetryInterval(500)
                     .setConnectionPoolSize(poolSize)
-                    .setConnectionMinimumIdleSize(Math.min(8, poolSize));
+                    // 空闲只留 1 条。启动时一次要齐 8 条，共享 Redis 稍慢就会把进程打挂。
+                    .setConnectionMinimumIdleSize(1);
             if (password != null && !password.isBlank()) {
                 server.setPassword(password);
             }

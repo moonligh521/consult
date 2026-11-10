@@ -24,6 +24,7 @@ public enum ErrorCode {
     HUMAN_STOP(1110, "请转人工协助。"),
     SAFE_FALLBACK_STOP(1111, "系统暂时无法完成安全分流，请转人工协助。"),
     UNSUITABLE_STOP(1112, "当前线上渠道不适用，请选择线下就诊或转人工。"),
+    PAYMENT_PENDING(1114, "支付尚未完成。"),
     ORDER_NOT_ALLOWED(1115, "请先确认咨询卡片。"),
     INVALID_PACKAGE(1116, "咨询档位须为 1、2、3 或 4。"),
     ALREADY_ORDERED(1117, "这轮咨询已经下过单。"),
@@ -37,6 +38,9 @@ public enum ErrorCode {
     CANNOT_DISABLE_FALLBACK(1125, "兜底全科不能停用。"),
     SPECIALTY_NO_COVERAGE(1126, "该科室医生或当日号源不足，暂不能开通。"),
     CONSULT_IN_PROGRESS(1127, "上一步还在处理，请稍候再试。"),
+    CONSULT_PATIENT_BUSY(1128, "该就诊人已有进行中的问诊。"),
+    PAY_CHANNEL_NOT_READY(1129, "该支付渠道尚未开通。"),
+    BENEFIT_UNAVAILABLE(1130, "权益暂时不可用，请稍后再试。"),
 
     LOGIN_REQUIRED(1201, "请先登录。"),
     INVALID_MOBILE(1202, "请输入正确的手机号。"),

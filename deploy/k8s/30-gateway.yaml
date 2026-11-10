@@ -35,13 +35,18 @@ spec:
             - configMapRef: { name: consult-common }
             - secretRef: { name: consult-secrets }
           env:
-            - { name: AGENT_URI, value: "http://consult-agent:18081" }
-            - { name: IDENTITY_URI, value: "http://consult-identity:18082" }
-            # 2 副本 × 1500 = 3000 ≥ 目标 1000 并发 × 1.5 的余量，再多就快速 503
-            - { name: GATEWAY_MAX_IN_FLIGHT, value: "1500" }
-            # 前面一层 SLB / Ingress
-            - { name: GATEWAY_TRUSTED_PROXY_HOPS, value: "1" }
-            - { name: GATEWAY_POOL_MAX_CONNECTIONS, value: "2000" }
+            - { name: SPRING_DATA_REDIS_HOST, value: "$(REDIS_HOST)" }
+            - { name: SPRING_DATA_REDIS_PORT, value: "$(REDIS_PORT)" }
+            - name: SPRING_DATA_REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: consult-secrets, key: REDIS_PASSWORD } }
+            - name: CONSULT_AUTH_JWT_SECRET
+              valueFrom: { secretKeyRef: { name: consult-secrets, key: AUTH_JWT_SECRET } }
+            - { name: CONSULT_GATEWAY_AGENT_URI, value: "http://consult-agent:18081" }
+            - { name: CONSULT_GATEWAY_IDENTITY_URI, value: "http://consult-identity:18082" }
+            # 2 副本 × 1500 = 3000，盖住 1000 在途再留余量
+            - { name: CONSULT_GATEWAY_MAX_IN_FLIGHT, value: "1500" }
+            - { name: CONSULT_GATEWAY_TRUSTED_PROXY_HOPS, value: "1" }
+            - { name: SPRING_CLOUD_GATEWAY_SERVER_WEBFLUX_HTTPCLIENT_POOL_MAX_CONNECTIONS, value: "2000" }
           resources:
             requests: { cpu: 500m, memory: 1Gi }
             limits: { cpu: "2", memory: 1Gi }

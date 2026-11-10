@@ -15,6 +15,18 @@ public interface MatchBroker {
     /** 弹出该科该档支付最早的一单。空队返回 null。 */
     MatchQueue.Entry pop(String specialty, int grade);
 
+    /** 占坑前先租下这单。已经有人租着返回 false。 */
+    boolean tryLease(String orderId, Duration ttl);
+
+    /** 占坑结束放掉租约，不管成没成。 */
+    void unlock(String orderId);
+
+    /** 这单正在被支付派单占用。提档要避开。 */
+    boolean leased(String orderId);
+
+    /** 提档时这单还在占坑，过一会儿再试，不要立刻再弹出。 */
+    void postponeUpgrade(MatchQueue.Entry entry, Instant when);
+
     /** 占坑失败时按原支付时间放回队头。 */
     void restore(MatchQueue.Entry entry);
 

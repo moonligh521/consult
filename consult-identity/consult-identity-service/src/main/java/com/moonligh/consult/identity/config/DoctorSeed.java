@@ -11,6 +11,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
@@ -56,6 +57,9 @@ public class DoctorSeed implements ApplicationRunner {
     private final DoctorStore doctors;
     private final DoctorAdminService service;
 
+    @Value("${consult.doctor.demo-heartbeat:false}")
+    private boolean demoHeartbeat;
+
     public DoctorSeed(DoctorStore doctors, DoctorAdminService service) {
         this.doctors = doctors;
         this.service = service;
@@ -100,6 +104,10 @@ public class DoctorSeed implements ApplicationRunner {
                 addedSlots,
                 renamed,
                 hospitalFixed);
+        if (demoHeartbeat) {
+            int online = doctors.markSeededOnline();
+            log.info("演示心跳已打开，在档医生 {} 人标为可派", online);
+        }
     }
 
     /** 把历史种子里的「何敏2」这类名字改成正常中文名。 */

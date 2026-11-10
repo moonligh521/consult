@@ -60,6 +60,9 @@ management:
     tags:
       application: ${spring.application.name}
 consult:
+  doctor:
+    # 没有医生端时由本进程给已在线医生续心跳。接上真实心跳后改为 false。
+    demo-heartbeat: false
   observability:
     enabled: true
     capture-payloads: true
@@ -84,3 +87,8 @@ consult:
     access-token: ""
     log-path: ./logs/xxl-job
     log-retention-days: 30
+rocketmq:
+  producer:
+    group: consult-identity-producer
+    send-message-timeout: 3000
+    retry-times-when-send-failed: 2

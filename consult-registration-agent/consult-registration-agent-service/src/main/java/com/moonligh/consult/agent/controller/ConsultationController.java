@@ -1,5 +1,9 @@
 package com.moonligh.consult.agent.controller;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 
 import org.springframework.beans.factory.ObjectProvider;
@@ -23,7 +27,9 @@ import com.moonligh.consult.agent.api.req.MessageReq;
 import com.moonligh.consult.agent.api.req.OrderReq;
 import com.moonligh.consult.agent.api.req.ReassignReq;
 import com.moonligh.consult.agent.api.req.TranscriptReq;
+import com.moonligh.consult.agent.api.res.BenefitItemRes;
 import com.moonligh.consult.agent.api.res.ConsultationDetailRes;
+import com.moonligh.consult.agent.api.res.DoctorLinePollRes;
 import com.moonligh.consult.agent.api.res.ConsultationPageRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
 import com.moonligh.consult.agent.api.res.PayPackageRes;
@@ -69,8 +75,9 @@ public class ConsultationController {
         if (request == null) {
             return Result.ok(service.acceptMessage(null, null, "", accountId));
         }
-        return Result.ok(guard.exclusive(request.consultationId(), () -> service.acceptMessage(
-                request.consultationId(), request.messageId(), request.text(), accountId)));
+        return Result.ok(guard.exclusive(flightKey(request.consultationId(), accountId, request.text()),
+                () -> service.acceptMessage(
+                        request.consultationId(), request.messageId(), request.text(), accountId)));
     }
 
     /**
@@ -92,12 +99,26 @@ public class ConsultationController {
         return Result.ok(service.packages());
     }
 
+    /** 当前账号名下还能用的权益。 */
+    @GetMapping("/benefits")
+    public Result<List<BenefitItemRes>> benefits(HttpServletRequest http) {
+        return Result.ok(service.benefits(AccountIds.of(http)));
+    }
+
     /**
      * 打开一条自己的咨询记录。
      */
     @GetMapping("/{consultationId}")
     public Result<ConsultationDetailRes> getMine(@PathVariable String consultationId, HttpServletRequest http) {
         return Result.ok(service.getMine(AccountIds.of(http), consultationId));
+    }
+
+    @GetMapping("/{consultationId}/lines")
+    public Result<DoctorLinePollRes> lines(
+            @PathVariable String consultationId,
+            @RequestParam(defaultValue = "0") int after,
+            HttpServletRequest http) {
+        return Result.ok(service.linesSince(AccountIds.of(http), consultationId, after));
     }
 
     /**
@@ -178,7 +199,8 @@ public class ConsultationController {
             return Result.ok(service.placeOrder(null, null));
         }
         return Result.ok(guard.exclusive(request.consultationId(),
-                () -> service.placeOrder(request.consultationId(), request.packageCode(), request.consultMinutes())));
+                () -> service.placeOrder(
+                        request.consultationId(), request.packageCode(), request.consultMinutes(), request.channel())));
     }
 
     /**
@@ -201,6 +223,25 @@ public class ConsultationController {
             return Result.ok(service.setConsultMinutes(null, null));
         }
         return Result.ok(service.setConsultMinutes(request.consultationId(), request.consultMinutes()));
+    }
+
+    /** 新开一轮时按账号和原话串行，避免连点开出两轮。 */
+    private static String flightKey(String consultationId, String accountId, String text) {
+        if (consultationId != null && !consultationId.isBlank()) {
+            return consultationId;
+        }
+        String account = accountId == null ? "" : accountId.trim();
+        String spoken = text == null ? "" : text.trim();
+        return "open:" + account + ":" + sha256Hex(spoken);
+    }
+
+    private static String sha256Hex(String text) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException(error);
+        }
     }
 
     /** 单测没有登录过滤器时允许空账号。 */

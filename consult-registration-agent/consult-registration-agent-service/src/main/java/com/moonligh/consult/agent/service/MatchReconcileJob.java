@@ -26,5 +26,9 @@ public class MatchReconcileJob {
         if (n > 0) {
             log.info("对账补派 {} 笔", n);
         }
+        int notices = consultations.drainAssignmentOutbox();
+        if (notices > 0) {
+            log.info("补发医生端通知 {} 笔", notices);
+        }
     }
 }

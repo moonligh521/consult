@@ -14,6 +14,8 @@ public class AuthProperties {
     private String smsDevCode = "000000";
     private String adminUsername = "admin";
     private String adminPassword = "admin1234";
+    /** 演示管理员绑定的医生。留空则不改库里已有的绑定。 */
+    private String deskDoctorId = "";
 
     public int getSmsTtlSeconds() {
         return smsTtlSeconds;
@@ -53,5 +55,13 @@ public class AuthProperties {
 
     public void setAdminPassword(String adminPassword) {
         this.adminPassword = adminPassword;
+    }
+
+    public String getDeskDoctorId() {
+        return deskDoctorId;
+    }
+
+    public void setDeskDoctorId(String deskDoctorId) {
+        this.deskDoctorId = deskDoctorId;
     }
 }

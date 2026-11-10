@@ -81,8 +81,14 @@ public class CatalogChangeService {
         if (req == null || req.name() == null || req.name().isBlank()) {
             throw new BusinessException(ErrorCode.PARAM_MISSING);
         }
+        String name = req.name().trim();
+        for (DepartmentRecord row : store.loadRecords()) {
+            if (name.equals(row.name())) {
+                return row.code();
+            }
+        }
         return writer.addDepartment(
-                req.name().trim(),
+                name,
                 req.genderScope() == null ? 0 : req.genderScope(),
                 req.childAgeLt(),
                 req.treatDesc());
@@ -96,15 +102,21 @@ public class CatalogChangeService {
     }
 
     public long addSpecialty(int departmentCode, SpecialtySaveReq req) {
-        record(departmentCode);
         if (req == null || req.name() == null || req.name().isBlank()) {
             throw new BusinessException(ErrorCode.PARAM_MISSING);
         }
         int audience = req.audience() == null
                 ? DepartmentSpecialty.AUDIENCE_ADULT
                 : requireAudience(req.audience());
+        String name = req.name().trim();
+        DepartmentRecord rec = record(departmentCode);
+        for (DepartmentSpecialty spec : rec.specialties()) {
+            if (spec.id() != null && name.equals(spec.name())) {
+                return spec.id();
+            }
+        }
         return writer.addSpecialty(
-                departmentCode, req.name().trim(), req.treatDesc() == null ? "" : req.treatDesc(), audience);
+                departmentCode, name, req.treatDesc() == null ? "" : req.treatDesc(), audience);
     }
 
     public void patchSpecialty(int departmentCode, long specialtyId, SpecialtySaveReq req) {

@@ -9,6 +9,11 @@ const activeCode = ref(null)
 const checkoutPkg = ref(null)
 const channel = ref('wechat')
 
+function covered(code) {
+  const item = `P${code}`
+  return (store.benefits || []).some((line) => line.itemCode === item && Number(line.remaining) > 0)
+}
+
 const visible = computed(() => (
   (store.status === STATUS.CARD_READY || store.status === STATUS.CONFIRMED)
   && store.showCard
@@ -22,7 +27,11 @@ const autoOpened = ref(false)
 watch(
   catalogOpen,
   async (show) => {
-    if (show && !store.packages.length) {
+    if (!show) {
+      return
+    }
+    store.loadBenefits()
+    if (!store.packages.length) {
       await store.loadPackages()
     }
   },
@@ -110,6 +119,7 @@ async function confirmPay() {
     </p>
 
     <article class="pay-board">
+      <p v-if="checkoutPkg && covered(checkoutPkg.code)" class="pay-done">这档还有权益次数，将优先扣减，不再支付现金。</p>
       <p v-if="!packages.length" class="pay-done">{{ store.error || '正在加载咨询服务…' }}</p>
 
       <div
@@ -205,8 +215,9 @@ async function confirmPay() {
         <div class="pay-sheet-body">
           <div class="checkout-amount">
             <span>应付金额</span>
-            <strong>¥{{ money(checkoutPkg.payPrice) }}</strong>
+            <strong>{{ covered(checkoutPkg.code) ? '权益抵扣' : `¥${money(checkoutPkg.payPrice)}` }}</strong>
           </div>
+          <p v-if="covered(checkoutPkg.code)" class="checkout-item">这档还有次数，下单后直接扣减，不再拉起支付。</p>
           <p class="checkout-item">{{ checkoutPkg.name }}</p>
           <label class="checkout-minutes">
             <span>问诊时长</span>

@@ -1,14 +1,16 @@
 package com.moonligh.consult.agent.domain.safety;
 
 /**
- * 原话来源。1 患者消息；2 改卡描述。
+ * 原话来源。1 患者消息；2 改卡描述；3 医生回复。
  */
 public enum MessageSource {
 
     /** 患者发来的消息。 */
     MESSAGE(1),
     /** 修改卡片时写入的描述。 */
-    CARD_EDIT(2);
+    CARD_EDIT(2),
+    /** 派到的医生写下的回复。 */
+    DOCTOR(3);
 
     /** 存进数据库的数字。 */
     private final int code;

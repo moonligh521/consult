@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -73,7 +74,11 @@ public class AuthService {
         }
         AccountRecord account = accounts.findByMobile(phone);
         if (account == null) {
-            account = accounts.insert(phone);
+            try {
+                account = accounts.insert(phone);
+            } catch (DuplicateKeyException existing) {
+                account = accounts.findByMobile(phone);
+            }
         }
         if (!account.enabled()) {
             throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);

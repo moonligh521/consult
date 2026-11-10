@@ -103,6 +103,16 @@ public class DepartmentCatalogWriter {
     /** 新建或修改 DRAFT 同义规则。目标病名按当前快照校验。 */
     public CanonSynonym saveSynonym(CanonSynonym rule, DepartmentSnapshot snapshot) {
         CanonSynonym checked = lexiconRules == null ? rule : lexiconRules.requireSynonym(rule, snapshot);
+        if (snapshot != null) {
+            for (CanonSynonym existing : snapshot.synonyms()) {
+                if (existing.ruleId().equals(checked.ruleId())) {
+                    continue;
+                }
+                if (existing.sameWords(checked)) {
+                    return existing;
+                }
+            }
+        }
         mutate(() -> store.saveSynonym(checked));
         return checked;
     }

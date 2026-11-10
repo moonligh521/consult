@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.redisson.api.RBucket;
 import org.redisson.api.RScoredSortedSet;
@@ -91,6 +92,34 @@ public final class RedissonMatchBroker implements MatchBroker {
     }
 
     @Override
+    public boolean tryLease(String orderId, Duration ttl) {
+        if (orderId == null || ttl == null || ttl.isZero() || ttl.isNegative()) {
+            return false;
+        }
+        return lease(orderId).trySet("1", ttl.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public void unlock(String orderId) {
+        if (orderId != null) {
+            lease(orderId).delete();
+        }
+    }
+
+    @Override
+    public boolean leased(String orderId) {
+        return orderId != null && lease(orderId).isExists();
+    }
+
+    @Override
+    public void postponeUpgrade(MatchQueue.Entry entry, Instant when) {
+        if (entry == null || entry.orderId() == null || when == null) {
+            return;
+        }
+        delay().add(when.toEpochMilli(), entry.orderId());
+    }
+
+    @Override
     public void complete(String orderId) {
         if (orderId == null) {
             return;
@@ -158,6 +187,10 @@ public final class RedissonMatchBroker implements MatchBroker {
 
     private RBucket<String> meta(String orderId) {
         return redisson.getBucket(PREFIX + "meta:" + orderId);
+    }
+
+    private RBucket<String> lease(String orderId) {
+        return redisson.getBucket(PREFIX + "lease:" + orderId);
     }
 
     private static double score(MatchQueue.Entry entry) {

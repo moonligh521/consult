@@ -14,6 +14,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.moonligh.consult.agent.api.res.ConsultationRecordRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
+import com.moonligh.consult.agent.domain.BenefitLedgerRow;
 import com.moonligh.consult.agent.domain.ConsultationRepository;
 import com.moonligh.consult.agent.domain.ConsultationSession;
 import com.moonligh.consult.agent.domain.MatchQueue;
@@ -160,7 +161,27 @@ public class JdbcConsultationRepository implements ConsultationRepository {
     }
 
     @Override
+    public String findRecentOpening(String accountId, String text, Instant since) {
+        return mapper.findRecentOpening(accountId, text, since);
+    }
+
+    @Override
+    public String consultationIdOfOrder(String orderId) {
+        return mapper.consultationIdOfOrder(orderId);
+    }
+
+    @Override
     public List<MatchQueue.Entry> listUnmatchedPaid(int limit) {
         return mapper.listUnmatchedPaid(limit);
+    }
+
+    @Override
+    public List<BenefitLedgerRow> listBenefitLedger(int limit) {
+        return mapper.listBenefitLedger(limit);
+    }
+
+    @Override
+    public void markBenefitSettled(String orderId) {
+        mapper.markBenefitSettled(orderId);
     }
 }

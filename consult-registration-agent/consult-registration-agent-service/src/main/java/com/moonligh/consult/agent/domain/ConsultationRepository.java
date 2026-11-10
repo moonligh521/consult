@@ -34,4 +34,22 @@ public interface ConsultationRepository {
 
     /** 已支付还没医生的单，按支付时间先进先出。 */
     List<MatchQueue.Entry> listUnmatchedPaid(int limit);
+
+    /**
+     * 这个账号在 since 之后发过同样的原话。用来把连点收成同一轮咨询。
+     * 没有返回 null。
+     */
+    String findRecentOpening(String accountId, String text, Instant since);
+
+    /** 按订单号找回咨询。微信的商户单号不带横线，两种都认。找不到返回 null。 */
+    String consultationIdOfOrder(String orderId);
+
+    /** 还没对齐的权益单。内存库按进程内标记过滤。 */
+    default List<BenefitLedgerRow> listBenefitLedger(int limit) {
+        return List.of();
+    }
+
+    /** 确认或退回已经成功。之后对账不再选这笔。 */
+    default void markBenefitSettled(String orderId) {
+    }
 }

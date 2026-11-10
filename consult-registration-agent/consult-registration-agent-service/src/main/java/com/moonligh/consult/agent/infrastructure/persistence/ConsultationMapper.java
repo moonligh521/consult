@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,6 +20,7 @@ import com.moonligh.consult.agent.api.enums.PayStatus;
 import com.moonligh.consult.agent.api.res.AssignedDoctorRes;
 import com.moonligh.consult.agent.api.res.ConsultationCardRes;
 import com.moonligh.consult.agent.api.res.ConsultationRecordRes;
+import com.moonligh.consult.agent.domain.BenefitLedgerRow;
 import com.moonligh.consult.agent.domain.ConsultOrder;
 import com.moonligh.consult.agent.domain.ConsultationSession;
 import com.moonligh.consult.agent.domain.MatchQueue;
@@ -192,6 +194,32 @@ public class ConsultationMapper {
                 accountId,
                 Timestamp.from(from));
         return total == null ? 0L : total;
+    }
+
+    /** 账号在 since 之后发过同样原话的那一轮。没有则 null。 */
+    public String findRecentOpening(String accountId, String text, Instant since) {
+        if (accountId == null || text == null || since == null) {
+            return null;
+        }
+        List<String> ids = jdbc.query(
+                """
+                SELECT s.id
+                FROM consultation_session s
+                JOIN consultation_message m
+                  ON m.consultation_id = s.id AND m.is_deleted = 0 AND m.source = 1
+                WHERE s.account_id = ? AND s.is_deleted = 0 AND m.text = ? AND m.received_at >= ?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM consult_order o
+                    WHERE o.consultation_id = s.id AND o.is_deleted = 0 AND o.ended_at IS NOT NULL
+                  )
+                ORDER BY m.received_at DESC
+                LIMIT 1
+                """,
+                (rs, rowNum) -> rs.getString("id"),
+                accountId,
+                text,
+                Timestamp.from(since));
+        return ids.isEmpty() ? null : ids.get(0);
     }
 
     /** 按序号查出这一轮的全部原话。 */
@@ -440,7 +468,8 @@ public class ConsultationMapper {
     public ConsultOrder selectOrder(String consultationId) {
         List<ConsultOrder> rows = jdbc.query(
                 """
-                SELECT id, package_code, package_name, origin_amount, pay_amount, discount_amount, pay_status, paid_at,
+                SELECT id, package_code, package_name, origin_amount, pay_amount, discount_amount,
+                       benefit_amount, benefit_card_id, benefit_ready, pay_status, paid_at,
                        doctor_id, doctor_name, doctor_title, hospital, department_code, specialty, skills_hit, schedule_id,
                        consult_minutes, ends_at, ended_at, end_reason
                 FROM consult_order
@@ -451,6 +480,22 @@ public class ConsultationMapper {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    public String consultationIdOfOrder(String orderId) {
+        if (orderId == null || orderId.isBlank()) {
+            return null;
+        }
+        String compact = orderId.replace("-", "");
+        List<String> rows = jdbc.query(
+                """
+                SELECT consultation_id FROM consult_order
+                WHERE is_deleted = 0 AND (id = ? OR REPLACE(id, '-', '') = ?)
+                """,
+                (rs, rowNum) -> rs.getString("consultation_id"),
+                orderId,
+                compact);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     /** 插入一笔新订单。同一咨询只能有一行未删除订单。 */
     public void insertOrder(String consultationId, ConsultOrder order) {
         Instant now = Instant.now();
@@ -458,15 +503,20 @@ public class ConsultationMapper {
                 """
                 INSERT INTO consult_order
                 (id, consultation_id, package_code, package_name, origin_amount, pay_amount, discount_amount,
+                 benefit_amount, benefit_card_id, benefit_ready,
                  pay_status, paid_at, doctor_id, doctor_name, doctor_title, hospital, department_code, specialty,
                  skills_hit, schedule_id, consult_minutes, ends_at, ended_at, end_reason, created_at, updated_at, is_deleted)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 ON DUPLICATE KEY UPDATE
                   package_code = VALUES(package_code),
                   package_name = VALUES(package_name),
                   origin_amount = VALUES(origin_amount),
                   pay_amount = VALUES(pay_amount),
                   discount_amount = VALUES(discount_amount),
+                  benefit_amount = VALUES(benefit_amount),
+                  benefit_card_id = VALUES(benefit_card_id),
+                  benefit_ready = VALUES(benefit_ready),
+                  benefit_settled = IF(VALUES(benefit_ready) = 0, 0, benefit_settled),
                   pay_status = VALUES(pay_status),
                   paid_at = VALUES(paid_at),
                   doctor_id = VALUES(doctor_id),
@@ -490,8 +540,11 @@ public class ConsultationMapper {
                 order.originAmount(),
                 order.payAmount(),
                 order.discountAmount(),
+                order.benefitAmount() == null ? BigDecimal.ZERO : order.benefitAmount(),
+                order.benefitCardId(),
+                order.benefitReady() ? 1 : 0,
                 order.payStatus().getCode(),
-                Timestamp.from(order.paidAt()),
+                order.paidAt() == null ? null : Timestamp.from(order.paidAt()),
                 order.doctor() == null ? null : order.doctor().id(),
                 order.doctor() == null ? null : order.doctor().name(),
                 order.doctor() == null ? null : order.doctor().title(),
@@ -529,6 +582,7 @@ public class ConsultationMapper {
         if (rs.wasNull() || minutes <= 0) {
             minutes = 15;
         }
+        BigDecimal benefitAmount = rs.getBigDecimal("benefit_amount");
         return new ConsultOrder(
                 rs.getString("id"),
                 rs.getInt("package_code"),
@@ -542,7 +596,10 @@ public class ConsultationMapper {
                 minutes,
                 endsAt == null ? null : endsAt.toInstant(),
                 endedAt == null ? null : endedAt.toInstant(),
-                rs.getString("end_reason"));
+                rs.getString("end_reason"),
+                benefitAmount == null ? BigDecimal.ZERO : benefitAmount,
+                rs.getString("benefit_card_id"),
+                rs.getInt("benefit_ready") == 1);
     }
 
     private String toJson(Object value, String column) {
@@ -575,7 +632,7 @@ public class ConsultationMapper {
                 SELECT s.id AS consultation_id, o.id AS order_id, o.paid_at, o.package_code, s.card_specialty
                 FROM consult_order o
                 JOIN consultation_session s ON s.id = o.consultation_id AND s.is_deleted = 0
-                WHERE o.is_deleted = 0 AND o.doctor_id IS NULL AND o.ended_at IS NULL
+                WHERE o.is_deleted = 0 AND o.pay_status = 2 AND o.doctor_id IS NULL AND o.ended_at IS NULL
                 ORDER BY o.paid_at ASC, o.id ASC
                 LIMIT ?
                 """,
@@ -586,6 +643,36 @@ public class ConsultationMapper {
                         rs.getInt("package_code"),
                         rs.getString("card_specialty")),
                 size);
+    }
+
+    /** 还没对齐的权益单：已支付要确认，取消的待支付要退回。成功的不再出现。 */
+    public List<BenefitLedgerRow> listBenefitLedger(int limit) {
+        int size = Math.max(1, Math.min(limit, 200));
+        return jdbc.query(
+                """
+                SELECT id, pay_status, end_reason
+                FROM consult_order
+                WHERE is_deleted = 0
+                  AND benefit_ready = 1
+                  AND benefit_settled = 0
+                  AND benefit_amount > 0
+                  AND (pay_status = 2 OR (pay_status = 1 AND end_reason = 'CANCEL'))
+                ORDER BY updated_at ASC
+                LIMIT ?
+                """,
+                (rs, rowNum) -> new BenefitLedgerRow(
+                        rs.getString("id"),
+                        rs.getInt("pay_status") == 2,
+                        "CANCEL".equals(rs.getString("end_reason"))),
+                size);
+    }
+
+    /** 确认或退回已经成功，对账不再选这笔。 */
+    public void markBenefitSettled(String orderId) {
+        if (orderId == null || orderId.isBlank()) {
+            return;
+        }
+        jdbc.update("UPDATE consult_order SET benefit_settled = 1 WHERE id = ? AND is_deleted = 0", orderId);
     }
 
     /** 未确认卡片挂着该二级科的会话数。近似。card_specialty 是 card_json 的生成列，走 idx_consult_session_card。 */

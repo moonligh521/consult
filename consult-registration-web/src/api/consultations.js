@@ -15,6 +15,11 @@ export function confirmCard(consultationId) {
   return http.post('/api/consultations/confirmation', { consultationId })
 }
 
+/** 当前账号还能用的权益。 */
+export function listBenefits() {
+  return http.get('/api/consultations/benefits')
+}
+
 /** 卡片确认后的四档咨询。 */
 export function listPackages() {
   return http.get('/api/consultations/packages')
@@ -56,6 +61,11 @@ export function waitAssignment(consultationId, waitMs = 10000) {
     params: { waitMs },
     timeout: waitMs + 8000,
   })
+}
+
+/** 拉新的医生回复。序号没变时服务端不读订单。 */
+export function pollDoctorLines(consultationId, after = 0) {
+  return http.get(`/api/consultations/${consultationId}/lines`, { params: { after } })
 }
 
 /** 把诊室画面存回会话。 */

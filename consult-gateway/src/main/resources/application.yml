@@ -71,6 +71,8 @@ consult:
   gateway:
     identity-uri: http://127.0.0.1:18082
     agent-uri: http://127.0.0.1:18081
+    payment-uri: http://127.0.0.1:18083
+    benefit-uri: http://127.0.0.1:18084
     # 单实例在途请求上限，超出 503；按 网关实例数 × 本值 ≥ 目标峰值并发 × 1.5 配
     max-in-flight: 4000
     # 前面有 SLB / Ingress 时设为代理层数，限流按真实客户端 IP

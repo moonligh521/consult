@@ -24,7 +24,7 @@ public class RedissonConfiguration {
     @ConditionalOnBean(RedissonClient.class)
     public ConsultationGuard consultationGuard(
             RedissonClient redisson,
-            @Value("${consult.guard.lease:20s}") Duration lease,
+            @Value("${consult.guard.lease:75s}") Duration lease,
             MeterRegistry meters) {
         return new RedissonConsultationGuard(redisson, lease, meters);
     }

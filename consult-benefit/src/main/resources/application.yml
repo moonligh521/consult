@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: consult-benefit
+  config:
+    import:
+      - optional:file:./consult-benefit/config/application-local.yml
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/consult_benefit?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai
+    username: root
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 2
+      connection-timeout: 3000
+server:
+  port: 18084
+  shutdown: graceful
+benefit:
+  # 挂号服务调用时携带的 X-Benefit-Token。空着则拒绝发卡和预占。
+  token: ""

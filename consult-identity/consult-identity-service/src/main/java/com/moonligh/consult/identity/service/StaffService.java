@@ -33,7 +33,7 @@ public class StaffService {
         if (staff == null || staff.status() != 1 || !store.matches(password, staff.passwordHash())) {
             throw new BusinessException(ErrorCode.STAFF_LOGIN_FAILED);
         }
-        String token = tokens.issue(staff.id(), staff.username(), AuthPrincipal.STAFF);
-        return new StaffLoginRes(token, staff.id(), staff.username(), staff.name(), tokens.ttlSeconds());
+        String token = tokens.issue(staff.id(), staff.username(), AuthPrincipal.STAFF, staff.doctorId());
+        return new StaffLoginRes(token, staff.id(), staff.username(), staff.name(), tokens.ttlSeconds(), staff.doctorId());
     }
 }

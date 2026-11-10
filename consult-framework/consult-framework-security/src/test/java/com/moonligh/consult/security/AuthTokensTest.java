@@ -24,6 +24,9 @@ class AuthTokensTest {
         assertEquals("acc-1", tokens.parse("Bearer " + jwt).accountId());
         AuthPrincipal staff = tokens.parse(tokens.issue("st-1", "admin", AuthPrincipal.STAFF));
         assertEquals(AuthPrincipal.STAFF, staff.role());
+        assertEquals(null, staff.doctorId());
+        AuthPrincipal bound = tokens.parse(tokens.issue("st-1", "admin", AuthPrincipal.STAFF, "doc-1"));
+        assertEquals("doc-1", bound.doctorId());
     }
 
     @Test

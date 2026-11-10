@@ -1,0 +1,190 @@
+# 服务器压测栈。自带 MySQL、Redis、RocketMQ 和模拟模型，不连共用库。
+#
+# 日均 10 万单（每秒 4 笔）：
+#   docker compose -f deploy/compose/loadtest-compose.yml up -d --build
+#   身份服务日志出现「演示心跳已打开」后：
+#   docker compose -f deploy/compose/loadtest-compose.yml --profile orders run --rm k6-orders
+#
+# 1000 在途不要在这一份单副本上跑。那一档用 deploy/k8s，挂号至少 4 副本，
+# 模型舱壁 200/130、全局配额 600/400，并且 MODEL_BASE_URL 指向 WireMock、库仍是压测库。
+#   docker compose -f deploy/compose/loadtest-compose.yml --profile concurrency run --rm k6-concurrency
+# 只适合在已经按 k8s 扩好的网关上，把 BASE_URL 指过去。
+
+name: consult-loadtest
+
+x-app-env: &app-env
+  SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true&sessionVariables=innodb_lock_wait_timeout=5
+  SPRING_DATASOURCE_USERNAME: consult
+  SPRING_DATASOURCE_PASSWORD: loadtest
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_DATA_REDIS_PASSWORD: ""
+  SPRING_DATA_REDIS_TIMEOUT: 1s
+  CONSULT_AUTH_JWT_SECRET: loadtest-jwt-secret-key-32bytes!!
+  CONSULT_AUTH_INTERNAL_TOKEN: loadtest-internal
+  CONSULT_AUTH_SMS_DEV_CODE: "000000"
+  ROCKETMQ_NAME_SERVER: namesrv:9876
+  MANAGEMENT_TRACING_EXPORT_ENABLED: "false"
+  CONSULT_OBSERVABILITY_ENABLED: "false"
+  CONSULT_OBSERVABILITY_CAPTURE_PAYLOADS: "false"
+
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: consult_agent
+      MYSQL_USER: consult
+      MYSQL_PASSWORD: loadtest
+      MYSQL_ROOT_PASSWORD: loadtest
+    command:
+      - --max-connections=500
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - loadtest-mysql:/var/lib/mysql
+      - ../../consult-registration-agent/consult-registration-agent-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-agent.sql:ro
+      - ../../consult-identity/consult-identity-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/02-identity.sql:ro
+    healthcheck:
+      test: ["CMD", "mysql", "-h", "127.0.0.1", "-uroot", "-ploadtest", "-e", "SELECT 1 FROM consult_agent.consult_account LIMIT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  namesrv:
+    image: apache/rocketmq:5.3.2
+    command: sh mqnamesrv
+
+  broker:
+    image: apache/rocketmq:5.3.2
+    depends_on:
+      namesrv:
+        condition: service_started
+    volumes:
+      - ./broker.conf:/opt/broker.conf:ro
+    command: sh mqbroker -n namesrv:9876 -c /opt/broker.conf
+
+  wiremock:
+    image: wiremock/wiremock:3.13.1
+    command: ["--async-response-enabled", "--container-threads", "200"]
+    volumes:
+      - ../../loadtest/wiremock:/home/wiremock:ro
+
+  identity:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        MODULE: consult-identity/consult-identity-service
+    environment:
+      <<: *app-env
+      SERVER_ADDRESS: 0.0.0.0
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "20"
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "5"
+      CONSULT_DOCTOR_DEMO_HEARTBEAT: "true"
+      CONSULT_XXL_ENABLED: "false"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      namesrv:
+        condition: service_started
+
+  agent:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        MODULE: consult-registration-agent/consult-registration-agent-service
+    environment:
+      <<: *app-env
+      SERVER_ADDRESS: 0.0.0.0
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "30"
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "5"
+      MODEL_BASE_URL: http://wiremock:8080
+      MODEL_API_KEY: loadtest
+      MODEL_SAFETY_MAX_CONCURRENCY: "32"
+      MODEL_COMPLAINT_MAX_CONCURRENCY: "32"
+      MODEL_SAFETY_GLOBAL_MAX_CONCURRENCY: "0"
+      MODEL_COMPLAINT_GLOBAL_MAX_CONCURRENCY: "0"
+      CONSULT_IDENTITY_BASE_URL: http://identity:18082
+      CONSULT_IDENTITY_MAX_CONCURRENCY: "100"
+      CONSULT_CATALOG_PROVISION_DEMO: "true"
+      CONSULT_REDISSON_TIMEOUT: 1s
+      CONSULT_MQ_ENABLED: "true"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      wiremock:
+        condition: service_started
+      identity:
+        condition: service_started
+      broker:
+        condition: service_started
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        MODULE: consult-gateway
+    ports:
+      - "18080:8080"
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_PASSWORD: ""
+      CONSULT_AUTH_JWT_SECRET: loadtest-jwt-secret-key-32bytes!!
+      CONSULT_GATEWAY_AGENT_URI: http://agent:18081
+      CONSULT_GATEWAY_IDENTITY_URI: http://identity:18082
+      CONSULT_GATEWAY_MAX_IN_FLIGHT: "1500"
+      MANAGEMENT_TRACING_EXPORT_ENABLED: "false"
+    depends_on:
+      redis:
+        condition: service_healthy
+      agent:
+        condition: service_started
+      identity:
+        condition: service_started
+
+  k6-orders:
+    profiles: ["orders"]
+    image: grafana/k6:0.54.0
+    volumes:
+      - ../../loadtest/k6:/scripts:ro
+    environment:
+      BASE_URL: http://gateway:8080
+      RATE: "4"
+      DURATION: 5m
+      ORDER_STRICT: "1"
+    entrypoint: ["k6", "run", "/scripts/consult-orders.js"]
+    depends_on:
+      gateway:
+        condition: service_started
+
+  k6-concurrency:
+    profiles: ["concurrency"]
+    image: grafana/k6:0.54.0
+    volumes:
+      - ../../loadtest/k6:/scripts:ro
+    environment:
+      BASE_URL: ${BASE_URL:-http://gateway:8080}
+      VUS: ${VUS:-1000}
+      THINK_MS: ${THINK_MS:-0}
+    entrypoint: ["k6", "run", "/scripts/consult-1000.js"]
+    depends_on:
+      gateway:
+        condition: service_started
+
+volumes:
+  loadtest-mysql:

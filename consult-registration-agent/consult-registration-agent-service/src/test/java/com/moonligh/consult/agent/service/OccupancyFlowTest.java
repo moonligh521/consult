@@ -143,6 +143,9 @@ class OccupancyFlowTest {
         ConsultationRes changed = service.setConsultMinutes(id, 20);
         assertEquals(20, changed.order().consultMinutes());
         assertEquals(List.of(20), extensions);
+        ConsultationRes same = service.setConsultMinutes(id, 20);
+        assertEquals(changed.order().endsAt(), same.order().endsAt());
+        assertEquals(List.of(20), extensions);
         service.endConsult(id, "ENDED");
         BusinessException error = assertThrows(BusinessException.class, () -> service.setConsultMinutes(id, 10));
         assertEquals(ErrorCode.CONSULT_ENDED, error.getErrorCode());

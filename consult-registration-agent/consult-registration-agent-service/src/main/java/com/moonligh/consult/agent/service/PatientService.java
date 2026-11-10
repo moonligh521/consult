@@ -41,13 +41,22 @@ public class PatientService {
             throw new BusinessException(ErrorCode.INVALID_AGE);
         }
         String account = accountOf(accountId);
+        String relation = relationOf(request.relation());
+        for (PatientRecord row : store.list(account)) {
+            if (row.name().equals(name)
+                    && row.gender() == request.gender()
+                    && row.age() == request.age()
+                    && relation.equals(row.relation())) {
+                return row.toRes();
+            }
+        }
         PatientRecord saved = store.insert(new PatientRecord(
                 UUID.randomUUID().toString(),
                 account,
                 name,
                 request.gender(),
                 request.age(),
-                relationOf(request.relation()),
+                relation,
                 store.isEmpty(account)));
         return saved.toRes();
     }

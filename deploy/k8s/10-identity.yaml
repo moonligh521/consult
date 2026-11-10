@@ -35,10 +35,28 @@ spec:
             - secretRef: { name: consult-secrets }
           env:
             - { name: SERVER_ADDRESS, value: 0.0.0.0 }
-            - { name: DB_POOL_SIZE, value: "20" }
-            - { name: DB_POOL_MIN_IDLE, value: "5" }
-            # 不接 XXL 时每个副本都跑本地占坑回收，SKIP LOCKED 保证多副本不重复处理
-            - { name: XXL_ENABLED, value: "false" }
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://$(MYSQL_HOST):3306/consult_agent?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai&sessionVariables=innodb_lock_wait_timeout=5"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom: { secretKeyRef: { name: consult-secrets, key: MYSQL_USER } }
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom: { secretKeyRef: { name: consult-secrets, key: MYSQL_PASSWORD } }
+            - { name: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE, value: "20" }
+            - { name: SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE, value: "5" }
+            - { name: SPRING_DATA_REDIS_HOST, value: "$(REDIS_HOST)" }
+            - { name: SPRING_DATA_REDIS_PORT, value: "$(REDIS_PORT)" }
+            - name: SPRING_DATA_REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: consult-secrets, key: REDIS_PASSWORD } }
+            - { name: SPRING_DATA_REDIS_TIMEOUT, value: 1s }
+            - name: CONSULT_AUTH_JWT_SECRET
+              valueFrom: { secretKeyRef: { name: consult-secrets, key: AUTH_JWT_SECRET } }
+            - name: CONSULT_AUTH_INTERNAL_TOKEN
+              valueFrom: { secretKeyRef: { name: consult-secrets, key: AUTH_INTERNAL_TOKEN } }
+            - name: CONSULT_AUTH_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: consult-secrets, key: AUTH_ADMIN_PASSWORD } }
+            # 生产关闭演示心跳。压测要派医生时再改成 true。
+            - { name: CONSULT_DOCTOR_DEMO_HEARTBEAT, value: "false" }
+            - { name: CONSULT_XXL_ENABLED, value: "false" }
           resources:
             requests: { cpu: 500m, memory: 1Gi }
             limits: { cpu: "2", memory: 1Gi }

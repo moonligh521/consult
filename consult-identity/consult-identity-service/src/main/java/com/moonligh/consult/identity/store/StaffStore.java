@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class StaffStore {
 
-    public record StaffRow(String id, String username, String passwordHash, String name, int status) {
+    public record StaffRow(String id, String username, String passwordHash, String name, int status, String doctorId) {
     }
 
     private final JdbcTemplate jdbc;
@@ -43,13 +43,13 @@ public class StaffStore {
 
     public StaffRow findByUsername(String username) {
         return one(
-                "SELECT id, username, password_hash, name, status FROM consult_staff WHERE username = ? AND is_deleted = 0",
+                "SELECT id, username, password_hash, name, status, doctor_id FROM consult_staff WHERE username = ? AND is_deleted = 0",
                 username);
     }
 
     public StaffRow findById(String id) {
         return one(
-                "SELECT id, username, password_hash, name, status FROM consult_staff WHERE id = ? AND is_deleted = 0",
+                "SELECT id, username, password_hash, name, status, doctor_id FROM consult_staff WHERE id = ? AND is_deleted = 0",
                 id);
     }
 
@@ -61,12 +61,23 @@ public class StaffStore {
                         rs.getString("username"),
                         rs.getString("password_hash"),
                         rs.getString("name"),
-                        rs.getInt("status")),
+                        rs.getInt("status"),
+                        rs.getString("doctor_id")),
                 key);
         return rows.isEmpty() ? null : rows.get(0);
     }
 
     public boolean matches(String raw, String hash) {
         return passwords.matches(raw, hash);
+    }
+
+    public void bindDoctor(String username, String doctorId) {
+        if (username == null || username.isBlank() || doctorId == null || doctorId.isBlank()) {
+            return;
+        }
+        jdbc.update(
+                "UPDATE consult_staff SET doctor_id = ? WHERE username = ? AND is_deleted = 0",
+                doctorId.trim(),
+                username.trim());
     }
 }

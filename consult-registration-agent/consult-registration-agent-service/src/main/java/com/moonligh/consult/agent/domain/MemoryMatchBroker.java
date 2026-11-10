@@ -16,6 +16,7 @@ public final class MemoryMatchBroker implements MatchBroker {
     private final ConcurrentHashMap<String, MatchQueue.Entry> byOrder = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ConcurrentSkipListSet<String>> lanes = new ConcurrentHashMap<>();
     private final ConcurrentSkipListSet<Delay> delays = new ConcurrentSkipListSet<>();
+    private final ConcurrentHashMap<String, Long> leases = new ConcurrentHashMap<>();
 
     @Override
     public void enqueue(MatchQueue.Entry entry, Duration upgradeAfter) {
@@ -70,6 +71,49 @@ public final class MemoryMatchBroker implements MatchBroker {
         }
         enqueue(entry, upgradeAfter);
         return byOrder.get(entry.orderId());
+    }
+
+    @Override
+    public boolean tryLease(String orderId, Duration ttl) {
+        if (orderId == null || ttl == null || ttl.isZero() || ttl.isNegative()) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        long until = now + ttl.toMillis();
+        while (true) {
+            Long existing = leases.get(orderId);
+            if (existing != null && existing > now) {
+                return false;
+            }
+            if (existing == null) {
+                if (leases.putIfAbsent(orderId, until) == null) {
+                    return true;
+                }
+            } else if (leases.replace(orderId, existing, until)) {
+                return true;
+            }
+        }
+    }
+
+    @Override
+    public void unlock(String orderId) {
+        if (orderId != null) {
+            leases.remove(orderId);
+        }
+    }
+
+    @Override
+    public boolean leased(String orderId) {
+        Long until = orderId == null ? null : leases.get(orderId);
+        return until != null && until > System.currentTimeMillis();
+    }
+
+    @Override
+    public void postponeUpgrade(MatchQueue.Entry entry, Instant when) {
+        if (entry == null || entry.orderId() == null || when == null) {
+            return;
+        }
+        delays.add(new Delay(when, entry.orderId()));
     }
 
     @Override

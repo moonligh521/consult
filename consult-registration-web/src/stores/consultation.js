@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { bindPatient, confirmCard, endConsult as endConsultApi, getConsultation, listConsultations, listPackages, patchCard, placeOrder, reassignDoctor, saveTranscript, sendMessage, setConsultMinutes, waitAssignment } from '../api/consultations'
+import { bindPatient, confirmCard, endConsult as endConsultApi, getConsultation, listBenefits, listConsultations, listPackages, patchCard, placeOrder, pollDoctorLines, reassignDoctor, saveTranscript, sendMessage, setConsultMinutes, waitAssignment } from '../api/consultations'
 import { createPatient, listPatients } from '../api/patients'
 import { canShowCard, CONSULT_MINUTES, INQUIRY, isSafetyStop, STATUS } from '../constants/catalog'
 import { doctorFromOrder, firstAskAsDoctor, greetAsDoctor, MATCH_ASSIST, replyAsDoctor, waitForDoctor, waitForDoctorAssign, waitForDoctorServe, waitMs } from '../domain/doctorAgent'
@@ -74,6 +74,11 @@ export const useConsultationStore = defineStore('consultation', {
     assigningDoctor: false,
     matchPhase: null,
     error: '',
+    benefits: [],
+    lineTimer: 0,
+    linePulling: false,
+    lineSeq: 0,
+    onLineVisible: null,
     patients: [],
     consultMinutes: loadConsultMinutes(),
     ending: false,
@@ -463,6 +468,7 @@ export const useConsultationStore = defineStore('consultation', {
           this.remember()
           this.joinDoctor()
           this.startConsultClock()
+          this.startLineWatch()
           return true
         }
         this.error = result.message || '支付失败'
@@ -476,6 +482,25 @@ export const useConsultationStore = defineStore('consultation', {
     },
     lastMatchCard() {
       return [...this.messages].reverse().find((item) => item.kind === 'match') || null
+    },
+    async refreshLines() {
+      if (!this.activeId) {
+        return
+      }
+      try {
+        const result = await pollDoctorLines(this.activeId, this.lineSeq || 0)
+        if (!result || result.code !== 200 || !result.data) {
+          return
+        }
+        if (result.data.changed) {
+          this.takeDoctorLines(result.data.lines)
+        }
+        if (typeof result.data.seq === 'number') {
+          this.lineSeq = result.data.seq
+        }
+      } catch {
+        // 下一拍再拉
+      }
     },
     async refreshOrder() {
       if (!this.activeId) {
@@ -505,6 +530,62 @@ export const useConsultationStore = defineStore('consultation', {
       if (view) {
         this.latest = view
         this.payOrder = view.order || this.payOrder
+      }
+      this.takeDoctorLines(result && result.code === 200 ? result.data?.lines : null)
+    },
+    takeDoctorLines(lines) {
+      if (!Array.isArray(lines)) {
+        return
+      }
+      for (const line of lines) {
+        if (line.source !== 3 || this.messages.some((item) => item.doctorLine === line.seq)) {
+          continue
+        }
+        this.messages.push({ role: 'doctor', text: line.text, doctorLine: line.seq })
+        if (line.seq > (this.lineSeq || 0)) {
+          this.lineSeq = line.seq
+        }
+      }
+      this.remember()
+    },
+    startLineWatch() {
+      this.stopLineWatch()
+      if (!this.activeId) {
+        return
+      }
+      const pull = () => {
+        if (document.hidden || this.linePulling || !this.activeId || this.consultEnded) {
+          return
+        }
+        this.linePulling = true
+        Promise.resolve(this.refreshLines()).finally(() => {
+          this.linePulling = false
+        })
+      }
+      this.onLineVisible = () => {
+        if (!document.hidden) {
+          pull()
+        }
+      }
+      this.lineTimer = window.setInterval(pull, 5000)
+      document.addEventListener('visibilitychange', this.onLineVisible)
+    },
+    stopLineWatch() {
+      if (this.lineTimer) {
+        window.clearInterval(this.lineTimer)
+        this.lineTimer = null
+      }
+      if (this.onLineVisible) {
+        document.removeEventListener('visibilitychange', this.onLineVisible)
+        this.onLineVisible = null
+      }
+    },
+    async loadBenefits() {
+      try {
+        const result = await listBenefits()
+        this.benefits = result.code === 200 ? result.data || [] : []
+      } catch {
+        this.benefits = []
       }
     },
     async joinDoctor() {
@@ -652,6 +733,7 @@ export const useConsultationStore = defineStore('consultation', {
           this.doctorOnline = false
           this.assigningDoctor = false
           this.matchPhase = null
+          this.stopLineWatch()
           this.stopConsultClock()
           const endedReason = result.data.order?.endReason || reason
           this.messages.push({

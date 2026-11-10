@@ -13,6 +13,8 @@ public class GatewayProperties {
 
     private String identityUri = "http://127.0.0.1:18082";
     private String agentUri = "http://127.0.0.1:18081";
+    private String paymentUri = "http://127.0.0.1:18083";
+    private String benefitUri = "http://127.0.0.1:18084";
     /** 单个网关实例同时在转发的请求上限，超过直接 503，挡住突发把后端连接池和模型配额一起打满。0 不限。 */
     private int maxInFlight = 4000;
     /**
@@ -48,6 +50,22 @@ public class GatewayProperties {
 
     public void setAgentUri(String agentUri) {
         this.agentUri = agentUri;
+    }
+
+    public String getPaymentUri() {
+        return paymentUri;
+    }
+
+    public void setPaymentUri(String paymentUri) {
+        this.paymentUri = paymentUri;
+    }
+
+    public String getBenefitUri() {
+        return benefitUri;
+    }
+
+    public void setBenefitUri(String benefitUri) {
+        this.benefitUri = benefitUri;
     }
 
     public int getMaxInFlight() {

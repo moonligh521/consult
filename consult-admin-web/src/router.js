@@ -6,6 +6,7 @@ import PatientsView from './views/PatientsView.vue'
 import ConsultationsView from './views/ConsultationsView.vue'
 import DepartmentsView from './views/DepartmentsView.vue'
 import DoctorsView from './views/DoctorsView.vue'
+import DeskView from './views/DeskView.vue'
 import SchedulesView from './views/SchedulesView.vue'
 
 const router = createRouter({
@@ -22,6 +23,7 @@ const router = createRouter({
         { path: 'consultations', name: 'consultations', component: ConsultationsView },
         { path: 'departments', name: 'departments', component: DepartmentsView },
         { path: 'doctors', name: 'doctors', component: DoctorsView },
+        { path: 'desk', name: 'desk', component: DeskView },
         { path: 'schedules', name: 'schedules', component: SchedulesView },
       ],
     },

@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import com.moonligh.consult.identity.domain.OccupancyService;
 import com.moonligh.consult.identity.domain.OccupancyStore;
 import com.moonligh.consult.identity.domain.SlotFreedSink;
+import com.moonligh.consult.identity.domain.load.DoctorLoadPool;
 import com.moonligh.consult.identity.store.DoctorStore;
 
 /** 占坑服务。Clock 方便单测拨时间。 */
@@ -25,7 +26,14 @@ public class OccupancyConfiguration {
             OccupancyStore store,
             DoctorStore doctors,
             Clock occupancyClock,
-            ObjectProvider<SlotFreedSink> slotFreed) {
-        return new OccupancyService(store, doctors::releaseFlight, occupancyClock, doctors, slotFreed.getIfAvailable());
+            ObjectProvider<SlotFreedSink> slotFreed,
+            ObjectProvider<DoctorLoadPool> loadPool) {
+        return new OccupancyService(
+                store,
+                doctors::releaseFlight,
+                occupancyClock,
+                doctors,
+                slotFreed.getIfAvailable(),
+                loadPool.getIfAvailable());
     }
 }

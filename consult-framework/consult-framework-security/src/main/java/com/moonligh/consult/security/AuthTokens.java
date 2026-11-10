@@ -22,6 +22,8 @@ public final class AuthTokens {
 
     public static final String HEADER = "Authorization";
     public static final String ACCOUNT_HEADER = "X-Account-Id";
+    /** 工作人员绑定的医生。网关从令牌写入，调用方自带的同名头会被清掉。 */
+    public static final String DOCTOR_HEADER = "X-Doctor-Id";
     public static final String INTERNAL_HEADER = "X-Internal-Token";
     public static final String BEARER = "Bearer ";
 
@@ -41,16 +43,23 @@ public final class AuthTokens {
     }
 
     public String issue(String accountId, String mobile, String role) {
+        return issue(accountId, mobile, role, null);
+    }
+
+    public String issue(String accountId, String mobile, String role, String doctorId) {
         try {
             Instant now = Instant.now();
-            JWTClaimsSet claims = new JWTClaimsSet.Builder()
+            JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
                     .subject(accountId)
                     .claim("mobile", mobile)
                     .claim("role", role == null || role.isBlank() ? AuthPrincipal.PATIENT : role)
                     .issueTime(Date.from(now))
-                    .expirationTime(Date.from(now.plus(ttl)))
-                    .build();
-            SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
+                    .expirationTime(Date.from(now.plus(ttl)));
+            if (doctorId != null && !doctorId.isBlank()) {
+                claims.claim("doctorId", doctorId.trim());
+            }
+            JWTClaimsSet built = claims.build();
+            SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), built);
             jwt.sign(new MACSigner(secret));
             return jwt.serialize();
         } catch (JOSEException error) {
@@ -80,13 +89,15 @@ public final class AuthTokens {
             String accountId = claims.getSubject();
             String mobile = claims.getStringClaim("mobile");
             String role = claims.getStringClaim("role");
+            String doctorId = claims.getStringClaim("doctorId");
             if (accountId == null || accountId.isBlank()) {
                 throw new BusinessException(ErrorCode.LOGIN_REQUIRED);
             }
             return new AuthPrincipal(
                     accountId,
                     mobile,
-                    role == null || role.isBlank() ? AuthPrincipal.PATIENT : role);
+                    role == null || role.isBlank() ? AuthPrincipal.PATIENT : role,
+                    doctorId == null || doctorId.isBlank() ? null : doctorId);
         } catch (BusinessException error) {
             throw error;
         } catch (Exception error) {

@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS consultation_message (
     consultation_id  VARCHAR(64)  NOT NULL COMMENT '所属咨询编号',
     seq              INT          NOT NULL COMMENT '本轮原话序号，从1递增',
     message_id       VARCHAR(64)  NOT NULL COMMENT '幂等键。客户端传入或服务端生成',
-    source           TINYINT      NOT NULL COMMENT '来源。1患者消息 2改卡描述',
+    source           TINYINT      NOT NULL COMMENT '来源。1患者消息 2改卡描述 3医生回复',
     text             TEXT         NOT NULL COMMENT '原话正文。只追加，不修改',
     received_at      DATETIME(3)  NOT NULL COMMENT '收到这条原话的时间',
     remark           VARCHAR(400) NULL     COMMENT '备注',
@@ -96,8 +96,12 @@ CREATE TABLE IF NOT EXISTS consult_order (
     package_code      TINYINT        NOT NULL COMMENT '档位。1普通咨询 2极速咨询 3三甲医生 4权威专家',
     package_name      VARCHAR(64)    NOT NULL COMMENT '下单时的档位名称',
     origin_amount     DECIMAL(10, 2) NOT NULL COMMENT '划线价',
-    pay_amount        DECIMAL(10, 2) NOT NULL COMMENT '应付金额',
+    pay_amount        DECIMAL(10, 2) NOT NULL COMMENT '还要付的现金。权益抵完时为 0',
     discount_amount   DECIMAL(10, 2) NOT NULL COMMENT '立减金额',
+    benefit_amount    DECIMAL(10, 2) NOT NULL DEFAULT 0 COMMENT '权益抵掉的金额',
+    benefit_card_id   VARCHAR(64)    NULL     COMMENT '本次使用的权益卡',
+    benefit_ready     TINYINT        NOT NULL DEFAULT 0 COMMENT '1 表示已经向权益服务预占过',
+    benefit_settled   TINYINT        NOT NULL DEFAULT 0 COMMENT '1 表示预占已经确认或退回',
     pay_status        TINYINT        NOT NULL COMMENT '支付状态。1待支付 2已支付。演示下单后为2',
     paid_at           DATETIME(3)    NULL     COMMENT '记为已支付的时间',
     doctor_id         VARCHAR(64)    NULL     COMMENT '派单医生',
@@ -334,3 +338,20 @@ CREATE TABLE IF NOT EXISTS consult_catalog_change (
     PRIMARY KEY (id),
     KEY idx_catalog_change_time (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='目录变更审计';
+
+CREATE TABLE IF NOT EXISTS consult_active_visit (
+    account_id      VARCHAR(64)  NOT NULL COMMENT '账号',
+    patient_id      VARCHAR(64)  NOT NULL COMMENT '就诊人',
+    consultation_id VARCHAR(64)  NOT NULL COMMENT '进行中的咨询',
+    created_at      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '占住时间',
+    PRIMARY KEY (account_id, patient_id),
+    UNIQUE KEY uk_consult_active_visit_session (consultation_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='进行中的问诊。同一账号同一就诊人只能有一笔，问诊结束删除';
+
+CREATE TABLE IF NOT EXISTS consult_opening (
+    account_id      VARCHAR(64) NOT NULL COMMENT '账号',
+    text_hash       CHAR(64)    NOT NULL COMMENT '原话摘要',
+    consultation_id VARCHAR(64) NOT NULL COMMENT '这一轮咨询',
+    created_at      DATETIME(3) NOT NULL COMMENT '占住时间',
+    PRIMARY KEY (account_id, text_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='8秒内同一句只开一轮';

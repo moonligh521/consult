@@ -35,8 +35,8 @@ class OccupancyServiceTest {
 
     @Test
     void secondOccupySameOrderIsIdempotent() {
-        occupancy.occupy("ord-1", "doc-1", "sch-1", 15);
-        occupancy.occupy("ord-1", "doc-1", "sch-1", 30);
+        assertTrue(occupancy.occupy("ord-1", "doc-1", "sch-1", 15));
+        assertFalse(occupancy.occupy("ord-1", "doc-1", "sch-1", 30));
         assertEquals(1, store.size());
         assertEquals(start.plusSeconds(15 * 60), store.find("ord-1").expiresAt());
     }

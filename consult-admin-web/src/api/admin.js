@@ -71,3 +71,15 @@ export function stopSchedule(id, stopped) {
 export function deleteSchedule(id) {
   return http.delete(`/api/admin/schedules/${id}`)
 }
+
+export function doctorInbox(doctorId) {
+  return http.get('/api/doctor/inbox', { params: { doctorId } })
+}
+
+export function doctorHeartbeat() {
+  return http.post('/api/doctor/heartbeat')
+}
+
+export function doctorReply(consultationId, doctorId, text) {
+  return http.post('/api/doctor/replies', { consultationId, doctorId, text })
+}

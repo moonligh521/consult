@@ -61,6 +61,29 @@ class PatientFlowTest {
     }
 
     @Test
+    void samePatientCannotOpenAnotherVisitUntilTheFirstEnds() {
+        PatientRes self = patients.create("demo", new PatientCreateReq("张明", Gender.MALE, 32, "本人"));
+        PatientRes child = patients.create("demo", new PatientCreateReq("张小童", Gender.MALE, 8, "子女"));
+        ConsultationRes first = service.acceptMessage(null, "干咳半年，运动后加重");
+        service.bindPatient(first.consultationId(), self.id(), "demo");
+        assertTrue(service.activeVisits.claim("demo", self.id(), first.consultationId()));
+
+        ConsultationRes second = service.acceptMessage(null, "干咳半年，运动后加重");
+        BusinessException blocked = assertThrows(
+                BusinessException.class,
+                () -> service.bindPatient(second.consultationId(), self.id(), "demo"));
+        assertEquals(ErrorCode.CONSULT_PATIENT_BUSY, blocked.getErrorCode());
+
+        ConsultationRes other = service.bindPatient(
+                service.acceptMessage(null, "发热一天").consultationId(), child.id(), "demo");
+        assertEquals(child.id(), other.card().patientId());
+
+        service.activeVisits.release("demo", self.id(), first.consultationId());
+        ConsultationRes again = service.bindPatient(second.consultationId(), self.id(), "demo");
+        assertEquals(self.id(), again.card().patientId());
+    }
+
+    @Test
     void cannotBindSomeoneElsesPatient() {
         PatientRes other = patients.create("other", new PatientCreateReq("李芳", Gender.FEMALE, 28, "本人"));
         ConsultationRes first = service.acceptMessage(null, "头痛三天");
@@ -68,6 +91,14 @@ class PatientFlowTest {
                 BusinessException.class,
                 () -> service.bindPatient(first.consultationId(), other.id(), "demo"));
         assertEquals(ErrorCode.PATIENT_NOT_FOUND, error.getErrorCode());
+    }
+
+    @Test
+    void createSamePatientTwiceReturnsTheFirst() {
+        PatientRes first = patients.create("demo", new PatientCreateReq("张明", Gender.MALE, 32, "本人"));
+        PatientRes again = patients.create("demo", new PatientCreateReq("张明", Gender.MALE, 32, "本人"));
+        assertEquals(first.id(), again.id());
+        assertEquals(1, patients.list("demo").size());
     }
 
     @Test

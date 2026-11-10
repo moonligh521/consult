@@ -3,7 +3,6 @@ package com.moonligh.consult.agent.infrastructure.match;
 import java.net.InetAddress;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -20,6 +19,7 @@ import org.springframework.data.redis.core.StreamOperations;
 import com.moonligh.consult.agent.service.MatchDispatcher;
 import com.moonligh.consult.framework.redis.ConsultRedis;
 import com.moonligh.consult.framework.redis.RedisStreams;
+import com.moonligh.consult.identity.api.SlotFreed;
 
 /**
  * 消费 Redis Stream 放号。消费组 consult-match，失败不 ACK，对账任务兜底。
@@ -100,32 +100,21 @@ public class SlotFreedStreamConsumer implements SmartLifecycle {
     }
 
     private boolean handle(MapRecord<String, String, String> record) {
-        Map<String, String> body = record.getValue();
-        if (body == null) {
-            return true;
-        }
-        String specialty = string(body.get("specialty"));
-        int grade;
-        try {
-            grade = Integer.parseInt(string(body.get("grade")));
-        } catch (NumberFormatException error) {
+        SlotFreed notice = SlotFreed.fromStream(record.getValue());
+        if (notice == null) {
             return true;
         }
         try {
-            dispatcher.onSlotFreed(specialty, grade);
+            dispatcher.onSlotFreed(notice.specialty(), notice.grade());
             return true;
         } catch (RuntimeException error) {
-            log.warn("放号出队失败 specialty={} grade={}", specialty, grade);
+            log.warn("放号出队失败 specialty={} grade={}", notice.specialty(), notice.grade());
             return false;
         }
     }
 
     private void ensureGroup() {
         streams.ensureGroup(STREAM, GROUP);
-    }
-
-    private static String string(Object value) {
-        return value == null ? "" : String.valueOf(value);
     }
 
     private static String host() {

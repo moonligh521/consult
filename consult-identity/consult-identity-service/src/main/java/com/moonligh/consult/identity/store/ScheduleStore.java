@@ -90,9 +90,29 @@ public class ScheduleStore {
                     limit,
                     limit);
         } catch (DuplicateKeyException error) {
+            ScheduleAdminRes existing = findSlot(req.doctorId(), date, req.period());
+            if (existing != null) {
+                return existing;
+            }
             throw new BusinessException(ErrorCode.SCHEDULE_CONFLICT);
         }
         return find(id);
+    }
+
+    private ScheduleAdminRes findSlot(String doctorId, LocalDate date, String period) {
+        List<ScheduleAdminRes> rows = jdbc.query(
+                """
+                SELECT s.id, s.doctor_id, d.name AS doctor_name, d.specialty, s.visit_date, s.weekday,
+                       s.period, s.start_time, s.end_time, s.visit_type, s.limit_num, s.remain_num, s.stopped
+                FROM consult_schedule s
+                JOIN consult_doctor d ON d.id = s.doctor_id AND d.is_deleted = 0
+                WHERE s.doctor_id = ? AND s.visit_date = ? AND s.period = ? AND s.is_deleted = 0
+                """,
+                this::map,
+                doctorId,
+                date,
+                period);
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     public void stop(String id, boolean stopped) {

@@ -5,7 +5,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Consumer;
 
+import org.springframework.dao.DuplicateKeyException;
+
 import com.moonligh.consult.identity.api.DoctorAdminRes;
+import com.moonligh.consult.identity.api.SlotFreed;
+import com.moonligh.consult.identity.domain.load.DoctorLoadPool;
 import com.moonligh.consult.identity.store.DoctorStore;
 
 /**
@@ -21,9 +25,10 @@ public class OccupancyService {
     private final Clock clock;
     private final DoctorStore doctors;
     private final SlotFreedSink slotFreed;
+    private final DoctorLoadPool loadPool;
 
     public OccupancyService(OccupancyStore store, Consumer<String> releaseFlight, Clock clock) {
-        this(store, releaseFlight, clock, null, null);
+        this(store, releaseFlight, clock, null, null, null);
     }
 
     public OccupancyService(
@@ -32,32 +37,48 @@ public class OccupancyService {
             Clock clock,
             DoctorStore doctors,
             SlotFreedSink slotFreed) {
+        this(store, releaseFlight, clock, doctors, slotFreed, null);
+    }
+
+    public OccupancyService(
+            OccupancyStore store,
+            Consumer<String> releaseFlight,
+            Clock clock,
+            DoctorStore doctors,
+            SlotFreedSink slotFreed,
+            DoctorLoadPool loadPool) {
         this.store = store;
         this.releaseFlight = releaseFlight;
         this.clock = clock;
         this.doctors = doctors;
         this.slotFreed = slotFreed == null ? SlotFreedSink.NONE : slotFreed;
+        this.loadPool = loadPool;
     }
 
     public OccupancyRow find(String orderId) {
         return store.find(orderId);
     }
 
-    public void occupy(String orderId, String doctorId, String scheduleId, int minutes) {
-        // 同一订单已经占过就不再写，支付重试不会把 in_flight 加两次
+    /** @return true 本事务新插入；false 这张订单已经占过，调用方必须撤回刚才的号源扣减 */
+    public boolean occupy(String orderId, String doctorId, String scheduleId, int minutes) {
         if (orderId == null || orderId.isBlank() || store.find(orderId) != null) {
-            return;
+            return false;
         }
         int length = minutes > 0 ? minutes : 15;
         Instant now = clock.instant();
-        store.insert(new OccupancyRow(
-                orderId,
-                doctorId,
-                scheduleId,
-                OccupancyRow.ACTIVE,
-                now,
-                now.plus(Duration.ofMinutes(length)),
-                null));
+        try {
+            store.insert(new OccupancyRow(
+                    orderId,
+                    doctorId,
+                    scheduleId,
+                    OccupancyRow.ACTIVE,
+                    now,
+                    now.plus(Duration.ofMinutes(length)),
+                    null));
+            return true;
+        } catch (DuplicateKeyException existing) {
+            return false;
+        }
     }
 
     public boolean release(String orderId, int reason) {
@@ -82,7 +103,18 @@ public class OccupancyService {
         if (doctor == null) {
             return;
         }
-        slotFreed.freed(doctor.specialty(), DoctorGrade.ofTitle(doctor.title()));
+        if (loadPool != null) {
+            try {
+                loadPool.release(
+                        doctor.id(),
+                        doctor.specialty(),
+                        DoctorGrade.ofTitle(doctor.title()),
+                        clock.millis());
+            } catch (RuntimeException ignored) {
+                // 号已经还了。队列没减成功时，下次上线会按数据库在手单数重放。
+            }
+        }
+        slotFreed.freed(new SlotFreed(doctor.specialty(), DoctorGrade.ofTitle(doctor.title())));
     }
 
     public boolean extend(String orderId, int minutes) {

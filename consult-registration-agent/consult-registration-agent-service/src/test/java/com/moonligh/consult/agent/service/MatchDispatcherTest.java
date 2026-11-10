@@ -147,6 +147,25 @@ class MatchDispatcherTest {
         assertEquals(List.of("o1"), experts);
     }
 
+    @Test
+    void leasedOrderIsNotPromotedWhileDispatchHoldsIt() {
+        MemoryMatchBroker broker = new MemoryMatchBroker();
+        AtomicInteger calls = new AtomicInteger();
+        InquiryProperties inquiry = new InquiryProperties();
+        inquiry.setMatchUpgradeAfter(Duration.ofMinutes(1));
+        MutableClock clock = new MutableClock(T0);
+        MatchDispatcher dispatcher = new MatchDispatcher(broker, entry -> {
+            calls.incrementAndGet();
+            return false;
+        }, inquiry, clock);
+        dispatcher.offer(entry("c1", "o1", T0, 3, 3));
+        assertEquals(1, calls.get());
+        assertTrue(broker.tryLease("o1", Duration.ofSeconds(30)));
+        clock.set(T0.plusSeconds(120));
+        dispatcher.promoteDue();
+        assertEquals(1, calls.get());
+    }
+
     private static MatchDispatcher dispatcher(Instant now, MatchDispatcher.Occupier occupier) {
         return dispatcher(Clock.fixed(now, ZoneOffset.UTC), occupier);
     }

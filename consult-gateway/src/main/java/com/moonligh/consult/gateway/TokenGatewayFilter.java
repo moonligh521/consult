@@ -50,28 +50,42 @@ public class TokenGatewayFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
-        if (OPEN.contains(path) || "OPTIONS".equalsIgnoreCase(exchange.getRequest().getMethod().name())) {
-            return chain.filter(stripAccount(exchange, null));
+        if (OPEN.contains(path)
+                || path.startsWith("/api/pay/notify/")
+                || path.startsWith("/api/pay/callback")
+                || path.startsWith("/api/payments")
+                || path.startsWith("/api/benefit")
+                || "OPTIONS".equalsIgnoreCase(exchange.getRequest().getMethod().name())) {
+            return chain.filter(stamp(exchange, null));
         }
         try {
             AuthPrincipal principal = tokens.parse(exchange.getRequest().getHeaders().getFirst(AuthTokens.HEADER));
             if (path.startsWith("/api/admin/") && !principal.staff()) {
                 throw new BusinessException(ErrorCode.LOGIN_REQUIRED);
             }
-            if (!path.startsWith("/api/admin/") && principal.staff()) {
+            if (path.startsWith("/api/doctor/") && !principal.staff()) {
                 throw new BusinessException(ErrorCode.LOGIN_REQUIRED);
             }
-            return chain.filter(stripAccount(exchange, principal.accountId()));
+            if (!path.startsWith("/api/admin/") && !path.startsWith("/api/doctor/") && principal.staff()) {
+                throw new BusinessException(ErrorCode.LOGIN_REQUIRED);
+            }
+            return chain.filter(stamp(exchange, principal));
         } catch (BusinessException error) {
             return writeFail(exchange, error.getErrorCode() == null ? ErrorCode.LOGIN_REQUIRED : error.getErrorCode());
         }
     }
 
-    private ServerWebExchange stripAccount(ServerWebExchange exchange, String accountId) {
+    private ServerWebExchange stamp(ServerWebExchange exchange, AuthPrincipal principal) {
+        String accountId = principal == null ? null : principal.accountId();
+        String doctorId = principal == null ? null : principal.doctorId();
         ServerHttpRequest mutated = exchange.getRequest().mutate().headers(headers -> {
             headers.remove(AuthTokens.ACCOUNT_HEADER);
+            headers.remove(AuthTokens.DOCTOR_HEADER);
             if (accountId != null && !accountId.isBlank()) {
                 headers.set(AuthTokens.ACCOUNT_HEADER, accountId);
+            }
+            if (doctorId != null && !doctorId.isBlank()) {
+                headers.set(AuthTokens.DOCTOR_HEADER, doctorId);
             }
         }).build();
         return exchange.mutate().request(mutated).build();

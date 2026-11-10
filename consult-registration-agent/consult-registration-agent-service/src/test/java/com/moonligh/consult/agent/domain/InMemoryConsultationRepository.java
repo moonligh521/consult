@@ -12,7 +12,9 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.moonligh.consult.agent.api.res.ConsultationRecordRes;
 import com.moonligh.consult.agent.api.res.ConsultationRes;
+import com.moonligh.consult.agent.domain.safety.ConsultationMessage;
 import com.moonligh.consult.agent.domain.safety.InMemorySafetyAuditRecorder;
+import com.moonligh.consult.agent.domain.safety.MessageSource;
 import com.moonligh.consult.agent.domain.safety.SafetyDecisionAudit;
 import com.moonligh.consult.agent.domain.triage.MatchDecision;
 import com.moonligh.consult.framework.BusinessException;
@@ -31,8 +33,11 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
     private final List<MatchDecision> decisions = new CopyOnWriteArrayList<>();
     /** 下一次保存故意失败，用来测急症落库保护。 */
     private boolean failNextPersist;
-    /** 本进程预占、尚未放入会话表的编号。 */
+    /** 测试里数读库次数。 */
+    private int reads;
     private final Set<String> reserved = ConcurrentHashMap.newKeySet();
+    /** 权益确认或退回已经成功的订单。 */
+    private final Set<String> benefitSettled = ConcurrentHashMap.newKeySet();
 
     public InMemoryConsultationRepository() {
         this(new ConcurrentHashMap<>(), new InMemorySafetyAuditRecorder());
@@ -138,10 +143,15 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
 
     @Override
     public ConsultationSession get(String consultationId) {
+        reads++;
         if (consultationId == null || consultationId.isBlank()) {
             return null;
         }
         return sessions.get(consultationId);
+    }
+
+    public int reads() {
+        return reads;
     }
 
     @Override
@@ -160,15 +170,94 @@ public class InMemoryConsultationRepository implements ConsultationRepository {
     }
 
     @Override
+    public String findRecentOpening(String accountId, String text, Instant since) {
+        if (accountId == null || text == null || since == null) {
+            return null;
+        }
+        String found = null;
+        Instant latest = null;
+        for (ConsultationSession session : sessions.values()) {
+            if (!accountId.equals(session.getAccountId())) {
+                continue;
+            }
+            if (session.getOrder() != null && session.getOrder().isEnded()) {
+                continue;
+            }
+            for (ConsultationMessage message : session.messages()) {
+                if (message.source() != MessageSource.MESSAGE || !text.equals(message.text())) {
+                    continue;
+                }
+                Instant at = message.receivedAt();
+                if (at == null || at.isBefore(since)) {
+                    continue;
+                }
+                if (latest == null || at.isAfter(latest)) {
+                    latest = at;
+                    found = session.getId();
+                }
+            }
+        }
+        return found;
+    }
+
+    @Override
+    public String consultationIdOfOrder(String orderId) {
+        if (orderId == null || orderId.isBlank()) {
+            return null;
+        }
+        String compact = orderId.replace("-", "");
+        for (ConsultationSession session : sessions.values()) {
+            ConsultOrder order = session.getOrder();
+            if (order == null || order.orderId() == null) {
+                continue;
+            }
+            if (orderId.equals(order.orderId()) || compact.equals(order.orderId().replace("-", ""))) {
+                return session.getId();
+            }
+        }
+        return null;
+    }
+
+    @Override
     public List<MatchQueue.Entry> listUnmatchedPaid(int limit) {
         return sessions.values().stream()
                 .filter(session -> session.getOrder() != null)
+                .filter(session -> session.getOrder().payStatus() == com.moonligh.consult.agent.api.enums.PayStatus.PAID)
                 .filter(session -> session.getOrder().doctor() == null)
                 .filter(session -> !session.getOrder().isEnded())
                 .sorted((left, right) -> MatchQueue.compareFifo(entry(left), entry(right)))
                 .limit(Math.max(0, limit))
                 .map(InMemoryConsultationRepository::entry)
                 .toList();
+    }
+
+    @Override
+    public List<BenefitLedgerRow> listBenefitLedger(int limit) {
+        return sessions.values().stream()
+                .map(ConsultationSession::getOrder)
+                .filter(order -> order != null && order.benefitReady())
+                .filter(order -> order.benefitAmount() != null && order.benefitAmount().signum() > 0)
+                .filter(order -> !benefitSettled.contains(order.orderId()))
+                .filter(order -> order.payStatus() == com.moonligh.consult.agent.api.enums.PayStatus.PAID
+                        || (order.payStatus() == com.moonligh.consult.agent.api.enums.PayStatus.PENDING
+                                && "CANCEL".equals(order.endReason())))
+                .limit(Math.max(0, limit))
+                .map(order -> new BenefitLedgerRow(
+                        order.orderId(),
+                        order.payStatus() == com.moonligh.consult.agent.api.enums.PayStatus.PAID,
+                        "CANCEL".equals(order.endReason())))
+                .toList();
+    }
+
+    @Override
+    public void markBenefitSettled(String orderId) {
+        if (orderId != null && !orderId.isBlank()) {
+            benefitSettled.add(orderId);
+        }
+    }
+
+    public boolean benefitSettled(String orderId) {
+        return orderId != null && benefitSettled.contains(orderId);
     }
 
     private static MatchQueue.Entry entry(ConsultationSession session) {

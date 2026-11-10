@@ -26,10 +26,14 @@ public class StaffSeed implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (store.count() > 0) {
-            return;
+        if (store.count() == 0) {
+            store.insert(properties.getAdminUsername(), properties.getAdminPassword(), "系统管理员");
+            log.info("已写入演示管理员 username={}", properties.getAdminUsername());
         }
-        store.insert(properties.getAdminUsername(), properties.getAdminPassword(), "系统管理员");
-        log.info("已写入演示管理员 username={}", properties.getAdminUsername());
+        String doctorId = properties.getDeskDoctorId();
+        if (doctorId != null && !doctorId.isBlank()) {
+            store.bindDoctor(properties.getAdminUsername(), doctorId);
+            log.info("演示管理员已绑定医生 username={}", properties.getAdminUsername());
+        }
     }
 }

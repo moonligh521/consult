@@ -14,6 +14,7 @@ const menus = [
   { label: '咨询会话', key: '/consultations' },
   { label: '科室目录', key: '/departments' },
   { label: '医生管理', key: '/doctors' },
+  { label: '医生接诊', key: '/desk' },
   { label: '排班管理', key: '/schedules' },
 ]
 

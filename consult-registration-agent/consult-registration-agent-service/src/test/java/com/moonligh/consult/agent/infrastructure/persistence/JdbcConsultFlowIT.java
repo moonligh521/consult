@@ -158,6 +158,21 @@ class JdbcConsultFlowIT {
                 "ALTER TABLE consult_order ADD COLUMN end_reason VARCHAR(16) NULL COMMENT '结束原因 ENDED/TIMEOUT/CANCEL' AFTER ended_at");
         addColumnIfMissing(
                 jdbc,
+                "consult_order",
+                "benefit_amount",
+                "ALTER TABLE consult_order ADD COLUMN benefit_amount DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '权益抵掉的金额' AFTER discount_amount");
+        addColumnIfMissing(
+                jdbc,
+                "consult_order",
+                "benefit_card_id",
+                "ALTER TABLE consult_order ADD COLUMN benefit_card_id VARCHAR(64) NULL COMMENT '本次使用的权益卡' AFTER benefit_amount");
+        addColumnIfMissing(
+                jdbc,
+                "consult_order",
+                "benefit_ready",
+                "ALTER TABLE consult_order ADD COLUMN benefit_ready TINYINT NOT NULL DEFAULT 0 COMMENT '1表示已经向权益服务预占过' AFTER benefit_card_id");
+        addColumnIfMissing(
+                jdbc,
                 "consultation_session",
                 "account_id",
                 "ALTER TABLE consultation_session ADD COLUMN account_id VARCHAR(64) NULL COMMENT '所属账号' AFTER patient_name");

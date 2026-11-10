@@ -47,6 +47,6 @@ public class StaffAuthController {
             throw new com.moonligh.consult.framework.BusinessException(
                     com.moonligh.consult.framework.ErrorCode.LOGIN_REQUIRED);
         }
-        return Result.ok(new StaffMeRes(row.id(), row.username(), row.name()));
+        return Result.ok(new StaffMeRes(row.id(), row.username(), row.name(), row.doctorId()));
     }
 }

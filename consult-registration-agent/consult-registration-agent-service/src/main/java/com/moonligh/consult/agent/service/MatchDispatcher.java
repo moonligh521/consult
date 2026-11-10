@@ -85,6 +85,10 @@ public class MatchDispatcher {
         Instant now = clock.instant();
         int assigned = 0;
         for (MatchQueue.Entry entry : broker.popDueUpgrades(now, UPGRADE_BATCH)) {
+            if (broker.leased(entry.orderId())) {
+                broker.postponeUpgrade(entry, now.plusSeconds(5));
+                continue;
+            }
             broker.promote(entry);
             MatchQueue.Entry promoted = entry.promoted();
             assigned += dispatch(promoted.specialty(), promoted.queuedGrade());
@@ -102,6 +106,10 @@ public class MatchDispatcher {
             if (entry == null) {
                 return assigned;
             }
+            if (!broker.tryLease(entry.orderId(), Duration.ofSeconds(30))) {
+                broker.restore(entry);
+                return assigned;
+            }
             try {
                 if (occupier.occupy(entry)) {
                     broker.complete(entry.orderId());
@@ -115,6 +123,8 @@ public class MatchDispatcher {
                 log.warn("派单出队失败 specialty={} grade={} type={}",
                         specialty, grade, error.getClass().getSimpleName());
                 return assigned;
+            } finally {
+                broker.unlock(entry.orderId());
             }
         }
     }

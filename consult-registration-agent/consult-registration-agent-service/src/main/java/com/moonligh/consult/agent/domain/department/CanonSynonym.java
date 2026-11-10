@@ -34,6 +34,15 @@ public record CanonSynonym(
         status = status == null ? SynonymStatus.DRAFT : status;
     }
 
+    /** 目标病名和词组相同，就当成同一条规则。 */
+    public boolean sameWords(CanonSynonym other) {
+        return other != null
+                && targetTerm.equals(other.targetTerm)
+                && allGroups.equals(other.allGroups)
+                && noneTerms.equals(other.noneTerms)
+                && java.util.Objects.equals(pattern, other.pattern);
+    }
+
     /** 命中时返回证据在紧凑串里的位置，否则空。 */
     public Hit match(String compact) {
         if (compact == null || compact.isEmpty() || allGroups.isEmpty()) {

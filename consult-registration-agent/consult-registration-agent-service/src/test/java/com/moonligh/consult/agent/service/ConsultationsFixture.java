@@ -2,6 +2,7 @@ package com.moonligh.consult.agent.service;
 
 import com.moonligh.consult.agent.config.InquiryProperties;
 import com.moonligh.consult.agent.domain.DepartmentRouter;
+import com.moonligh.consult.agent.domain.MemoryOpeningClaim;
 import com.moonligh.consult.agent.domain.InMemoryConsultationRepository;
 import com.moonligh.consult.agent.domain.SlotParser;
 import com.moonligh.consult.agent.domain.SymptomExtractor;
@@ -53,6 +54,7 @@ public final class ConsultationsFixture {
                 metrics,
                 new InquiryProperties(),
                 patients);
+        this.service.setOpeningClaim(new MemoryOpeningClaim());
     }
 
     /** 生产同款：DRAFT 规则只记影子。 */

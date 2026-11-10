@@ -223,7 +223,7 @@ public class DoctorStore {
         Object[] args = {specialty == null ? "" : specialty, departmentCode == null ? -1 : departmentCode};
         String sql = """
                 SELECT d.id, d.name, d.title, d.hospital, d.department_code, d.specialty, d.skills,
-                       d.in_flight, s.id AS schedule_id, s.remain_num
+                       d.in_flight, d.concurrent_limit, d.idle_since, s.id AS schedule_id, s.remain_num
                 FROM consult_doctor d
                 JOIN consult_department dept
                   ON dept.code = d.department_code AND dept.enabled = 1 AND dept.is_deleted = 0
@@ -233,7 +233,9 @@ public class DoctorStore {
                 JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
                   AND s.remain_num > 0
                 """ + ScheduleWindows.LIVE_SQL + """
-                WHERE d.is_deleted = 0 AND d.status = 1 AND d.in_flight < d.concurrent_limit
+                WHERE d.is_deleted = 0 AND d.status = 1 AND d.presence = 1
+                  AND d.last_beat > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR) - INTERVAL 15 SECOND
+                  AND d.in_flight < d.concurrent_limit
                 """ + scope;
         try {
             return jdbc.query(sql, this::mapCandidate, args);
@@ -241,12 +243,14 @@ public class DoctorStore {
             return jdbc.query(
                     """
                     SELECT d.id, d.name, d.title, d.hospital, d.department_code, d.specialty, d.skills,
-                           d.in_flight, s.id AS schedule_id, s.remain_num
+                           d.in_flight, d.concurrent_limit, d.idle_since, s.id AS schedule_id, s.remain_num
                     FROM consult_doctor d
                     JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
                       AND s.remain_num > 0
                     """ + ScheduleWindows.LIVE_SQL + """
-                    WHERE d.is_deleted = 0 AND d.status = 1 AND d.in_flight < d.concurrent_limit
+                    WHERE d.is_deleted = 0 AND d.status = 1 AND d.presence = 1
+                  AND d.last_beat > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR) - INTERVAL 15 SECOND
+                  AND d.in_flight < d.concurrent_limit
                     """ + scope,
                     this::mapCandidate,
                     args);
@@ -264,14 +268,21 @@ public class DoctorStore {
                 rs.getString("skills"),
                 rs.getInt("in_flight"),
                 rs.getInt("remain_num"),
-                rs.getString("schedule_id"));
+                rs.getString("schedule_id"),
+                idleMillis(rs),
+                rs.getInt("concurrent_limit"));
     }
 
     public boolean occupy(String doctorId, String scheduleId) {
         int doctor = jdbc.update(
                 """
-                UPDATE consult_doctor SET in_flight = in_flight + 1, updated_at = CURRENT_TIMESTAMP(3)
-                WHERE id = ? AND is_deleted = 0 AND status = 1 AND in_flight < concurrent_limit
+                UPDATE consult_doctor
+                SET in_flight = in_flight + 1,
+                    idle_since = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR),
+                    updated_at = CURRENT_TIMESTAMP(3)
+                WHERE id = ? AND is_deleted = 0 AND status = 1 AND presence = 1
+                  AND last_beat > DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR) - INTERVAL 15 SECOND
+                  AND in_flight < concurrent_limit
                 """,
                 doctorId);
         if (doctor != 1) {
@@ -293,6 +304,107 @@ public class DoctorStore {
             return false;
         }
         return true;
+    }
+
+    /** 占坑行没插进去时撤回这一次扣减。号源和在途一起还。 */
+    public void undoOccupy(String doctorId, String scheduleId) {
+        if (doctorId == null || doctorId.isBlank()) {
+            return;
+        }
+        jdbc.update(
+                """
+                UPDATE consult_doctor SET in_flight = in_flight - 1, updated_at = CURRENT_TIMESTAMP(3)
+                WHERE id = ? AND in_flight > 0
+                """,
+                doctorId);
+        if (scheduleId == null || scheduleId.isBlank()) {
+            return;
+        }
+        jdbc.update(
+                """
+                UPDATE consult_schedule SET remain_num = remain_num + 1, updated_at = CURRENT_TIMESTAMP(3)
+                WHERE id = ? AND is_deleted = 0
+                """,
+                scheduleId);
+    }
+
+    /** 医生端心跳。15 秒内没有心跳的人不再领新单。 */
+    public void heartbeat(String doctorId) {
+        if (doctorId == null || doctorId.isBlank()) {
+            return;
+        }
+        jdbc.update(
+                """
+                UPDATE consult_doctor
+                SET presence = 1,
+                    last_beat = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR),
+                    idle_since = IFNULL(idle_since, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)),
+                    updated_at = CURRENT_TIMESTAMP(3)
+                WHERE id = ? AND is_deleted = 0 AND status = 1
+                """,
+                doctorId);
+    }
+
+    /** 演示环境没有医生端时，给已经在线的人续心跳。生产关掉。 */
+    public int refreshPresentBeats() {
+        return jdbc.update(
+                """
+                UPDATE consult_doctor
+                SET last_beat = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR),
+                    updated_at = CURRENT_TIMESTAMP(3)
+                WHERE is_deleted = 0 AND status = 1 AND presence = 1
+                """);
+    }
+
+    /** 启动时把在档医生标成可派，真实心跳接上后由超时扫描下线。 */
+    public int markSeededOnline() {
+        return jdbc.update(
+                """
+                UPDATE consult_doctor
+                SET presence = 1,
+                    last_beat = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR),
+                    idle_since = IFNULL(idle_since, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)),
+                    updated_at = CURRENT_TIMESTAMP(3)
+                WHERE is_deleted = 0 AND status = 1
+                """);
+    }
+
+    public void goOffline(String doctorId) {
+        if (doctorId == null || doctorId.isBlank()) {
+            return;
+        }
+        jdbc.update(
+                """
+                UPDATE consult_doctor SET presence = 0, updated_at = CURRENT_TIMESTAMP(3)
+                WHERE id = ? AND is_deleted = 0
+                """,
+                doctorId);
+    }
+
+    public int offlineStale() {
+        return jdbc.update(
+                """
+                UPDATE consult_doctor
+                SET presence = 0, updated_at = CURRENT_TIMESTAMP(3)
+                WHERE is_deleted = 0 AND presence = 1
+                  AND (last_beat IS NULL OR last_beat <= DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR) - INTERVAL 15 SECOND)
+                """);
+    }
+
+    public java.util.List<PresentDoctor> listPresent() {
+        return jdbc.query(
+                """
+                SELECT id, specialty, title, in_flight, concurrent_limit, idle_since
+                FROM consult_doctor
+                WHERE is_deleted = 0 AND status = 1 AND presence = 1 AND in_flight < concurrent_limit
+                """,
+                (rs, rowNum) -> new PresentDoctor(
+                        rs.getString("id"),
+                        rs.getString("specialty"),
+                        rs.getString("title"),
+                        rs.getInt("in_flight"),
+                        idleMillis(rs),
+                        rs.getInt("concurrent_limit")));
     }
 
     /** 问诊结束或超时释放图文坑。remain_num 不退，号源已用。 */
@@ -322,6 +434,15 @@ public class DoctorStore {
                 rs.getInt("in_flight"),
                 rs.getInt("concurrent_limit"),
                 rs.getInt("status"));
+    }
+
+    private static long idleMillis(java.sql.ResultSet rs) throws java.sql.SQLException {
+        java.sql.Timestamp idle = rs.getTimestamp("idle_since");
+        return idle == null ? 0L : idle.toInstant().toEpochMilli();
+    }
+
+    public record PresentDoctor(
+            String id, String specialty, String title, int inFlight, long idleSinceMillis, int concurrentLimit) {
     }
 
     private static String blankToNull(String value) {

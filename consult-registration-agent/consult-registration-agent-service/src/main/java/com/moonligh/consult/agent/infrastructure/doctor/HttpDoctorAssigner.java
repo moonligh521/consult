@@ -1,8 +1,6 @@
 package com.moonligh.consult.agent.infrastructure.doctor;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Repository;
@@ -14,6 +12,9 @@ import com.moonligh.consult.agent.domain.DoctorAssigner;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
 import com.moonligh.consult.framework.Result;
+import com.moonligh.consult.identity.api.AssignDoctorReq;
+import com.moonligh.consult.identity.api.ExtendDoctorReq;
+import com.moonligh.consult.identity.api.ReleaseDoctorReq;
 import com.moonligh.consult.security.AuthTokens;
 import com.moonligh.consult.security.ConsultAuthProperties;
 
@@ -50,16 +51,7 @@ public class HttpDoctorAssigner implements DoctorAssigner {
         if (card == null) {
             throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
         }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("departmentCode", card.department() == null ? 0 : card.department());
-        payload.put("specialty", card.specialty() == null ? "" : card.specialty());
-        payload.put("complaint", card.description() == null ? "" : card.description());
-        payload.put("symptoms", card.symptoms() == null ? List.of() : card.symptoms());
-        payload.put("canonicalTerms", canonicalTerms == null ? List.of() : canonicalTerms);
-        payload.put("consultationId", consultationId);
-        payload.put("orderId", orderId);
-        payload.put("consultMinutes", consultMinutes);
-        return postAssign(payload);
+        return postAssign(assignRequest(consultationId, orderId, card, canonicalTerms, consultMinutes, null, null));
     }
 
     @Override
@@ -74,26 +66,37 @@ public class HttpDoctorAssigner implements DoctorAssigner {
         if (card == null) {
             throw new BusinessException(ErrorCode.DOCTOR_UNAVAILABLE);
         }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("departmentCode", card.department() == null ? 0 : card.department());
-        payload.put("specialty", card.specialty() == null ? "" : card.specialty());
-        payload.put("complaint", card.description() == null ? "" : card.description());
-        payload.put("symptoms", card.symptoms() == null ? List.of() : card.symptoms());
-        payload.put("canonicalTerms", canonicalTerms == null ? List.of() : canonicalTerms);
-        payload.put("consultationId", consultationId);
-        payload.put("orderId", orderId);
-        payload.put("consultMinutes", consultMinutes);
-        payload.put("packageCode", packageCode);
-        payload.put("allowUpgrade", allowUpgrade);
-        return postAssign(payload);
+        return postAssign(assignRequest(
+                consultationId, orderId, card, canonicalTerms, consultMinutes, packageCode, allowUpgrade));
     }
 
-    private AssignedDoctorRes postAssign(Map<String, Object> payload) {
+    private static AssignDoctorReq assignRequest(
+            String consultationId,
+            String orderId,
+            ConsultationCardRes card,
+            List<String> canonicalTerms,
+            int consultMinutes,
+            Integer packageCode,
+            Boolean allowUpgrade) {
+        return new AssignDoctorReq(
+                card.department() == null ? 0 : card.department(),
+                card.specialty() == null ? "" : card.specialty(),
+                card.description() == null ? "" : card.description(),
+                card.symptoms() == null ? List.of() : card.symptoms(),
+                canonicalTerms == null ? List.of() : canonicalTerms,
+                consultationId,
+                orderId,
+                consultMinutes,
+                packageCode,
+                allowUpgrade);
+    }
+
+    private AssignedDoctorRes postAssign(AssignDoctorReq request) {
         try {
             Result<AssignedDoctorRes> body = client.post()
                     .uri("/internal/doctors/assign")
                     .header(AuthTokens.INTERNAL_HEADER, auth.getInternalToken())
-                    .body(payload)
+                    .body(request)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<AssignedDoctorRes>>() {});
             if (body == null || !body.isSuccess() || body.getData() == null) {
@@ -133,14 +136,13 @@ public class HttpDoctorAssigner implements DoctorAssigner {
         if (orderId == null || orderId.isBlank()) {
             return;
         }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("orderId", orderId);
-        payload.put("reason", reason == null || reason.isBlank() ? "ENDED" : reason);
+        ReleaseDoctorReq request = new ReleaseDoctorReq(
+                orderId, reason == null || reason.isBlank() ? "ENDED" : reason);
         try {
             client.post()
                     .uri("/internal/doctors/release")
                     .header(AuthTokens.INTERNAL_HEADER, auth.getInternalToken())
-                    .body(payload)
+                    .body(request)
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<Void>>() {});
         } catch (RuntimeException error) {
@@ -153,14 +155,11 @@ public class HttpDoctorAssigner implements DoctorAssigner {
         if (orderId == null || orderId.isBlank()) {
             return;
         }
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("orderId", orderId);
-        payload.put("consultMinutes", consultMinutes);
         try {
             client.post()
                     .uri("/internal/doctors/extend")
                     .header(AuthTokens.INTERNAL_HEADER, auth.getInternalToken())
-                    .body(payload)
+                    .body(new ExtendDoctorReq(orderId, consultMinutes))
                     .retrieve()
                     .body(new ParameterizedTypeReference<Result<Void>>() {});
         } catch (RuntimeException error) {

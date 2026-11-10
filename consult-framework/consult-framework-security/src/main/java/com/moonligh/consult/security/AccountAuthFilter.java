@@ -38,7 +38,7 @@ public class AccountAuthFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return OPEN.contains(path) || path.startsWith("/internal/");
+        return OPEN.contains(path) || path.startsWith("/internal/") || path.startsWith("/api/pay/callback");
     }
 
     @Override
@@ -54,6 +54,9 @@ public class AccountAuthFilter extends OncePerRequestFilter {
             }
             String path = request.getRequestURI();
             if (path.startsWith("/api/admin/") && !AccountIds.principal(request).staff()) {
+                throw new BusinessException(ErrorCode.LOGIN_REQUIRED);
+            }
+            if (path.startsWith("/api/doctor/") && !AccountIds.principal(request).staff()) {
                 throw new BusinessException(ErrorCode.LOGIN_REQUIRED);
             }
             chain.doFilter(request, response);
