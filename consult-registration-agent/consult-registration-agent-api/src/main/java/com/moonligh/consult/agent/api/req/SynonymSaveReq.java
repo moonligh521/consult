@@ -11,7 +11,7 @@ public record SynonymSaveReq(
         /** 归约到的病名，必须是目录里的病名词。 */
         String target,
         /** 每组至少命中一个词，所有组都命中才算。 */
-        List<List<String>> all,
+        List<TermGroup> all,
         /** 命中任一即不算。 */
         List<String> none,
         /** 可选，只允许指标加数字写法。 */

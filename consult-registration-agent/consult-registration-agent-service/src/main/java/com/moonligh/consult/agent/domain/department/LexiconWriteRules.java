@@ -6,6 +6,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import com.moonligh.consult.agent.api.req.TermGroup;
+
 import com.moonligh.consult.agent.domain.CompactText;
 import com.moonligh.consult.agent.domain.safety.RuleStatus;
 import com.moonligh.consult.agent.domain.safety.SafetyCatalog;
@@ -64,20 +66,20 @@ public class LexiconWriteRules {
         if (rule.allGroups().isEmpty()) {
             throw new IllegalArgumentException("同义规则至少要有一组词");
         }
-        List<List<String>> groups = new ArrayList<>();
-        for (List<String> group : rule.allGroups()) {
-            if (group.isEmpty()) {
+        List<TermGroup> groups = new ArrayList<>();
+        for (TermGroup group : rule.allGroups()) {
+            if (group.words().isEmpty()) {
                 throw new IllegalArgumentException("同义规则每组至少一个词");
             }
             List<String> compacted = new ArrayList<>();
-            for (String word : group) {
+            for (String word : group.words()) {
                 String compact = requireCompact(word, "同义词");
                 if (compact.length() < 2) {
                     throw new IllegalArgumentException("同义词至少两字: " + compact);
                 }
                 compacted.add(compact);
             }
-            groups.add(compacted);
+            groups.add(new TermGroup(compacted));
         }
         List<String> none = new ArrayList<>();
         for (String word : rule.noneTerms()) {

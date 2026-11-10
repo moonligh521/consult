@@ -1,7 +1,5 @@
 package com.moonligh.pay;
 
-import java.util.Map;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -30,10 +28,7 @@ public class BusinessNotifier {
                     .uri(order.notifyUrl())
                     .header("X-Pay-Token", properties.getToken() == null ? "" : properties.getToken().trim())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
-                            "bizOrderNo", order.bizOrderNo(),
-                            "amount", order.amount().toPlainString(),
-                            "channel", order.channel()))
+                    .body(new PaidNotice(order.bizOrderNo(), order.amount().toPlainString(), order.channel()))
                     .retrieve()
                     .body(String.class);
             return accepted(body);

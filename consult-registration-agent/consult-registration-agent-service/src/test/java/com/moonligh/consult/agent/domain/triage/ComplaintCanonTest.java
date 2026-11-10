@@ -9,6 +9,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.moonligh.consult.agent.api.req.TermGroup;
 import com.moonligh.consult.agent.domain.department.CanonSynonym;
 import com.moonligh.consult.agent.domain.department.DepartmentSnapshot;
 import com.moonligh.consult.agent.domain.department.MemoryDepartmentCatalog;
@@ -97,7 +98,7 @@ class ComplaintCanonTest {
 
     @Test
     void synonymNoneTermBlocks() {
-        CanonSynonym rule = new CanonSynonym("SYN-T", "高血压", List.of(List.of("血压高")), List.of("不"), null,
+        CanonSynonym rule = new CanonSynonym("SYN-T", "高血压", List.of(new TermGroup(List.of("血压高"))), List.of("不"), null,
                 SynonymStatus.REVIEWED);
         DepartmentSnapshot snapshot = seed.withSynonyms(List.of(rule));
         assertTrue(canon.rule("血压高不高不清楚，头胀", snapshot).terms().isEmpty());

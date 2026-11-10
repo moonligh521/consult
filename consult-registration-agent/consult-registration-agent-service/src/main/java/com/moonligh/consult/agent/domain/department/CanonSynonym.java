@@ -7,6 +7,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.moonligh.consult.agent.api.req.TermGroup;
+
 /**
  * 口语到标准病名的归约规则。allGroups 每组至少命中一个词，所有组都命中才算；
  * noneTerms 出现任一即不算；pattern 非空时还要匹配上。匹配串是紧凑原话。
@@ -14,7 +16,7 @@ import java.util.regex.Pattern;
 public record CanonSynonym(
         String ruleId,
         String targetTerm,
-        List<List<String>> allGroups,
+        List<TermGroup> allGroups,
         List<String> noneTerms,
         String pattern,
         SynonymStatus status) {
@@ -22,10 +24,10 @@ public record CanonSynonym(
     private static final Map<String, Pattern> COMPILED = new ConcurrentHashMap<>();
 
     public CanonSynonym {
-        List<List<String>> groups = new ArrayList<>();
+        List<TermGroup> groups = new ArrayList<>();
         if (allGroups != null) {
-            for (List<String> group : allGroups) {
-                groups.add(group == null ? List.of() : List.copyOf(group));
+            for (TermGroup group : allGroups) {
+                groups.add(group == null ? new TermGroup(List.of()) : group);
             }
         }
         allGroups = List.copyOf(groups);
@@ -55,10 +57,10 @@ public record CanonSynonym(
         }
         int start = Integer.MAX_VALUE;
         int end = -1;
-        for (List<String> group : allGroups) {
+        for (TermGroup group : allGroups) {
             int at = -1;
             String word = null;
-            for (String item : group) {
+            for (String item : group.words()) {
                 int found = item.isEmpty() ? -1 : compact.indexOf(item);
                 if (found >= 0 && (at < 0 || found < at)) {
                     at = found;

@@ -2,7 +2,6 @@ package com.moonligh.consult.agent.infrastructure.pay;
 
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.moonligh.consult.agent.config.PayProperties;
 import com.moonligh.consult.agent.domain.pay.PayCommand;
 import com.moonligh.consult.agent.domain.pay.PaymentCashier;
+import com.moonligh.consult.agent.domain.pay.PaymentCreateReq;
 import com.moonligh.consult.agent.domain.pay.PaymentTicket;
 import com.moonligh.consult.framework.BusinessException;
 import com.moonligh.consult.framework.ErrorCode;
@@ -73,12 +73,12 @@ public class ChannelPaymentCashier implements PaymentCashier {
                     .uri(base + "/api/payments")
                     .header("X-Pay-Token", properties.getToken().trim())
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of(
-                            "bizOrderNo", command.orderId(),
-                            "amount", command.amountYuan().setScale(2, RoundingMode.HALF_UP),
-                            "subject", command.subject(),
-                            "channel", channel,
-                            "notifyUrl", properties.getCallbackUrl().trim()))
+                    .body(new PaymentCreateReq(
+                            command.orderId(),
+                            command.amountYuan().setScale(2, RoundingMode.HALF_UP),
+                            command.subject(),
+                            channel,
+                            properties.getCallbackUrl().trim()))
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (request, response) -> {
                         String text = new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8);

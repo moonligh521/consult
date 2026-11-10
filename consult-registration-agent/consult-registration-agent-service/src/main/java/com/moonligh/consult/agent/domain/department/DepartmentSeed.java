@@ -8,6 +8,8 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.moonligh.consult.agent.api.req.TermGroup;
+
 /**
  * 从 classpath 种子文件加载目录。单测和库表未建时用。
  */
@@ -66,7 +68,7 @@ public final class DepartmentSeed {
     private record SeedSynonym(
             String ruleId,
             String target,
-            List<List<String>> all,
+            List<TermGroup> all,
             List<String> none,
             String pattern,
             SynonymStatus status) {

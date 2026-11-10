@@ -16,6 +16,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.moonligh.consult.agent.api.req.TermGroup;
 import com.moonligh.consult.agent.domain.department.CanonSynonym;
 import com.moonligh.consult.agent.domain.department.CatalogDriftException;
 import com.moonligh.consult.agent.domain.department.CatalogSeedGate;
@@ -274,9 +276,9 @@ public class JdbcDepartmentCatalogStore implements DepartmentCatalogStore {
         }
     }
 
-    private static List<List<String>> readGroups(String json) {
+    private static List<TermGroup> readGroups(String json) {
         try {
-            return JSON.readValue(json, new TypeReference<List<List<String>>>() { });
+            return JSON.readValue(json, new TypeReference<List<TermGroup>>() { });
         } catch (Exception error) {
             throw new IllegalStateException("all_groups 不是二维数组", error);
         }
