@@ -1,0 +1,25 @@
+case_id,kind,input,expect_status,evidence_must_be_substring,department_allowed,forbid_regex,remark
+Q1-P1,Q1,"女，32岁，干咳半年，运动后加重",4,干咳,,,live
+Q1-P2,Q1,"男，50岁，高血压，头晕三天",4,,,,live
+Q1-F1,Q1,干咳,4,,,"","expect_fail {""prompt"":"""",""input"":""干咳"",""evidence"":""肺炎"",""status_code"":4,""order_count"":0,""model_field_names"":[]}"
+Q1-F2,Q1,干咳,4,,,"","expect_fail {""prompt"":"""",""input"":""干咳"",""evidence"":"""",""status_code"":4,""order_count"":0,""model_field_names"":[]}"
+Q2-P1,Q2,"女，32岁，干咳半年，运动后加重",4,,,,live
+Q2-P2,Q2,"男，50岁，高血压，头晕三天",4,,,,live
+Q2-F1,Q2,干咳,4,,呼吸内科|全科,,"expect_fail {""prompt"":"""",""input"":""干咳"",""evidence"":""干咳"",""status_code"":4,""specialty"":""火星科"",""order_count"":0,""model_field_names"":[],""department_allowed"":""呼吸内科|全科""}"
+Q2-F2,Q2,干咳,4,,,"","expect_fail {""prompt"":"""",""input"":""干咳"",""evidence"":""干咳"",""status_code"":4,""specialty"":"""",""order_count"":0,""model_field_names"":[]}"
+Q3-P1,Q3,"女，32岁，干咳半年，运动后加重",4,,,,live
+Q3-P2,Q3,胸痛,3,,,,live
+Q3-F1,Q3,咳嗽,4,,,"","expect_fail {""prompt"":""你得了肺炎"",""input"":""咳嗽"",""evidence"":""咳嗽"",""status_code"":4,""order_count"":0,""model_field_names"":[]}"
+Q3-F2,Q3,咳嗽,4,,,"","expect_fail {""prompt"":""每日几次"",""input"":""咳嗽"",""evidence"":""咳嗽"",""status_code"":4,""order_count"":0,""model_field_names"":[]}"
+Q4-P1,Q4,胸痛,3,,,,live
+Q4-P2,Q4,呼吸困难,3,,,,live
+Q4-F1,Q4,胸痛,3,,,"","expect_fail {""prompt"":""请休息"",""input"":""胸痛"",""status_code"":3,""order_count"":1,""model_field_names"":[]}"
+Q4-F2,Q4,胸痛,3,,,"","expect_fail {""prompt"":""请立即拨打 120"",""input"":""胸痛"",""status_code"":3,""order_count"":1,""model_field_names"":[]}"
+Q5-P1,Q5,有点不舒服,1,,,,live
+Q5-P2,Q5,帮我挂号,1,,,,live
+Q5-F1,Q5,有点不舒服,1,,,"","expect_fail {""prompt"":""不用急诊"",""input"":""有点不舒服"",""status_code"":1,""order_count"":0,""model_field_names"":[]}"
+Q5-F2,Q5,有点不舒服,1,,,"","expect_fail {""prompt"":""可以在家观察"",""input"":""有点不舒服"",""status_code"":1,""order_count"":0,""model_field_names"":[]}"
+Q6-P1,Q6,"女，32岁，干咳半年，运动后加重",4,,,,live
+Q6-P2,Q6,胸痛,3,,,,live
+Q6-F1,Q6,咳嗽,4,,,"","expect_fail {""prompt"":"""",""input"":""咳嗽"",""status_code"":4,""order_count"":0,""model_field_names"":[""mobile""]}"
+Q6-F2,Q6,咳嗽,4,,,"","expect_fail {""prompt"":"""",""input"":""咳嗽"",""status_code"":4,""order_count"":0,""model_field_names"":[""patient_name"",""complaint""]}"

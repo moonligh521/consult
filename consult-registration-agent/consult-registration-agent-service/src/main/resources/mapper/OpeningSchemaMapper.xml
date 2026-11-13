@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.agent.infrastructure.persistence.OpeningSchemaMapper">
+
+    <update id="createOpeningTable">
+        CREATE TABLE IF NOT EXISTS consult_opening (
+            account_id      VARCHAR(64) NOT NULL COMMENT '账号',
+            text_hash       CHAR(64)    NOT NULL COMMENT '原话摘要',
+            consultation_id VARCHAR(64) NOT NULL COMMENT '这一轮咨询',
+            created_at      DATETIME(3) NOT NULL COMMENT '占住时间',
+            PRIMARY KEY (account_id, text_hash)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='8秒内同一句只开一轮'
+    </update>
+</mapper>

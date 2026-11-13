@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.agent.infrastructure.persistence.ConsultationRecordMapper">
+
+    <insert id="insertBlank">
+        INSERT INTO consultation_session
+        (id, business_status, description, urgent_latched, prompt_evaluation_latched,
+         human_requested_latched, unsuitable_latched, undetermined, last_message_seq,
+         last_evaluated_seq, created_at, updated_at, is_deleted)
+        VALUES (#{id}, 1, '', false, false, false, false, false, 0, 0,
+                #{createdAt,jdbcType=TIMESTAMP}, #{createdAt,jdbcType=TIMESTAMP}, 0)
+    </insert>
+
+    <select id="listRecent" resultType="com.moonligh.consult.agent.api.res.AdminConsultationRes">
+        <![CDATA[
+        SELECT id,
+               business_status AS status,
+               gender,
+               age,
+               patient_id AS patientId,
+               patient_name AS patientName,
+               duration,
+               description,
+               DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS createdAt,
+               DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i:%s') AS updatedAt
+        FROM consultation_session
+        WHERE updated_at >= #{fromAt,jdbcType=TIMESTAMP} AND updated_at < #{toAt,jdbcType=TIMESTAMP} AND is_deleted = 0
+        ORDER BY updated_at DESC
+        LIMIT #{limit}
+        ]]>
+    </select>
+
+    <select id="countSession" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM consultation_session WHERE id = #{id} AND is_deleted = 0
+    </select>
+
+    <select id="latestMatch" resultType="com.moonligh.consult.agent.infrastructure.persistence.ConsultationRecords$LatestMatch">
+        SELECT run_id AS runId, decision_time AS decisionTime
+        FROM consult_match_decision
+        WHERE consultation_id = #{consultationId} AND is_deleted = 0
+        ORDER BY decision_time DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectByIdForUpdate" resultType="com.moonligh.consult.agent.infrastructure.persistence.ConsultationRecordMapper$SessionRow">
+        SELECT id,
+               business_status AS businessStatus,
+               gender,
+               age,
+               patient_id AS patientId,
+               patient_name AS patientName,
+               account_id AS accountId,
+               title,
+               duration,
+               description,
+               card_json AS cardJson,
+               triage_json AS triageJson,
+               urgent_latched AS urgentLatched,
+               prompt_evaluation_latched AS promptEvaluationLatched,
+               human_requested_latched AS humanRequestedLatched,
+               unsuitable_latched AS unsuitableLatched,
+               undetermined,
+               fallback_reason AS fallbackReason,
+               urgent_template_id AS urgentTemplateId,
+               notice_template_id AS noticeTemplateId,
+               last_message_seq AS lastMessageSeq,
+               last_evaluated_seq AS lastEvaluatedSeq,
+               created_at AS createdAt,
+               updated_at AS updatedAt
+        FROM consultation_session
+        WHERE id = #{id} AND is_deleted = 0
+        FOR UPDATE
+    </select>
+
+    <select id="selectById" resultType="com.moonligh.consult.agent.infrastructure.persistence.ConsultationRecordMapper$SessionRow">
+        SELECT id,
+               business_status AS businessStatus,
+               gender,
+               age,
+               patient_id AS patientId,
+               patient_name AS patientName,
+               account_id AS accountId,
+               title,
+               duration,
+               description,
+               card_json AS cardJson,
+               triage_json AS triageJson,
+               urgent_latched AS urgentLatched,
+               prompt_evaluation_latched AS promptEvaluationLatched,
+               human_requested_latched AS humanRequestedLatched,
+               unsuitable_latched AS unsuitableLatched,
+               undetermined,
+               fallback_reason AS fallbackReason,
+               urgent_template_id AS urgentTemplateId,
+               notice_template_id AS noticeTemplateId,
+               last_message_seq AS lastMessageSeq,
+               last_evaluated_seq AS lastEvaluatedSeq,
+               created_at AS createdAt,
+               updated_at AS updatedAt,
+               transcript_json AS transcriptJson
+        FROM consultation_session
+        WHERE id = #{id} AND is_deleted = 0
+    </select>
+
+    <select id="listMine" resultType="com.moonligh.consult.agent.api.res.ConsultationRecordRes">
+        <![CDATA[
+        SELECT s.id AS consultationId,
+               COALESCE(NULLIF(s.title, ''), LEFT(s.description, 18), '新的咨询') AS title,
+               s.business_status AS status,
+               s.created_at AS createdAt,
+               s.updated_at AS updatedAt,
+               o.ended_at AS endedAt,
+               o.doctor_name AS doctorName
+        FROM consultation_session s
+        LEFT JOIN consult_order o ON o.consultation_id = s.id AND o.is_deleted = 0
+        WHERE s.account_id = #{accountId} AND s.is_deleted = 0 AND s.created_at >= #{fromAt,jdbcType=TIMESTAMP}
+        ORDER BY s.updated_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+        ]]>
+    </select>
+
+    <select id="countMine" resultType="java.lang.Long">
+        <![CDATA[
+        SELECT COUNT(*)
+        FROM consultation_session
+        WHERE account_id = #{accountId} AND is_deleted = 0 AND created_at >= #{fromAt,jdbcType=TIMESTAMP}
+        ]]>
+    </select>
+
+    <select id="findRecentOpening" resultType="java.lang.String">
+        <![CDATA[
+        SELECT s.id
+        FROM consultation_session s
+        JOIN consultation_message m
+          ON m.consultation_id = s.id AND m.is_deleted = 0 AND m.source = 1
+        WHERE s.account_id = #{accountId} AND s.is_deleted = 0 AND m.text = #{text}
+          AND m.received_at >= #{since,jdbcType=TIMESTAMP}
+          AND NOT EXISTS (
+            SELECT 1 FROM consult_order o
+            WHERE o.consultation_id = s.id AND o.is_deleted = 0 AND o.ended_at IS NOT NULL
+          )
+        ORDER BY m.received_at DESC
+        LIMIT 1
+        ]]>
+    </select>
+
+    <select id="selectMessages" resultType="com.moonligh.consult.agent.infrastructure.persistence.ConsultationRecordMapper$MessageRow">
+        SELECT seq,
+               message_id AS messageId,
+               source,
+               text,
+               received_at AS receivedAt
+        FROM consultation_message
+        WHERE consultation_id = #{id} AND is_deleted = 0
+        ORDER BY seq
+    </select>
+
+    <update id="updateSession">
+        UPDATE consultation_session SET
+          business_status = #{businessStatus},
+          service_type = NULL,
+          gender = #{gender,jdbcType=INTEGER},
+          age = #{age,jdbcType=INTEGER},
+          patient_id = #{patientId,jdbcType=VARCHAR},
+          patient_name = #{patientName,jdbcType=VARCHAR},
+          account_id = #{accountId,jdbcType=VARCHAR},
+          title = #{title,jdbcType=VARCHAR},
+          duration = #{duration,jdbcType=VARCHAR},
+          description = #{description,jdbcType=VARCHAR},
+          card_json = #{cardJson,jdbcType=VARCHAR},
+          triage_json = #{triageJson,jdbcType=VARCHAR},
+          urgent_latched = #{urgentLatched},
+          prompt_evaluation_latched = #{promptEvaluationLatched},
+          human_requested_latched = #{humanRequestedLatched},
+          unsuitable_latched = #{unsuitableLatched},
+          undetermined = #{undetermined},
+          fallback_reason = #{fallbackReason,jdbcType=VARCHAR},
+          urgent_template_id = #{urgentTemplateId,jdbcType=VARCHAR},
+          notice_template_id = #{noticeTemplateId,jdbcType=VARCHAR},
+          last_message_seq = #{lastMessageSeq},
+          last_evaluated_seq = #{lastEvaluatedSeq},
+          updated_at = #{updatedAt,jdbcType=TIMESTAMP}
+        WHERE id = #{id} AND is_deleted = 0
+    </update>
+
+    <update id="updateSessionTranscript">
+        UPDATE consultation_session SET
+          business_status = #{businessStatus},
+          service_type = NULL,
+          gender = #{gender,jdbcType=INTEGER},
+          age = #{age,jdbcType=INTEGER},
+          patient_id = #{patientId,jdbcType=VARCHAR},
+          patient_name = #{patientName,jdbcType=VARCHAR},
+          account_id = #{accountId,jdbcType=VARCHAR},
+          title = #{title,jdbcType=VARCHAR},
+          duration = #{duration,jdbcType=VARCHAR},
+          description = #{description,jdbcType=VARCHAR},
+          card_json = #{cardJson,jdbcType=VARCHAR},
+          triage_json = #{triageJson,jdbcType=VARCHAR},
+          urgent_latched = #{urgentLatched},
+          prompt_evaluation_latched = #{promptEvaluationLatched},
+          human_requested_latched = #{humanRequestedLatched},
+          unsuitable_latched = #{unsuitableLatched},
+          undetermined = #{undetermined},
+          fallback_reason = #{fallbackReason,jdbcType=VARCHAR},
+          urgent_template_id = #{urgentTemplateId,jdbcType=VARCHAR},
+          notice_template_id = #{noticeTemplateId,jdbcType=VARCHAR},
+          last_message_seq = #{lastMessageSeq},
+          last_evaluated_seq = #{lastEvaluatedSeq},
+          updated_at = #{updatedAt,jdbcType=TIMESTAMP},
+          transcript_json = #{transcriptJson,jdbcType=VARCHAR}
+        WHERE id = #{id} AND is_deleted = 0
+    </update>
+
+    <insert id="insertMessage">
+        INSERT INTO consultation_message
+        (consultation_id, seq, message_id, source, text, received_at, created_at, updated_at, is_deleted)
+        VALUES (#{consultationId}, #{seq}, #{messageId}, #{source}, #{text,jdbcType=VARCHAR},
+                #{receivedAt,jdbcType=TIMESTAMP}, #{receivedAt,jdbcType=TIMESTAMP}, #{receivedAt,jdbcType=TIMESTAMP}, 0)
+    </insert>
+
+    <insert id="insertAudit">
+        INSERT INTO safety_decision_audit
+        (decision_id, consultation_id, message_seq, trigger_type, evaluation, certainty, matched_rule_ids,
+         shadow_rule_ids, model_trigger_ids, evidence_refs, catalog_version, rule_engine_version, model_status,
+         model_version, fallback_reason, previous_status, resulting_status, business_before,
+         business_after, template_id, decision_time, created_at, updated_at, is_deleted)
+        VALUES (#{decisionId}, #{consultationId}, #{messageSeq}, #{triggerType}, #{evaluation}, #{certainty},
+                #{matchedRuleIds,jdbcType=VARCHAR}, #{shadowRuleIds,jdbcType=VARCHAR},
+                #{modelTriggerIds,jdbcType=VARCHAR}, #{evidenceRefs,jdbcType=VARCHAR},
+                #{catalogVersion,jdbcType=VARCHAR}, #{ruleEngineVersion,jdbcType=VARCHAR}, #{modelStatus},
+                #{modelVersion,jdbcType=VARCHAR}, #{fallbackReason,jdbcType=VARCHAR}, #{previousStatus},
+                #{resultingStatus}, #{businessBefore}, #{businessAfter}, #{templateId,jdbcType=VARCHAR},
+                #{decisionTime,jdbcType=TIMESTAMP}, #{decisionTime,jdbcType=TIMESTAMP},
+                #{decisionTime,jdbcType=TIMESTAMP}, 0)
+    </insert>
+
+    <insert id="insertDecision">
+        INSERT INTO consult_match_decision
+        (decision_id, run_id, consultation_id, order_id, message_seq, trigger_type, node, certainty, source,
+         reason_code, output_json, evidence_refs, shadow_ids, model_status, model_cached, model_latency_ms,
+         latency_ms, catalog_version, prompt_version, model_name, input_fingerprint, decision_time,
+         created_at, updated_at, is_deleted)
+        VALUES (#{decisionId}, #{runId}, #{consultationId}, #{orderId,jdbcType=VARCHAR}, #{messageSeq},
+                #{triggerType}, #{node}, #{certainty}, #{source}, #{reasonCode},
+                #{outputJson,jdbcType=VARCHAR}, #{evidenceRefs,jdbcType=VARCHAR}, #{shadowIds,jdbcType=VARCHAR},
+                #{modelStatus,jdbcType=INTEGER}, #{modelCached,jdbcType=BOOLEAN}, #{modelLatencyMs,jdbcType=INTEGER},
+                #{latencyMs}, #{catalogVersion}, #{promptVersion,jdbcType=VARCHAR}, #{modelName,jdbcType=VARCHAR},
+                #{inputFingerprint}, #{decisionTime,jdbcType=TIMESTAMP}, #{decisionTime,jdbcType=TIMESTAMP},
+                #{decisionTime,jdbcType=TIMESTAMP}, 0)
+    </insert>
+
+    <select id="funnel" resultType="com.moonligh.consult.agent.infrastructure.persistence.ConsultationRecordMapper$FunnelRow">
+        <![CDATA[
+        SELECT node,
+               source,
+               reason_code AS reasonCode,
+               COUNT(*) AS total,
+               SUM(CASE WHEN model_status IS NOT NULL AND model_status <> 1 THEN 1 ELSE 0 END) AS modelCalls,
+               COALESCE(AVG(model_latency_ms), 0) AS avgLatency
+        FROM consult_match_decision
+        WHERE decision_time >= #{fromAt,jdbcType=TIMESTAMP} AND is_deleted = 0
+        GROUP BY node, source, reason_code
+        ORDER BY node, total DESC
+        ]]>
+    </select>
+
+    <select id="selectOrder" resultType="com.moonligh.consult.agent.infrastructure.persistence.ConsultationRecordMapper$OrderRow">
+        SELECT id,
+               package_code AS packageCode,
+               package_name AS packageName,
+               origin_amount AS originAmount,
+               pay_amount AS payAmount,
+               discount_amount AS discountAmount,
+               benefit_amount AS benefitAmount,
+               benefit_card_id AS benefitCardId,
+               benefit_ready AS benefitReady,
+               pay_status AS payStatus,
+               paid_at AS paidAt,
+               doctor_id AS doctorId,
+               doctor_name AS doctorName,
+               doctor_title AS doctorTitle,
+               hospital,
+               department_code AS departmentCode,
+               specialty,
+               skills_hit AS skillsHit,
+               schedule_id AS scheduleId,
+               consult_minutes AS consultMinutes,
+               ends_at AS endsAt,
+               ended_at AS endedAt,
+               end_reason AS endReason
+        FROM consult_order
+        WHERE consultation_id = #{consultationId} AND is_deleted = 0
+    </select>
+
+    <select id="consultationIdOfOrder" resultType="java.lang.String">
+        SELECT consultation_id FROM consult_order
+        WHERE is_deleted = 0 AND (id = #{orderId} OR REPLACE(id, '-', '') = #{compact})
+    </select>
+
+    <insert id="insertOrder">
+        INSERT INTO consult_order
+        (id, consultation_id, package_code, package_name, origin_amount, pay_amount, discount_amount,
+         benefit_amount, benefit_card_id, benefit_ready,
+         pay_status, paid_at, doctor_id, doctor_name, doctor_title, hospital, department_code, specialty,
+         skills_hit, schedule_id, consult_minutes, ends_at, ended_at, end_reason, created_at, updated_at, is_deleted)
+        VALUES (#{orderId}, #{consultationId}, #{packageCode}, #{packageName,jdbcType=VARCHAR},
+                #{originAmount,jdbcType=DECIMAL}, #{payAmount,jdbcType=DECIMAL}, #{discountAmount,jdbcType=DECIMAL},
+                #{benefitAmount,jdbcType=DECIMAL}, #{benefitCardId,jdbcType=VARCHAR}, #{benefitReady},
+                #{payStatus}, #{paidAt,jdbcType=TIMESTAMP}, #{doctorId,jdbcType=VARCHAR},
+                #{doctorName,jdbcType=VARCHAR}, #{doctorTitle,jdbcType=VARCHAR}, #{hospital,jdbcType=VARCHAR},
+                #{departmentCode,jdbcType=INTEGER}, #{specialty,jdbcType=VARCHAR}, #{skillsHit,jdbcType=VARCHAR},
+                #{scheduleId,jdbcType=VARCHAR}, #{consultMinutes}, #{endsAt,jdbcType=TIMESTAMP},
+                #{endedAt,jdbcType=TIMESTAMP}, #{endReason,jdbcType=VARCHAR},
+                #{createdAt,jdbcType=TIMESTAMP}, #{createdAt,jdbcType=TIMESTAMP}, 0)
+        ON DUPLICATE KEY UPDATE
+          package_code = VALUES(package_code),
+          package_name = VALUES(package_name),
+          origin_amount = VALUES(origin_amount),
+          pay_amount = VALUES(pay_amount),
+          discount_amount = VALUES(discount_amount),
+          benefit_amount = VALUES(benefit_amount),
+          benefit_card_id = VALUES(benefit_card_id),
+          benefit_ready = VALUES(benefit_ready),
+          benefit_settled = IF(VALUES(benefit_ready) = 0, 0, benefit_settled),
+          pay_status = VALUES(pay_status),
+          paid_at = VALUES(paid_at),
+          doctor_id = VALUES(doctor_id),
+          doctor_name = VALUES(doctor_name),
+          doctor_title = VALUES(doctor_title),
+          hospital = VALUES(hospital),
+          department_code = VALUES(department_code),
+          specialty = VALUES(specialty),
+          skills_hit = VALUES(skills_hit),
+          schedule_id = VALUES(schedule_id),
+          consult_minutes = VALUES(consult_minutes),
+          ends_at = VALUES(ends_at),
+          ended_at = VALUES(ended_at),
+          end_reason = VALUES(end_reason),
+          updated_at = CURRENT_TIMESTAMP(3)
+    </insert>
+
+    <select id="listUnmatchedPaid" resultType="com.moonligh.consult.agent.infrastructure.persistence.ConsultationRecordMapper$QueueRow">
+        SELECT s.id AS consultationId,
+               o.id AS orderId,
+               o.paid_at AS paidAt,
+               o.package_code AS packageCode,
+               s.card_specialty AS specialty
+        FROM consult_order o
+        JOIN consultation_session s ON s.id = o.consultation_id AND s.is_deleted = 0
+        WHERE o.is_deleted = 0 AND o.pay_status = 2 AND o.doctor_id IS NULL AND o.ended_at IS NULL
+        ORDER BY o.paid_at ASC, o.id ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="listBenefitLedger" resultType="com.moonligh.consult.agent.infrastructure.persistence.ConsultationRecordMapper$BenefitRow">
+        <![CDATA[
+        SELECT id, pay_status AS payStatus, end_reason AS endReason
+        FROM consult_order
+        WHERE is_deleted = 0
+          AND benefit_ready = 1
+          AND benefit_settled = 0
+          AND benefit_amount > 0
+          AND (pay_status = 2 OR (pay_status = 1 AND end_reason = 'CANCEL'))
+        ORDER BY updated_at ASC
+        LIMIT #{limit}
+        ]]>
+    </select>
+
+    <update id="markBenefitSettled">
+        UPDATE consult_order SET benefit_settled = 1 WHERE id = #{orderId} AND is_deleted = 0
+    </update>
+
+    <select id="countCardReady" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM consultation_session
+        WHERE business_status = 4 AND card_specialty = #{specialty} AND is_deleted = 0
+    </select>
+
+    <select id="countConfirmedUnpaid" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM consultation_session s
+        WHERE s.business_status = 5 AND s.card_specialty = #{specialty} AND s.is_deleted = 0
+          AND NOT EXISTS (
+            SELECT 1 FROM consult_order o
+            WHERE o.consultation_id = s.id AND o.is_deleted = 0
+          )
+    </select>
+</mapper>

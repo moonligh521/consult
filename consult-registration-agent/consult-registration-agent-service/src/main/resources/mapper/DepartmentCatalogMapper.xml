@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.agent.infrastructure.persistence.DepartmentCatalogMapper">
+
+    <select id="countDepartments" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM consult_department WHERE is_deleted = 0
+    </select>
+
+    <update id="setDepartmentEnabled">
+        UPDATE consult_department SET enabled = #{enabled}, updated_by = 'admin' WHERE code = #{code} AND is_deleted = 0
+    </update>
+
+    <update id="reviveTypo">
+        UPDATE consult_match_typo
+        SET to_word = #{toWord}, is_deleted = 0
+        WHERE from_word = #{fromWord} AND is_deleted = 0
+    </update>
+
+    <insert id="insertTypo">
+        INSERT INTO consult_match_typo (from_word, to_word) VALUES (#{fromWord}, #{toWord})
+    </insert>
+
+    <update id="reviveUncertainMarker">
+        UPDATE consult_uncertain_marker
+        SET is_deleted = 0
+        WHERE marker = #{marker} AND is_deleted = 0
+    </update>
+
+    <insert id="insertUncertainMarker">
+        INSERT INTO consult_uncertain_marker (marker) VALUES (#{marker})
+    </insert>
+
+    <select id="departmentEnabled" resultType="java.lang.Integer">
+        SELECT enabled FROM consult_department WHERE code = #{code} AND is_deleted = 0
+    </select>
+
+    <update id="reviveKeyword">
+        UPDATE consult_department_keyword
+        SET kind = #{kind}, is_deleted = 0
+        WHERE department_code = #{departmentCode} AND keyword = #{keyword} AND is_deleted = 0
+    </update>
+
+    <insert id="insertKeyword">
+        INSERT INTO consult_department_keyword (department_code, keyword, kind)
+        VALUES (#{departmentCode}, #{keyword}, #{kind})
+    </insert>
+
+    <select id="listAdminTouchedSpecialties"
+            resultType="com.moonligh.consult.agent.infrastructure.persistence.DepartmentCatalogMapper$TouchedSpecialtyRow">
+        SELECT department_code AS departmentCode, name
+        FROM consult_department_specialty
+        WHERE is_deleted = 0 AND updated_by IS NOT NULL
+    </select>
+
+    <select id="listAdminTouchedDepartments"
+            resultType="com.moonligh.consult.agent.infrastructure.persistence.DepartmentCatalogMapper$TouchedDepartmentRow">
+        SELECT code
+        FROM consult_department
+        WHERE is_deleted = 0 AND updated_by IS NOT NULL
+    </select>
+
+    <update id="reviveAmbiguous">
+        UPDATE consult_ambiguous_symptom SET is_deleted = 0 WHERE phrase = #{phrase} AND is_deleted = 0
+    </update>
+
+    <insert id="insertAmbiguous">
+        INSERT INTO consult_ambiguous_symptom (phrase) VALUES (#{phrase})
+    </insert>
+
+    <update id="updateDraftSynonym">
+        UPDATE consult_canon_synonym
+        SET target_term = #{targetTerm}, all_groups = #{allGroups}, none_terms = #{noneTerms},
+            pattern = #{pattern,jdbcType=VARCHAR}
+        WHERE rule_id = #{ruleId} AND is_deleted = 0 AND status = 1
+    </update>
+
+    <select id="countSynonym" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM consult_canon_synonym WHERE rule_id = #{ruleId} AND is_deleted = 0
+    </select>
+
+    <insert id="insertSynonym">
+        INSERT INTO consult_canon_synonym (rule_id, target_term, all_groups, none_terms, pattern, status)
+        VALUES (#{ruleId}, #{targetTerm}, #{allGroups}, #{noneTerms}, #{pattern,jdbcType=VARCHAR}, 1)
+    </insert>
+
+    <update id="setSynonymStatus">
+        UPDATE consult_canon_synonym
+        SET status = #{toStatus}, reviewer = COALESCE(#{reviewer,jdbcType=VARCHAR}, reviewer),
+            reviewed_at = CASE WHEN #{toStatus} = 2 THEN CURRENT_TIMESTAMP(3) ELSE reviewed_at END
+        WHERE rule_id = #{ruleId} AND status = #{fromStatus} AND is_deleted = 0
+    </update>
+
+    <select id="listAmbiguous" resultType="java.lang.String">
+        SELECT phrase FROM consult_ambiguous_symptom WHERE is_deleted = 0
+    </select>
+
+    <select id="listSynonyms" resultType="com.moonligh.consult.agent.infrastructure.persistence.DepartmentCatalogMapper$SynonymRow">
+        SELECT rule_id AS ruleId,
+               target_term AS targetTerm,
+               all_groups AS allGroups,
+               none_terms AS noneTerms,
+               pattern,
+               status
+        FROM consult_canon_synonym
+        WHERE is_deleted = 0 AND status IN (1, 2)
+        ORDER BY rule_id
+    </select>
+
+    <select id="listTypos" resultType="com.moonligh.consult.agent.infrastructure.persistence.DepartmentCatalogMapper$TypoRow">
+        SELECT from_word AS fromWord, to_word AS toWord FROM consult_match_typo WHERE is_deleted = 0
+    </select>
+
+    <select id="listUncertainMarkers" resultType="java.lang.String">
+        SELECT marker FROM consult_uncertain_marker WHERE is_deleted = 0
+    </select>
+
+    <select id="listKeywords" resultType="com.moonligh.consult.agent.infrastructure.persistence.DepartmentCatalogMapper$KeywordFullRow">
+        SELECT department_code AS departmentCode,
+               keyword,
+               kind,
+               specialty_name AS specialtyName,
+               term_type AS termType
+        FROM consult_department_keyword
+        WHERE is_deleted = 0
+    </select>
+
+    <select id="listKeywordsWithSpecialty"
+            resultType="com.moonligh.consult.agent.infrastructure.persistence.DepartmentCatalogMapper$KeywordSpecialtyRow">
+        SELECT department_code AS departmentCode,
+               keyword,
+               kind,
+               specialty_name AS specialtyName
+        FROM consult_department_keyword
+        WHERE is_deleted = 0
+    </select>
+
+    <select id="listKeywordsBasic" resultType="com.moonligh.consult.agent.infrastructure.persistence.DepartmentCatalogMapper$KeywordBasicRow">
+        SELECT department_code AS departmentCode, keyword, kind
+        FROM consult_department_keyword
+        WHERE is_deleted = 0
+    </select>
+
+    <select id="listSpecialties" resultType="com.moonligh.consult.agent.infrastructure.persistence.DepartmentCatalogMapper$SpecialtyRow">
+        SELECT id,
+               department_code AS departmentCode,
+               name,
+               treat_desc AS treatDesc,
+               enabled,
+               audience
+        FROM consult_department_specialty
+        WHERE is_deleted = 0
+        ORDER BY sort_no, id
+    </select>
+
+    <select id="listSpecialtiesLegacy"
+            resultType="com.moonligh.consult.agent.infrastructure.persistence.DepartmentCatalogMapper$SpecialtyLegacyRow">
+        SELECT id, department_code AS departmentCode, name, treat_desc AS treatDesc
+        FROM consult_department_specialty
+        WHERE is_deleted = 0
+        ORDER BY sort_no, id
+    </select>
+
+    <select id="listDepartments" resultType="com.moonligh.consult.agent.infrastructure.persistence.DepartmentCatalogMapper$DepartmentRow">
+        SELECT code,
+               name,
+               enabled,
+               sort_no AS sortNo,
+               fallback,
+               gender_scope AS genderScope,
+               child_age_lt AS childAgeLt,
+               treat_desc AS treatDesc
+        FROM consult_department
+        WHERE is_deleted = 0
+        ORDER BY sort_no, code
+    </select>
+
+    <select id="maxDepartmentCode" resultType="java.lang.Integer">
+        SELECT COALESCE(MAX(code), 22) FROM consult_department
+    </select>
+
+    <insert id="insertDepartment">
+        INSERT INTO consult_department
+            (code, name, enabled, sort_no, fallback, gender_scope, child_age_lt, treat_desc, remark)
+        VALUES (#{code}, #{name}, 0, #{sortNo}, 0, #{genderScope}, #{childAgeLt,jdbcType=INTEGER},
+                #{treatDesc,jdbcType=VARCHAR}, '运营新增')
+    </insert>
+
+    <insert id="insertSpecialty">
+        INSERT INTO consult_department_specialty
+            (department_code, name, treat_desc, sort_no, enabled, audience, remark)
+        VALUES (#{departmentCode}, #{name}, #{treatDesc,jdbcType=VARCHAR}, 0, 0, #{audience}, '运营新增')
+    </insert>
+
+    <select id="latestSpecialtyId" resultType="java.lang.Long">
+        SELECT id FROM consult_department_specialty
+        WHERE department_code = #{departmentCode} AND name = #{name} AND is_deleted = 0
+        ORDER BY id DESC LIMIT 1
+    </select>
+
+    <update id="setSpecialtyEnabled">
+        UPDATE consult_department_specialty SET enabled = #{enabled}, updated_by = 'admin'
+        WHERE id = #{id} AND is_deleted = 0
+    </update>
+
+    <update id="renameSpecialty">
+        UPDATE consult_department_specialty SET name = #{name}, updated_by = 'admin'
+        WHERE id = #{id} AND is_deleted = 0
+    </update>
+
+    <update id="renameKeywordSpecialty">
+        UPDATE consult_department_keyword k
+        JOIN consult_department_specialty s ON s.id = #{id} AND s.is_deleted = 0
+        SET k.specialty_name = #{name}
+        WHERE k.department_code = s.department_code AND k.specialty_name = s.name AND k.is_deleted = 0
+    </update>
+
+    <update id="renameDoctorSpecialty">
+        UPDATE consult_doctor d
+        JOIN consult_department_specialty s ON s.id = #{id} AND s.is_deleted = 0
+        SET d.specialty = #{name}, d.department_code = s.department_code
+        WHERE d.is_deleted = 0 AND (
+            d.specialty_id = s.id
+            OR (d.specialty_id IS NULL AND d.department_code = s.department_code AND d.specialty = s.name)
+        )
+    </update>
+
+    <update id="setSpecialtyAudience">
+        UPDATE consult_department_specialty SET audience = #{audience}, updated_by = 'admin'
+        WHERE id = #{id} AND is_deleted = 0
+    </update>
+</mapper>

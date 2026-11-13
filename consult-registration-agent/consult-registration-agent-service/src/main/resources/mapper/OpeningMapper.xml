@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.agent.infrastructure.persistence.OpeningMapper">
+
+    <insert id="insert">
+        INSERT INTO consult_opening (account_id, text_hash, consultation_id, created_at)
+        VALUES (#{accountId}, #{textHash}, #{consultationId}, #{createdAt,jdbcType=TIMESTAMP})
+    </insert>
+
+    <update id="takeIfExpired">
+        <![CDATA[
+        UPDATE consult_opening
+        SET consultation_id = #{consultationId}, created_at = #{createdAt,jdbcType=TIMESTAMP}
+        WHERE account_id = #{accountId} AND text_hash = #{textHash} AND created_at < #{windowStart,jdbcType=TIMESTAMP}
+        ]]>
+    </update>
+
+    <select id="findConsultationId" resultType="java.lang.String">
+        SELECT consultation_id FROM consult_opening WHERE account_id = #{accountId} AND text_hash = #{textHash}
+    </select>
+
+    <update id="replace">
+        UPDATE consult_opening
+        SET consultation_id = #{consultationId}, created_at = #{createdAt,jdbcType=TIMESTAMP}
+        WHERE account_id = #{accountId} AND text_hash = #{textHash}
+    </update>
+</mapper>

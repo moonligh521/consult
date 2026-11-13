@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.identity.infrastructure.persistence.DoctorMapper">
+
+    <resultMap id="candidate" type="com.moonligh.consult.identity.domain.DoctorMatcher$Candidate" autoMapping="false">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="hospital" javaType="java.lang.String"/>
+            <arg column="department_code" javaType="_int"/>
+            <arg column="specialty" javaType="java.lang.String"/>
+            <arg column="skills" javaType="java.lang.String"/>
+            <arg column="in_flight" javaType="_int"/>
+            <arg column="remain_num" javaType="_int"/>
+            <arg column="schedule_id" javaType="java.lang.String"/>
+            <arg column="idle_since" javaType="_long"
+                 typeHandler="com.moonligh.consult.identity.infrastructure.persistence.EpochMillisTypeHandler"/>
+            <arg column="concurrent_limit" javaType="_int"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="presentDoctor" type="com.moonligh.consult.identity.infrastructure.persistence.DoctorStore$PresentDoctor" autoMapping="false">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="specialty" javaType="java.lang.String"/>
+            <arg column="title" javaType="java.lang.String"/>
+            <arg column="in_flight" javaType="_int"/>
+            <arg column="idle_since" javaType="_long"
+                 typeHandler="com.moonligh.consult.identity.infrastructure.persistence.EpochMillisTypeHandler"/>
+            <arg column="concurrent_limit" javaType="_int"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="adminColumns">
+        SELECT id, name, gender, title, hospital, department_code, specialty, skills, intro,
+               in_flight, concurrent_limit, status
+        FROM consult_doctor
+    </sql>
+
+    <sql id="liveWindow">
+        AND s.visit_date = DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)) AND ( (s.start_time &lt;= s.end_time AND s.start_time &lt;= TIME(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)) AND s.end_time &gt; TIME(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR))) OR (s.start_time &gt; s.end_time AND (s.start_time &lt;= TIME(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)) OR s.end_time &gt; TIME(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)))) )
+    </sql>
+
+    <sql id="candidateColumns">
+        SELECT d.id, d.name, d.title, d.hospital, d.department_code, d.specialty, d.skills,
+               d.in_flight, d.concurrent_limit, d.idle_since, s.id AS schedule_id, s.remain_num
+    </sql>
+
+    <sql id="onDutyScope">
+        AND (d.specialty = #{specialty} OR d.department_code = #{departmentCode} OR d.department_code = 4 OR d.specialty = '全科')
+        ORDER BY s.visit_date, s.start_time
+    </sql>
+
+    <select id="listEnabledSpecialties" resultType="com.moonligh.consult.identity.infrastructure.persistence.DoctorMapper$SpecialtyCode">
+        SELECT d.code, s.name
+        FROM consult_department_specialty s
+        JOIN consult_department d ON d.code = s.department_code AND d.is_deleted = 0 AND d.enabled = 1
+        WHERE s.is_deleted = 0 AND s.enabled = 1
+        ORDER BY d.sort_no, s.sort_no, s.id
+    </select>
+
+    <select id="count" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM consult_doctor WHERE is_deleted = 0
+    </select>
+
+    <select id="listOnlineSpecialties" resultType="java.lang.String">
+        SELECT DISTINCT specialty
+        FROM consult_doctor
+        WHERE is_deleted = 0 AND status = 1 AND presence = 1
+          AND specialty IS NOT NULL AND specialty &lt;&gt; ''
+        ORDER BY specialty
+    </select>
+
+    <select id="countActive" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM consult_doctor
+        WHERE is_deleted = 0 AND status = 1 AND department_code = #{departmentCode} AND specialty = #{specialty}
+    </select>
+
+    <select id="countOnDuty" resultType="java.lang.Integer">
+        SELECT COUNT(DISTINCT d.id)
+        FROM consult_doctor d
+        JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
+          AND s.remain_num &gt; 0
+        <include refid="liveWindow"/>
+        WHERE d.is_deleted = 0 AND d.status = 1 AND d.department_code = #{departmentCode} AND d.specialty = #{specialty}
+          AND d.in_flight &lt; d.concurrent_limit
+    </select>
+
+    <select id="sumRemain" resultType="java.lang.Integer">
+        SELECT COALESCE(SUM(s.remain_num), 0)
+        FROM consult_doctor d
+        JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
+          AND s.visit_date = CURDATE()
+        WHERE d.is_deleted = 0 AND d.status = 1 AND d.department_code = #{departmentCode} AND d.specialty = #{specialty}
+    </select>
+
+    <select id="countBySpecialty" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM consult_doctor
+        WHERE is_deleted = 0 AND status = 1 AND specialty = #{specialty}
+    </select>
+
+    <select id="listBySpecialty" resultType="com.moonligh.consult.identity.api.DoctorAdminRes">
+        <include refid="adminColumns"/>
+        WHERE is_deleted = 0 AND specialty = #{specialty}
+        ORDER BY name
+    </select>
+
+    <select id="countById" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM consult_doctor WHERE id = #{id} AND is_deleted = 0
+    </select>
+
+    <select id="list" resultType="com.moonligh.consult.identity.api.DoctorAdminRes">
+        <include refid="adminColumns"/>
+        WHERE is_deleted = 0
+        ORDER BY department_code, name
+    </select>
+
+    <select id="find" resultType="com.moonligh.consult.identity.api.DoctorAdminRes">
+        <include refid="adminColumns"/>
+        WHERE id = #{id} AND is_deleted = 0
+    </select>
+
+    <insert id="insert">
+        INSERT INTO consult_doctor
+        (id, name, gender, title, hospital, department_code, specialty, skills, intro,
+         in_flight, concurrent_limit, status, created_at, updated_at, is_deleted)
+        VALUES (#{id}, #{name}, #{gender}, #{title}, #{hospital}, #{departmentCode}, #{specialty}, #{skills}, #{intro},
+                0, 3, #{status}, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0)
+    </insert>
+
+    <insert id="seed">
+        INSERT INTO consult_doctor
+        (id, name, gender, title, hospital, department_code, specialty, skills, intro,
+         in_flight, concurrent_limit, status, created_at, updated_at, is_deleted)
+        VALUES (#{id}, #{name}, #{gender}, #{title}, #{hospital}, #{departmentCode}, #{specialty}, #{skills}, #{intro},
+                0, 3, 1, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0)
+    </insert>
+
+    <update id="update">
+        UPDATE consult_doctor SET
+          name = #{name}, gender = #{gender}, title = #{title}, hospital = #{hospital}, department_code = #{departmentCode},
+          specialty = #{specialty}, skills = #{skills}, intro = #{intro}, status = #{status}, updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{id} AND is_deleted = 0
+    </update>
+
+    <update id="backfillSkills">
+        UPDATE consult_doctor SET skills = intro, updated_at = CURRENT_TIMESTAMP(3)
+        WHERE is_deleted = 0 AND (skills IS NULL OR skills = '') AND intro IS NOT NULL AND intro &lt;&gt; ''
+    </update>
+
+    <select id="listOnDuty" resultMap="candidate">
+        <include refid="candidateColumns"/>
+        FROM consult_doctor d
+        JOIN consult_department dept
+          ON dept.code = d.department_code AND dept.enabled = 1 AND dept.is_deleted = 0
+        JOIN consult_department_specialty spec
+          ON spec.is_deleted = 0 AND spec.enabled = 1
+         AND spec.department_code = d.department_code AND spec.name = d.specialty
+        JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
+          AND s.remain_num &gt; 0
+        <include refid="liveWindow"/>
+        WHERE d.is_deleted = 0 AND d.status = 1 AND d.presence = 1
+          AND d.in_flight &lt; d.concurrent_limit
+        <include refid="onDutyScope"/>
+    </select>
+
+    <select id="listOnDutyFallback" resultMap="candidate">
+        <include refid="candidateColumns"/>
+        FROM consult_doctor d
+        JOIN consult_schedule s ON s.doctor_id = d.id AND s.is_deleted = 0 AND s.stopped = 0
+          AND s.remain_num &gt; 0
+        <include refid="liveWindow"/>
+        WHERE d.is_deleted = 0 AND d.status = 1 AND d.presence = 1
+          AND d.in_flight &lt; d.concurrent_limit
+        <include refid="onDutyScope"/>
+    </select>
+
+    <update id="incrementFlight">
+        UPDATE consult_doctor
+        SET in_flight = in_flight + 1,
+            idle_since = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR),
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{doctorId} AND is_deleted = 0 AND status = 1 AND presence = 1
+          AND in_flight &lt; concurrent_limit
+    </update>
+
+    <update id="decrementRemain">
+        UPDATE consult_schedule SET remain_num = remain_num - 1, updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{scheduleId} AND is_deleted = 0 AND stopped = 0 AND remain_num &gt; 0
+    </update>
+
+    <update id="decrementFlight">
+        UPDATE consult_doctor SET in_flight = in_flight - 1, updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{doctorId} AND in_flight &gt; 0
+    </update>
+
+    <update id="restoreRemain">
+        UPDATE consult_schedule SET remain_num = remain_num + 1, updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{scheduleId} AND is_deleted = 0
+    </update>
+
+    <update id="heartbeat">
+        UPDATE consult_doctor
+        SET last_beat = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR),
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{doctorId} AND is_deleted = 0 AND status = 1 AND presence = 1
+    </update>
+
+    <update id="goOnline">
+        UPDATE consult_doctor
+        SET presence = 1,
+            last_beat = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR),
+            idle_since = IFNULL(idle_since, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)),
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{doctorId} AND is_deleted = 0 AND status = 1
+    </update>
+
+    <update id="refreshPresentBeats">
+        UPDATE consult_doctor
+        SET last_beat = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR),
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE is_deleted = 0 AND status = 1 AND presence = 1
+    </update>
+
+    <update id="markSeededOnline">
+        UPDATE consult_doctor
+        SET presence = 1,
+            last_beat = DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR),
+            idle_since = IFNULL(idle_since, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)),
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE is_deleted = 0 AND status = 1
+    </update>
+
+    <update id="goOffline">
+        UPDATE consult_doctor SET presence = 0, updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{doctorId} AND is_deleted = 0
+    </update>
+
+    <select id="selectPresence" resultType="java.lang.Integer">
+        SELECT presence FROM consult_doctor
+        WHERE id = #{doctorId} AND is_deleted = 0 AND status = 1
+    </select>
+
+    <select id="listPresent" resultMap="presentDoctor">
+        SELECT id, specialty, title, in_flight, concurrent_limit, idle_since
+        FROM consult_doctor
+        WHERE is_deleted = 0 AND status = 1 AND presence = 1 AND in_flight &lt; concurrent_limit
+    </select>
+</mapper>

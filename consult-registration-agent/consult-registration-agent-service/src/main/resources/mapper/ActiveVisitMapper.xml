@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.agent.infrastructure.persistence.ActiveVisitMapper">
+
+    <insert id="insert">
+        INSERT INTO consult_active_visit (account_id, patient_id, consultation_id, created_at)
+        VALUES (#{accountId}, #{patientId}, #{consultationId}, CURRENT_TIMESTAMP(3))
+    </insert>
+
+    <delete id="release">
+        DELETE FROM consult_active_visit
+        WHERE account_id = #{accountId} AND patient_id = #{patientId} AND consultation_id = #{consultationId}
+    </delete>
+
+    <select id="find" resultType="java.lang.String">
+        SELECT consultation_id FROM consult_active_visit
+        WHERE account_id = #{accountId} AND patient_id = #{patientId}
+    </select>
+</mapper>

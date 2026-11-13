@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.identity.infrastructure.persistence.OccupancyMapper">
+
+    <sql id="occupancyColumns">
+        SELECT order_id, doctor_id, schedule_id, status, occupied_at, expires_at, released_at
+        FROM consult_doctor_occupancy
+    </sql>
+
+    <select id="find" resultType="com.moonligh.consult.identity.domain.OccupancyRow">
+        <include refid="occupancyColumns"/>
+        WHERE order_id = #{orderId} AND is_deleted = 0
+    </select>
+
+    <insert id="insert">
+        INSERT INTO consult_doctor_occupancy
+        (order_id, doctor_id, schedule_id, status, occupied_at, expires_at, released_at,
+         created_at, updated_at, is_deleted)
+        VALUES (#{orderId}, #{doctorId}, #{scheduleId}, #{status}, #{occupiedAt}, #{expiresAt}, NULL,
+                CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0)
+    </insert>
+
+    <update id="markReleased">
+        UPDATE consult_doctor_occupancy
+        SET status = #{reason}, released_at = #{releasedAt}, updated_at = CURRENT_TIMESTAMP(3)
+        WHERE order_id = #{orderId} AND status = 1 AND is_deleted = 0
+    </update>
+
+    <update id="updateExpiry">
+        UPDATE consult_doctor_occupancy
+        SET expires_at = #{expiresAt}, updated_at = CURRENT_TIMESTAMP(3)
+        WHERE order_id = #{orderId} AND status = 1 AND is_deleted = 0
+    </update>
+
+    <select id="claimExpired" resultType="com.moonligh.consult.identity.domain.OccupancyRow">
+        <include refid="occupancyColumns"/>
+        WHERE status = 1 AND is_deleted = 0 AND expires_at &lt;= #{now}
+        ORDER BY expires_at
+        LIMIT #{limit}
+        FOR UPDATE SKIP LOCKED
+    </select>
+</mapper>

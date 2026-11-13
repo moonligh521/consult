@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: consult-payment
+  config:
+    import:
+      # 从仓库根目录启动。密钥只写这个文件，不要写进挂号服务的 config/application-local.yml。
+      - optional:file:./consult-payment/config/application-local.yml
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/consult_pay?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true&serverTimezone=Asia/Shanghai
+    username: root
+    password: your_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 2
+      connection-timeout: 3000
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+server:
+  port: 18083
+  shutdown: graceful
+pay:
+  # 业务方调用和接收回调时携带的 X-Pay-Token。空着则拒绝下单。
+  token: ""
+  # 公网根地址，渠道回调是 {notify-base-url}/api/pay/notify/{alipay|wechat|bank}
+  notify-base-url: ""
+  return-url: ""
+  alipay:
+    app-id: ""
+    private-key: ""
+    alipay-public-key: ""
+    server-url: https://openapi.alipay.com/gateway.do
+  wechat:
+    app-id: ""
+    mch-id: ""
+    api-v3-key: ""
+    cert-serial-no: ""
+      private-key-path: ""
+      public-key-path: ""
+      public-key-id: ""
+  bank:
+    mer-id: ""
+    sign-cert-path: ""
+    sign-cert-password: ""
+    unionpay-cert-path: ""
+    front-url: https://gateway.95516.com/gateway/api/frontTransReq.do

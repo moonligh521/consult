@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.benefit.infrastructure.persistence.BenefitMapper">
+
+    <update id="ensureProduct">
+        CREATE TABLE IF NOT EXISTS benefit_product (
+            code VARCHAR(32) NOT NULL,
+            name VARCHAR(64) NOT NULL,
+            valid_days INT NOT NULL,
+            status TINYINT NOT NULL,
+            PRIMARY KEY (code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    </update>
+
+    <update id="ensureProductItem">
+        CREATE TABLE IF NOT EXISTS benefit_product_item (
+            product_code VARCHAR(32) NOT NULL,
+            item_code VARCHAR(16) NOT NULL,
+            quantity DECIMAL(12, 2) NOT NULL,
+            PRIMARY KEY (product_code, item_code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    </update>
+
+    <update id="ensureCard">
+        CREATE TABLE IF NOT EXISTS benefit_card (
+            id VARCHAR(64) NOT NULL,
+            account_id VARCHAR(64) NOT NULL,
+            product_code VARCHAR(32) NOT NULL,
+            source_channel VARCHAR(32) NOT NULL,
+            source_ref VARCHAR(64) NOT NULL,
+            status TINYINT NOT NULL,
+            valid_from DATETIME(3) NOT NULL,
+            valid_to DATETIME(3) NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY uk_benefit_card_source (source_channel, source_ref),
+            KEY idx_benefit_card_account (account_id, valid_to)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    </update>
+
+    <update id="ensureBalance">
+        CREATE TABLE IF NOT EXISTS benefit_balance (
+            card_id VARCHAR(64) NOT NULL,
+            item_code VARCHAR(16) NOT NULL,
+            remaining DECIMAL(12, 2) NOT NULL,
+            PRIMARY KEY (card_id, item_code)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    </update>
+
+    <update id="ensureHold">
+        CREATE TABLE IF NOT EXISTS benefit_hold (
+            order_id VARCHAR(64) NOT NULL,
+            account_id VARCHAR(64) NOT NULL,
+            card_id VARCHAR(64) NOT NULL,
+            item_code VARCHAR(16) NOT NULL,
+            hold_count INT NOT NULL,
+            hold_amount DECIMAL(12, 2) NOT NULL,
+            cash_due DECIMAL(12, 2) NOT NULL,
+            catalog_amount DECIMAL(12, 2) NOT NULL,
+            status TINYINT NOT NULL,
+            PRIMARY KEY (order_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    </update>
+
+    <select id="countProduct" resultType="int">
+        SELECT COUNT(*) FROM benefit_product WHERE code = #{code}
+    </select>
+
+    <insert id="upsertProduct">
+        INSERT INTO benefit_product (code, name, valid_days, status)
+        VALUES (#{code}, #{name}, #{validDays}, 1) AS incoming
+        ON DUPLICATE KEY UPDATE
+            name = incoming.name,
+            valid_days = incoming.valid_days,
+            status = 1
+    </insert>
+
+    <delete id="deleteItems">
+        DELETE FROM benefit_product_item WHERE product_code = #{code}
+    </delete>
+
+    <insert id="insertItem">
+        INSERT INTO benefit_product_item (product_code, item_code, quantity)
+        VALUES (#{code}, #{itemCode}, #{quantity})
+    </insert>
+
+    <select id="findProduct" resultType="com.moonligh.benefit.domain.ProductHead">
+        SELECT code, name, valid_days AS validDays
+        FROM benefit_product
+        WHERE code = #{code} AND status = 1
+    </select>
+
+    <select id="findItems" resultType="com.moonligh.benefit.domain.ProductItem">
+        SELECT item_code AS itemCode, quantity
+        FROM benefit_product_item
+        WHERE product_code = #{code}
+        ORDER BY item_code
+    </select>
+
+    <select id="findBySource" resultType="com.moonligh.benefit.domain.Issued">
+        SELECT id AS cardId, account_id AS accountId, product_code AS productCode
+        FROM benefit_card
+        WHERE source_channel = #{channel} AND source_ref = #{sourceRef}
+    </select>
+
+    <insert id="insertCard">
+        INSERT INTO benefit_card
+        (id, account_id, product_code, source_channel, source_ref, status, valid_from, valid_to)
+        VALUES (#{id}, #{accountId}, #{productCode}, #{channel}, #{sourceRef}, 1, #{validFrom}, #{validTo})
+    </insert>
+
+    <insert id="insertBalance">
+        INSERT INTO benefit_balance (card_id, item_code, remaining)
+        VALUES (#{cardId}, #{itemCode}, #{remaining})
+    </insert>
+
+    <select id="findHold" resultType="com.moonligh.benefit.domain.Hold">
+        SELECT order_id, account_id, card_id, item_code, hold_count, hold_amount, cash_due, catalog_amount, status
+        FROM benefit_hold
+        WHERE order_id = #{orderId}
+        FOR UPDATE
+    </select>
+
+    <insert id="insertHold">
+        INSERT INTO benefit_hold
+        (order_id, account_id, card_id, item_code, hold_count, hold_amount, cash_due, catalog_amount, status)
+        VALUES (#{orderId}, #{accountId}, #{cardId}, #{itemCode}, #{holdCount}, #{holdAmount}, #{cashDue}, #{catalogAmount}, #{status})
+    </insert>
+
+    <update id="replaceHold">
+        UPDATE benefit_hold
+        SET account_id = #{accountId}, card_id = #{cardId}, item_code = #{itemCode}, hold_count = #{holdCount},
+            hold_amount = #{holdAmount}, cash_due = #{cashDue}, catalog_amount = #{catalogAmount}, status = #{status}
+        WHERE order_id = #{orderId}
+    </update>
+
+    <delete id="deleteHold">
+        DELETE FROM benefit_hold WHERE order_id = #{orderId}
+    </delete>
+
+    <update id="updateStatus">
+        UPDATE benefit_hold SET status = #{status} WHERE order_id = #{orderId}
+    </update>
+
+    <select id="lockAccount" resultType="com.moonligh.benefit.domain.Bucket">
+        SELECT c.id AS cardId, c.valid_to AS validTo, b.item_code AS itemCode, b.remaining
+        FROM benefit_card c
+        JOIN benefit_balance b ON b.card_id = c.id
+        WHERE c.account_id = #{accountId} AND c.status = 1 AND c.valid_to &gt; #{now}
+        FOR UPDATE
+    </select>
+
+    <update id="take">
+        UPDATE benefit_balance
+        SET remaining = remaining - #{amount}
+        WHERE card_id = #{cardId} AND item_code = #{itemCode} AND remaining &gt;= #{amount}
+    </update>
+
+    <update id="giveBack">
+        UPDATE benefit_balance
+        SET remaining = remaining + #{amount}
+        WHERE card_id = #{cardId} AND item_code = #{itemCode}
+    </update>
+
+    <select id="lines" resultType="com.moonligh.benefit.domain.BenefitLine">
+        SELECT c.id AS cardId, c.product_code AS productCode, b.item_code AS itemCode, b.remaining, c.valid_to AS validTo
+        FROM benefit_card c
+        JOIN benefit_balance b ON b.card_id = c.id
+        WHERE c.account_id = #{accountId} AND c.status = 1 AND c.valid_to &gt; #{now}
+        ORDER BY c.valid_to, c.id, b.item_code
+    </select>
+</mapper>

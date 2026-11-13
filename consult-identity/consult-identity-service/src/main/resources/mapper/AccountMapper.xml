@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.identity.infrastructure.persistence.AccountMapper">
+
+    <resultMap id="personRecord" type="com.moonligh.consult.identity.domain.PersonRecord" autoMapping="false">
+        <constructor>
+            <arg column="id" javaType="java.lang.String"/>
+            <arg column="account_id" javaType="java.lang.String"/>
+            <arg column="name" javaType="java.lang.String"/>
+            <arg column="gender" javaType="com.moonligh.consult.agent.api.enums.Gender"
+                 typeHandler="com.moonligh.consult.identity.infrastructure.persistence.GenderCodeTypeHandler"/>
+            <arg column="age" javaType="_int"/>
+            <arg column="relation" javaType="java.lang.String"/>
+            <arg column="is_default" javaType="_boolean"/>
+            <arg column="updated_at" javaType="java.lang.String"
+                 typeHandler="com.moonligh.consult.identity.infrastructure.persistence.PatientVersionTypeHandler"/>
+            <arg column="updated_at" javaType="java.time.Instant"
+                 typeHandler="com.moonligh.consult.identity.infrastructure.persistence.InstantOrEpochTypeHandler"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="personColumns">
+        SELECT p.id, b.account_id, p.name, p.gender, p.age, b.relation, b.is_default, p.updated_at
+        FROM consult_account_patient b
+        JOIN consult_person p ON p.id = b.person_id AND p.is_deleted = 0
+    </sql>
+
+    <select id="findByMobile" resultType="com.moonligh.consult.identity.domain.AccountRecord">
+        SELECT id, mobile, status FROM consult_account
+        WHERE mobile = #{mobile} AND is_deleted = 0
+    </select>
+
+    <insert id="insert">
+        INSERT INTO consult_account (id, mobile, status, created_at, updated_at, is_deleted)
+        VALUES (#{id}, #{mobile}, 1, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0)
+    </insert>
+
+    <select id="listPersons" resultMap="personRecord">
+        <include refid="personColumns"/>
+        WHERE b.account_id = #{accountId} AND b.is_deleted = 0
+        ORDER BY b.is_default DESC, b.created_at ASC
+    </select>
+
+    <select id="findPerson" resultMap="personRecord">
+        <include refid="personColumns"/>
+        WHERE b.account_id = #{accountId} AND b.person_id = #{personId} AND b.is_deleted = 0
+    </select>
+
+    <select id="countPersons" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM consult_account_patient WHERE account_id = #{accountId} AND is_deleted = 0
+    </select>
+
+    <select id="listAccounts" resultType="com.moonligh.consult.identity.infrastructure.persistence.AccountStore$AccountAdminRow">
+        SELECT a.id, a.mobile, a.status,
+               (SELECT COUNT(*) FROM consult_account_patient b
+                WHERE b.account_id = a.id AND b.is_deleted = 0) AS person_count,
+               DATE_FORMAT(a.created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+        FROM consult_account a
+        WHERE a.is_deleted = 0
+        ORDER BY a.created_at DESC
+        LIMIT 200
+    </select>
+
+    <sql id="adminPersonFrom">
+        SELECT p.id, b.account_id, a.mobile, p.name, p.gender, p.age, b.relation, b.is_default
+        FROM consult_account_patient b
+        JOIN consult_person p ON p.id = b.person_id AND p.is_deleted = 0
+        JOIN consult_account a ON a.id = b.account_id AND a.is_deleted = 0
+        WHERE b.is_deleted = 0
+    </sql>
+
+    <select id="listAllPersons" resultType="com.moonligh.consult.identity.infrastructure.persistence.AccountStore$AdminPersonRow">
+        <include refid="adminPersonFrom"/>
+        ORDER BY b.created_at DESC
+        LIMIT 200
+    </select>
+
+    <select id="listAllPersonsByAccount" resultType="com.moonligh.consult.identity.infrastructure.persistence.AccountStore$AdminPersonRow">
+        <include refid="adminPersonFrom"/>
+        AND b.account_id = #{accountId}
+        ORDER BY b.created_at DESC
+        LIMIT 200
+    </select>
+
+    <insert id="insertPerson">
+        INSERT INTO consult_person (id, name, gender, age, created_at, updated_at, is_deleted)
+        VALUES (#{id}, #{name}, #{gender}, #{age}, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0)
+    </insert>
+
+    <insert id="insertBinding">
+        INSERT INTO consult_account_patient
+        (account_id, person_id, relation, is_default, created_at, updated_at, is_deleted)
+        VALUES (#{accountId}, #{personId}, #{relation}, #{isDefault}, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0)
+    </insert>
+</mapper>

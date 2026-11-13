@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.pay.infrastructure.persistence.PayOrderMapper">
+
+    <update id="ensureTable">
+        CREATE TABLE IF NOT EXISTS pay_order (
+            biz_order_no VARCHAR(64) NOT NULL,
+            channel VARCHAR(16) NOT NULL,
+            amount DECIMAL(12,2) NOT NULL,
+            subject VARCHAR(128) NOT NULL,
+            notify_url VARCHAR(512) NOT NULL,
+            channel_trade_no VARCHAR(64) NOT NULL,
+            status TINYINT NOT NULL,
+            payload MEDIUMTEXT NULL,
+            created_at DATETIME(3) NOT NULL,
+            paid_at DATETIME(3) NULL,
+            PRIMARY KEY (biz_order_no),
+            KEY idx_pay_order_trade (channel_trade_no)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    </update>
+
+    <insert id="upsert">
+        INSERT INTO pay_order (
+            biz_order_no, channel, amount, subject, notify_url, channel_trade_no, status, payload, created_at
+        ) VALUES (
+            #{order.bizOrderNo}, #{order.channel}, #{order.amount}, #{order.subject}, #{order.notifyUrl},
+            #{order.channelTradeNo}, #{order.status}, #{order.payload}, #{createdAt}
+        ) AS incoming
+        ON DUPLICATE KEY UPDATE
+            channel = IF(pay_order.status = 1, pay_order.channel, incoming.channel),
+            amount = IF(pay_order.status = 1, pay_order.amount, incoming.amount),
+            subject = IF(pay_order.status = 1, pay_order.subject, incoming.subject),
+            notify_url = IF(pay_order.status = 1, pay_order.notify_url, incoming.notify_url),
+            channel_trade_no = IF(pay_order.status = 1, pay_order.channel_trade_no, incoming.channel_trade_no),
+            payload = IF(pay_order.status = 1, pay_order.payload, incoming.payload)
+    </insert>
+
+    <select id="find" resultType="com.moonligh.pay.domain.PayOrder">
+        SELECT biz_order_no, channel, amount, subject, notify_url, channel_trade_no, status, payload
+        FROM pay_order
+        WHERE biz_order_no = #{tradeNo} OR channel_trade_no = #{tradeNo} OR REPLACE(biz_order_no, '-', '') = #{tradeNo}
+        LIMIT 1
+    </select>
+
+    <update id="markPaid">
+        UPDATE pay_order
+        SET status = 1, paid_at = COALESCE(paid_at, #{paidAt})
+        WHERE biz_order_no = #{bizOrderNo} AND status = 0
+    </update>
+</mapper>

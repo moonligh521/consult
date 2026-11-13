@@ -1,0 +1,84 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 400
+    spike_limit_mib: 80
+  batch:
+    send_batch_size: 256
+    timeout: 5s
+  attributes/redact:
+    actions:
+      - key: authorization
+        action: delete
+      - key: Authorization
+        action: delete
+      - key: api_key
+        action: delete
+      - key: api-key
+        action: delete
+      - key: patient_name
+        action: delete
+      - key: patientName
+        action: delete
+      - key: name
+        action: delete
+      - key: mobile
+        action: delete
+      - key: phone
+        action: delete
+      - key: id_card
+        action: delete
+      - key: idcard
+        action: delete
+  filter/drop_sensitive:
+    error_mode: ignore
+    traces:
+      span:
+        - attributes["http.request.header.authorization"] != nil
+  # 0.136 没有 HasAttrKeyOnSpan。用服务名 + span 名白名单。
+  # 只留 consult-registration-agent 的发消息 / 改卡 / 绑就诊人，以及 agent.*。
+  filter/langfuse_session:
+    error_mode: ignore
+    traces:
+      span:
+        - 'resource.attributes["service.name"] != "consult-registration"'
+        - 'not IsMatch(name, "^agent\\.") and not IsMatch(name, "consultations/messages") and not IsMatch(name, "consultations/patient") and not IsMatch(name, "consultations/card")'
+
+exporters:
+  otlphttp/langfuse:
+    endpoint: http://langfuse-web:3000/api/public/otel
+    headers:
+      Authorization: Basic cGstbGYtY29uc3VsdDpzay1sZi1jb25zdWx0
+    timeout: 5s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 10s
+      max_elapsed_time: 30s
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+      num_consumers: 2
+  debug:
+    verbosity: basic
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes/redact, filter/drop_sensitive, filter/langfuse_session, batch]
+      exporters: [otlphttp/langfuse]
+  telemetry:
+    logs:
+      level: warn

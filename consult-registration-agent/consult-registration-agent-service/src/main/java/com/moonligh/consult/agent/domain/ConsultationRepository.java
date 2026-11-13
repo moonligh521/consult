@@ -1,0 +1,55 @@
+package com.moonligh.consult.agent.domain;
+
+import java.time.Instant;
+import java.util.List;
+
+import com.moonligh.consult.agent.api.res.ConsultationRecordRes;
+import com.moonligh.consult.agent.api.res.ConsultationRes;
+
+/**
+ * 咨询会话的存取。
+ * 同一咨询编号的请求必须排队，避免两条消息互相覆盖安全状态。
+ */
+public interface ConsultationRepository {
+
+    /**
+     * 按编号取出会话并加锁，办完 action 再保存、解锁。
+     * 编号为空则新建一轮。找不到已有编号则抛 1101。
+     * action 里抛出的业务错误会在保存之后再抛出，避免原话回滚丢失。
+     */
+    ConsultationRes runLocked(String consultationId, SessionAction action);
+
+    /**
+     * 预占一个新咨询编号，不落库。锁外预演和锁内提交共用这个编号；空行在锁内事务里插入。
+     */
+    String reserveNew();
+
+    /** 不加锁读出会话。找不到返回 null。 */
+    ConsultationSession get(String consultationId);
+
+    /** 当前账号一年窗口内的记录，按最近更新倒序。 */
+    List<ConsultationRecordRes> listMine(String accountId, Instant from, int offset, int limit);
+
+    long countMine(String accountId, Instant from);
+
+    /** 已支付还没医生的单，按支付时间先进先出。 */
+    List<MatchQueue.Entry> listUnmatchedPaid(int limit);
+
+    /**
+     * 这个账号在 since 之后发过同样的原话。用来把连点收成同一轮咨询。
+     * 没有返回 null。
+     */
+    String findRecentOpening(String accountId, String text, Instant since);
+
+    /** 按订单号找回咨询。微信的商户单号不带横线，两种都认。找不到返回 null。 */
+    String consultationIdOfOrder(String orderId);
+
+    /** 还没对齐的权益单。内存库按进程内标记过滤。 */
+    default List<BenefitLedgerRow> listBenefitLedger(int limit) {
+        return List.of();
+    }
+
+    /** 确认或退回已经成功。之后对账不再选这笔。 */
+    default void markBenefitSettled(String orderId) {
+    }
+}

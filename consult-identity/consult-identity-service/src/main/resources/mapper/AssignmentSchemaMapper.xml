@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.identity.infrastructure.persistence.AssignmentSchemaMapper">
+
+    <select id="countColumn" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = #{table} AND COLUMN_NAME = #{name}
+    </select>
+
+    <update id="addDoctorIdleSince">
+        ALTER TABLE consult_doctor ADD COLUMN idle_since DATETIME(3) NULL COMMENT '进入当前在手单数层的时间'
+    </update>
+
+    <update id="addDoctorLastBeat">
+        ALTER TABLE consult_doctor ADD COLUMN last_beat DATETIME(3) NULL COMMENT '最近一次心跳'
+    </update>
+
+    <update id="addDoctorPresence">
+        ALTER TABLE consult_doctor ADD COLUMN presence TINYINT NOT NULL DEFAULT 0 COMMENT '1在线 0下线'
+    </update>
+
+    <update id="createOutbox">
+        CREATE TABLE IF NOT EXISTS consult_assignment_outbox (
+            order_id         VARCHAR(64)  NOT NULL COMMENT '订单号，幂等键',
+            consultation_id  VARCHAR(64)  NULL     COMMENT '咨询编号',
+            doctor_id        VARCHAR(64)  NOT NULL COMMENT '派到的医生',
+            specialty        VARCHAR(32)  NULL     COMMENT '二级科',
+            schedule_id      VARCHAR(64)  NULL     COMMENT '排班',
+            status           TINYINT      NOT NULL DEFAULT 0 COMMENT '0待发 1已发 2发送中',
+            claim_token      VARCHAR(64)  NULL     COMMENT '本批领取令牌',
+            claimed_at       DATETIME(3)  NULL     COMMENT '领走时间',
+            created_at       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '写入时间',
+            sent_at          DATETIME(3)  NULL     COMMENT '发送成功时间',
+            PRIMARY KEY (order_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='派单通知'
+    </update>
+
+    <update id="addOutboxClaimToken">
+        ALTER TABLE consult_assignment_outbox ADD COLUMN claim_token VARCHAR(64) NULL COMMENT '本批领取令牌'
+    </update>
+
+    <update id="addOutboxClaimedAt">
+        ALTER TABLE consult_assignment_outbox ADD COLUMN claimed_at DATETIME(3) NULL COMMENT '领走时间'
+    </update>
+
+    <update id="createInbox">
+        CREATE TABLE IF NOT EXISTS consult_doctor_inbox (
+            order_id         VARCHAR(64)  NOT NULL COMMENT '订单号，消费幂等键',
+            consultation_id  VARCHAR(64)  NULL     COMMENT '咨询编号',
+            doctor_id        VARCHAR(64)  NOT NULL COMMENT '医生',
+            specialty        VARCHAR(32)  NULL     COMMENT '二级科',
+            schedule_id      VARCHAR(64)  NULL     COMMENT '排班',
+            created_at       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '入箱时间',
+            PRIMARY KEY (order_id),
+            KEY idx_consult_doctor_inbox_doctor (doctor_id, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='医生待接'
+    </update>
+</mapper>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.agent.infrastructure.persistence.OrderBenefitSchemaMapper">
+
+    <select id="columnCount" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'consult_order' AND column_name = #{column}
+    </select>
+
+    <update id="addBenefitAmount">
+        ALTER TABLE consult_order ADD COLUMN benefit_amount DECIMAL(10,2) NOT NULL DEFAULT 0 COMMENT '权益抵掉的金额' AFTER discount_amount
+    </update>
+
+    <update id="addBenefitCardId">
+        ALTER TABLE consult_order ADD COLUMN benefit_card_id VARCHAR(64) NULL COMMENT '本次使用的权益卡' AFTER benefit_amount
+    </update>
+
+    <update id="addBenefitReady">
+        ALTER TABLE consult_order ADD COLUMN benefit_ready TINYINT NOT NULL DEFAULT 0 COMMENT '1表示已经向权益服务预占过' AFTER benefit_card_id
+    </update>
+
+    <update id="addBenefitSettled">
+        ALTER TABLE consult_order ADD COLUMN benefit_settled TINYINT NOT NULL DEFAULT 0 COMMENT '1表示预占已经确认或退回' AFTER benefit_ready
+    </update>
+</mapper>

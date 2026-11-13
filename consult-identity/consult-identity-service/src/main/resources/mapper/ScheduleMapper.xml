@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.identity.infrastructure.persistence.ScheduleMapper">
+
+    <sql id="scheduleFrom">
+        SELECT s.id, s.doctor_id, d.name AS doctor_name, d.specialty, s.visit_date, s.weekday,
+               s.period, s.start_time, s.end_time, s.visit_type, s.limit_num, s.remain_num, s.stopped
+        FROM consult_schedule s
+        JOIN consult_doctor d ON d.id = s.doctor_id AND d.is_deleted = 0
+    </sql>
+
+    <select id="listByDoctorAndRange" resultType="com.moonligh.consult.identity.api.ScheduleAdminRes">
+        <include refid="scheduleFrom"/>
+        WHERE s.is_deleted = 0
+          AND s.doctor_id = #{doctorId} AND s.visit_date BETWEEN #{from} AND #{to}
+        ORDER BY s.visit_date, s.start_time
+    </select>
+
+    <select id="listByDoctor" resultType="com.moonligh.consult.identity.api.ScheduleAdminRes">
+        <include refid="scheduleFrom"/>
+        WHERE s.is_deleted = 0
+          AND s.doctor_id = #{doctorId}
+        ORDER BY s.visit_date, s.start_time
+        LIMIT 200
+    </select>
+
+    <select id="listByRange" resultType="com.moonligh.consult.identity.api.ScheduleAdminRes">
+        <include refid="scheduleFrom"/>
+        WHERE s.is_deleted = 0
+          AND s.visit_date BETWEEN #{from} AND #{to}
+        ORDER BY s.visit_date, s.start_time
+        LIMIT 300
+    </select>
+
+    <select id="listUpcoming" resultType="com.moonligh.consult.identity.api.ScheduleAdminRes">
+        <include refid="scheduleFrom"/>
+        WHERE s.is_deleted = 0
+          AND s.visit_date &gt;= CURDATE()
+        ORDER BY s.visit_date, s.start_time
+        LIMIT 200
+    </select>
+
+    <select id="find" resultType="com.moonligh.consult.identity.api.ScheduleAdminRes">
+        <include refid="scheduleFrom"/>
+        WHERE s.id = #{id} AND s.is_deleted = 0
+    </select>
+
+    <insert id="insert">
+        INSERT INTO consult_schedule
+        (id, doctor_id, visit_date, weekday, period, start_time, end_time, visit_type,
+         limit_num, remain_num, stopped, created_at, updated_at, is_deleted)
+        VALUES (#{id}, #{doctorId}, #{visitDate}, #{weekday}, #{period}, #{startTime}, #{endTime}, #{visitType},
+                #{limitNum}, #{remainNum}, 0, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0)
+    </insert>
+
+    <select id="findSlot" resultType="com.moonligh.consult.identity.api.ScheduleAdminRes">
+        <include refid="scheduleFrom"/>
+        WHERE s.doctor_id = #{doctorId} AND s.visit_date = #{visitDate} AND s.period = #{period} AND s.is_deleted = 0
+    </select>
+
+    <update id="stop">
+        UPDATE consult_schedule SET stopped = #{stopped}, updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{id} AND is_deleted = 0
+    </update>
+
+    <update id="delete">
+        UPDATE consult_schedule SET is_deleted = UNIX_TIMESTAMP(), updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{id} AND is_deleted = 0
+    </update>
+</mapper>

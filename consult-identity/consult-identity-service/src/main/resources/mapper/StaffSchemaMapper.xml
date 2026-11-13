@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.identity.infrastructure.persistence.StaffSchemaMapper">
+
+    <select id="countDoctorIdColumn" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM information_schema.columns
+        WHERE table_schema = DATABASE() AND table_name = 'consult_staff' AND column_name = 'doctor_id'
+    </select>
+
+    <update id="addDoctorIdColumn">
+        ALTER TABLE consult_staff ADD COLUMN doctor_id VARCHAR(64) NULL COMMENT '绑定的医生。空则不能回复、不能心跳' AFTER name
+    </update>
+</mapper>

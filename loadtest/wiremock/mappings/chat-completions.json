@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/chat/completions"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "choices": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": "{\"signals\":[],\"unresolved_ambiguity\":false,\"terms\":[]}"
+          }
+        }
+      ]
+    },
+    "delayDistribution": {
+      "type": "lognormal",
+      "median": 1200,
+      "sigma": 0.4
+    }
+  }
+}

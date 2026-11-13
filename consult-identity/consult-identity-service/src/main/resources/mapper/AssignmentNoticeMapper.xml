@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.identity.infrastructure.persistence.AssignmentNoticeMapper">
+
+    <insert id="insertOutbox">
+        INSERT INTO consult_assignment_outbox
+        (order_id, consultation_id, doctor_id, specialty, schedule_id, status, created_at)
+        VALUES (#{orderId}, #{consultationId}, #{doctorId}, #{specialty}, #{scheduleId}, 0, CURRENT_TIMESTAMP(3))
+    </insert>
+
+    <insert id="insertInbox">
+        INSERT INTO consult_doctor_inbox
+        (order_id, consultation_id, doctor_id, specialty, schedule_id, created_at)
+        VALUES (#{orderId}, #{consultationId}, #{doctorId}, #{specialty}, #{scheduleId}, CURRENT_TIMESTAMP(3))
+    </insert>
+
+    <update id="releaseStaleClaims">
+        UPDATE consult_assignment_outbox
+        SET status = 0, claim_token = NULL, claimed_at = NULL
+        WHERE status = 2
+          AND claimed_at &lt; DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 60 SECOND)
+    </update>
+
+    <update id="claimPending">
+        UPDATE consult_assignment_outbox
+        SET status = 2, claim_token = #{token}, claimed_at = CURRENT_TIMESTAMP(3)
+        WHERE status = 0
+        ORDER BY created_at
+        LIMIT #{size}
+    </update>
+
+    <select id="listClaimed" resultType="com.moonligh.consult.identity.domain.AssignmentNoticeStore$PendingNotice">
+        SELECT order_id, consultation_id, doctor_id, specialty, schedule_id
+        FROM consult_assignment_outbox
+        WHERE status = 2 AND claim_token = #{token}
+        ORDER BY created_at
+    </select>
+
+    <update id="releaseStaleClaim">
+        UPDATE consult_assignment_outbox
+        SET status = 0, claim_token = NULL, claimed_at = NULL
+        WHERE order_id = #{orderId} AND status = 2
+          AND claimed_at &lt; DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL 60 SECOND)
+    </update>
+
+    <update id="claimOne">
+        UPDATE consult_assignment_outbox
+        SET status = 2, claim_token = #{token}, claimed_at = CURRENT_TIMESTAMP(3)
+        WHERE order_id = #{orderId} AND status = 0
+    </update>
+
+    <select id="findClaimed" resultType="com.moonligh.consult.identity.domain.AssignmentNoticeStore$PendingNotice">
+        SELECT order_id, consultation_id, doctor_id, specialty, schedule_id
+        FROM consult_assignment_outbox
+        WHERE order_id = #{orderId} AND status = 2 AND claim_token = #{token}
+    </select>
+
+    <update id="markSent">
+        UPDATE consult_assignment_outbox
+        SET status = 1, claim_token = NULL, sent_at = CURRENT_TIMESTAMP(3)
+        WHERE order_id = #{orderId} AND status &lt;&gt; 1
+    </update>
+
+    <update id="releaseClaim">
+        UPDATE consult_assignment_outbox
+        SET status = 0, claim_token = NULL, claimed_at = NULL
+        WHERE order_id = #{orderId} AND status = 2
+    </update>
+
+    <select id="inbox" resultType="com.moonligh.consult.identity.domain.AssignmentNoticeStore$PendingNotice">
+        SELECT order_id, consultation_id, doctor_id, specialty, schedule_id
+        FROM consult_doctor_inbox
+        WHERE doctor_id = #{doctorId}
+        ORDER BY created_at DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

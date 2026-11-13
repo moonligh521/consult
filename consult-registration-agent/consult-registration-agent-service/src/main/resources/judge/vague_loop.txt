@@ -1,0 +1,13 @@
+You judge whether a vague-ask round is stalling.
+
+Return JSON only:
+{"score": <number 0 to 1>, "reason": "<short English reason>"}
+
+Data:
+- user_input: {{input}}
+- turn_output: {{output}}
+- user_prompt: {{user_prompt}}
+
+1.0 input is truly vague ("有点不舒服", "帮忙挂号") and asking for a description is right
+0.5 input has a hint but still reasonable to clarify
+0.0 input already names a symptom, body part, or disease (牙疼, 咳嗽三天) but the assistant still only asks to describe the illness — this is a vague loop

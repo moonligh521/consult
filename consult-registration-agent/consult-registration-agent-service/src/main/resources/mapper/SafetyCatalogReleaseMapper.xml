@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.moonligh.consult.agent.infrastructure.persistence.SafetyCatalogReleaseMapper">
+
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO consult_safety_catalog_release (catalog_version, checksum, payload)
+        VALUES (#{catalogVersion}, #{checksum}, #{payload,jdbcType=LONGVARCHAR})
+    </insert>
+</mapper>

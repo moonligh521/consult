@@ -1,0 +1,194 @@
+# 单独文件，不要合并进业务 compose。
+# 部署步骤见 docs/观测/离线镜像打包与部署.md
+#   docker compose -f observability-compose.yml up -d
+# 同目录必须有 otel-collector.yml（必须是文件，不能是空目录）。
+# 登录 Langfuse：http://117.72.43.169:3000  账号 ops@consult.local / LfAdmin2026Consult
+
+version: "3.8"
+
+name: consult-observability
+
+networks:
+  ai-net:
+    name: ai-net
+    driver: bridge
+
+volumes:
+  langfuse_postgres_data:
+  langfuse_clickhouse_data:
+  langfuse_clickhouse_logs:
+  langfuse_redis_data:
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 20m
+    max-file: "5"
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.136.0
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      LANGFUSE_OTEL_AUTH: Basic cGstbGYtY29uc3VsdDpzay1sZi1jb25zdWx0
+    volumes:
+      - ./otel-collector.yml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4318:4318"
+    networks:
+      - ai-net
+    depends_on:
+      langfuse-web:
+        condition: service_healthy
+    # 0.136 镜像是 distroless：没有 wget/shell，Docker 探活会一直 unhealthy。
+    # 进程是否活着看 restart + 4318；扩展 health_check 仍在 collector 配置里，给以后 K8s 探活用。
+    healthcheck:
+      disable: true
+    mem_limit: 512m
+    cpus: 1.0
+    logging: *default-logging
+
+  langfuse-worker:
+    image: docker.langfuse.com/langfuse/langfuse-worker:3.117.0
+    restart: unless-stopped
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    environment: &langfuse-env
+      NEXTAUTH_URL: http://117.72.43.169:3000
+      NEXTAUTH_SECRET: "LfNa2026ConsultSecretKey32b!"
+      DATABASE_URL: postgresql://langfuse:LfPg2026Consult@langfuse-postgres:5432/langfuse
+      SALT: LfSalt2026Consult
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      TELEMETRY_ENABLED: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: LfCh2026Consult
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: "6379"
+      REDIS_AUTH: LfRd2026Consult
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: admin
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: "sxzc_28!@#TYU"
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://154.8.236.238:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: admin
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: "sxzc_28!@#TYU"
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://154.8.236.238:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+    networks:
+      - ai-net
+    mem_limit: 1g
+    cpus: 1.0
+    logging: *default-logging
+
+  langfuse-web:
+    image: docker.langfuse.com/langfuse/langfuse:3.117.0
+    restart: unless-stopped
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      <<: *langfuse-env
+      LANGFUSE_INIT_ORG_ID: consult
+      LANGFUSE_INIT_ORG_NAME: consult
+      LANGFUSE_INIT_PROJECT_ID: consult-agent
+      LANGFUSE_INIT_PROJECT_NAME: consult-agent
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-consult
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-consult
+      LANGFUSE_INIT_USER_EMAIL: ops@consult.local
+      LANGFUSE_INIT_USER_NAME: ops
+      LANGFUSE_INIT_USER_PASSWORD: LfAdmin2026Consult
+    networks:
+      - ai-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/api/public/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 120s
+    mem_limit: 1g
+    cpus: 1.0
+    logging: *default-logging
+
+  clickhouse:
+    image: docker.io/clickhouse/clickhouse-server:26.3.62.3
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: LfCh2026Consult
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    networks:
+      - ai-net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8123/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 4g
+    cpus: 2.0
+    logging: *default-logging
+
+  langfuse-redis:
+    image: docker.io/redis:7.4.2
+    restart: unless-stopped
+    command: >
+      --requirepass LfRd2026Consult
+      --maxmemory-policy noeviction
+    volumes:
+      - langfuse_redis_data:/data
+    networks:
+      - ai-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "LfRd2026Consult", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *default-logging
+
+  langfuse-postgres:
+    image: docker.io/postgres:17.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: LfPg2026Consult
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    networks:
+      - ai-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 1g
+    cpus: 1.0
+    logging: *default-logging

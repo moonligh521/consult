@@ -1,0 +1,33 @@
+{
+  "catalogVersion": "test-ambiguity",
+  "effectiveFrom": "2026-10-21",
+  "templates": [
+    {"id": "URGENT-DEFAULT", "text": "请立即拨打 120，或前往最近的实体医院急诊。", "reviewStatus": "BASELINE"},
+    {"id": "HUMAN-DEFAULT", "text": "请转人工协助。当前无法自动完成导诊。", "reviewStatus": "BASELINE"},
+    {"id": "FALLBACK-DEFAULT", "text": "系统暂时无法完成安全分流，请转人工协助，或前往医疗机构就诊。", "reviewStatus": "DRAFT"},
+    {"id": "UNSUITABLE-DEFAULT", "text": "当前渠道不适用。", "reviewStatus": "DRAFT"}
+  ],
+  "rules": [
+    {
+      "ruleId": "URG-TEST-AMBIG-001",
+      "ruleVersion": "1.0.0",
+      "status": "APPROVED",
+      "clinicalCategory": "急性胸痛",
+      "signal": "chest_pain",
+      "aliases": ["胸痛"],
+      "requiredContext": [],
+      "exclusionConditions": [],
+      "negatedPolicy": "SUPPRESS",
+      "uncertaintyPolicy": "UNDETERMINED",
+      "resolvedPolicy": "SUPPRESS",
+      "missingContextPolicy": "UNDETERMINED",
+      "disposition": "URGENT",
+      "patientMessageTemplateId": "URGENT-DEFAULT",
+      "positiveCases": ["胸痛两小时"],
+      "negativeCases": ["没有胸痛"],
+      "clinicalReviewer": "tester",
+      "reviewDate": "2026-10-21",
+      "evidenceReference": "SF-22"
+    }
+  ]
+}
