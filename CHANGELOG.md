@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-18
+
 ### Added
 
 - 咨询安全分流拆成紧急程度和渠道两个维度；对外追加状态 7、8 和错误码 1111～1114。
@@ -18,6 +20,7 @@
 - 收款和权益按 `controller`、`service`、`domain`、`infrastructure` 拆包。接口路径不变。
 - 医生回复归档到临床数据仓库时按平台 `Result` 判断成败。归档失败使用 `3102`。
 - 发布线由 `main` 改为 `master`。
+- 工程与患者/接诊台前端版本统一为 `1.0.0`；对齐 `platform-bom` `1.0.0`。
 
 ## [V0.1.0] - 2026-10-21
 
@@ -59,5 +62,6 @@
 - 按导诊槽位、咨询卡片、号源层级和事务消息收紧功能范围。
 - GitHub 仓库由 `registration-assistant` 更名为 `consult`。
 
-[Unreleased]: https://github.com/moonligh521/consult/compare/V0.1.0...HEAD
+[Unreleased]: https://github.com/moonligh521/consult/compare/1.0.0...HEAD
+[1.0.0]: https://github.com/moonligh521/consult/compare/V0.1.0...1.0.0
 [V0.1.0]: https://github.com/moonligh521/consult/releases/tag/V0.1.0
